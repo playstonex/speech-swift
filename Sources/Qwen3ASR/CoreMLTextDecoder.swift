@@ -219,6 +219,7 @@ public class CoreMLTextDecoder {
         var maxIdx: Int32 = 0
 
         switch logits.dataType {
+        #if !os(macOS)
         case .float16:
             let ptr = logits.dataPointer.assumingMemoryBound(to: Float16.self)
             for i in 0..<count {
@@ -228,6 +229,7 @@ public class CoreMLTextDecoder {
                     maxIdx = Int32(i)
                 }
             }
+        #endif
         case .float32:
             let ptr = logits.dataPointer.assumingMemoryBound(to: Float.self)
             for i in 0..<count {

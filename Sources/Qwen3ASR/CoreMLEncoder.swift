@@ -190,11 +190,13 @@ public class CoreMLASREncoder {
         let count = array.count
 
         switch array.dataType {
+        #if !os(macOS)
         case .float16:
             let src = array.dataPointer.assumingMemoryBound(to: Float16.self)
             var floats = [Float](repeating: 0, count: count)
             for i in 0..<count { floats[i] = Float(src[i]) }
             return MLXArray(floats, shape)
+        #endif
         case .float32:
             let src = array.dataPointer.assumingMemoryBound(to: Float.self)
             return MLXArray(Array(UnsafeBufferPointer(start: src, count: count)), shape)
