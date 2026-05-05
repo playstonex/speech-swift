@@ -33,7 +33,8 @@ public class ParakeetASRModel {
     /// fixed-shape exports (e.g. iOS-5s = `[500]`) and enumerated-shape
     /// exports (e.g. macOS = `[100, 200, 300, 400, 500, 750, 1000, 1500,
     /// 2000, 3000]`) both work without any per-variant Swift logic.
-    private let supportedMelLengths: [Int]
+    /// Internal access so tests can assert discovery results.
+    let supportedMelLengths: [Int]
     /// Confidence from the last transcription (0.0–1.0).
     public private(set) var lastConfidence: Float = 0
     /// Per-word confidence scores from the last transcription.
