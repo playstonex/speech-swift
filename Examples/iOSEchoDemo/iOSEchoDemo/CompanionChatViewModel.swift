@@ -15,7 +15,6 @@ final class AppleTTSModel: NSObject, SpeechGenerationModel, AVSpeechSynthesizerD
     var sampleRate: Int { 24000 }
     private let synthesizer = AVSpeechSynthesizer()
     private var continuation: CheckedContinuation<[Float], Error>?
-    private var watchdog: Task<Void, Never>?
 
     override init() {
         super.init()
@@ -26,29 +25,13 @@ final class AppleTTSModel: NSObject, SpeechGenerationModel, AVSpeechSynthesizerD
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: language ?? "en-US")
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-
         return try await withCheckedThrowingContinuation { cont in
             self.continuation = cont
             synthesizer.speak(utterance)
-            // Watchdog — if `didFinish`/`didCancel` never fire (audio
-            // session glitches, simulator quirks), the upstream pipeline
-            // would otherwise stay in `isGenerating` forever and the mic
-            // gate would permanently mute. Resume after 15 s with empty
-            // samples so the rest of the pipeline can recover.
-            self.watchdog?.cancel()
-            self.watchdog = Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 15_000_000_000)
-                if let cont = self?.continuation {
-                    self?.continuation = nil
-                    cont.resume(returning: [Float](repeating: 0, count: 2400))
-                }
-            }
         }
     }
 
     private func finish() {
-        watchdog?.cancel()
-        watchdog = nil
         // AVSpeechSynthesizer plays audio directly — return empty samples
         // since the pipeline doesn't need to play them via StreamingAudioPlayer.
         continuation?.resume(returning: [Float](repeating: 0, count: 2400))
@@ -59,6 +42,8 @@ final class AppleTTSModel: NSObject, SpeechGenerationModel, AVSpeechSynthesizerD
         finish()
     }
 
+    /// Audio session interruption / explicit cancel — also resume so the
+    /// upstream pipeline doesn't stay in `isGenerating` forever.
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         finish()
     }
@@ -219,8 +204,8 @@ final class CompanionChatViewModel {
         // user has to repeat. Lower the onset threshold so VAD triggers
         // on quieter speech; the isGenerating gate above already prevents
         // false positives during TTS playback.
-        config.vadOnset = 0.3
-        config.vadOffset = 0.2
+        config.vadOnset = 0.2
+        config.vadOffset = 0.15
 
         pipeline = VoicePipeline(
             stt: stt,
