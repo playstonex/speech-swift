@@ -117,7 +117,7 @@ public class Qwen3ASRModel {
             let shape = audioEmbeds.shape
             return "[Audio encoded: \(shape)] - Text decoder not loaded"
         }
-        return generateText(
+        let result = generateText(
             audioEmbeds: audioEmbeds,
             textDecoder: textDecoder,
             language: options.language,
@@ -125,6 +125,8 @@ public class Qwen3ASRModel {
             context: options.context,
             decodingOptions: options
         )
+        Memory.clearCache()
+        return result
     }
 
     /// Transcribe audio to text
@@ -154,13 +156,15 @@ public class Qwen3ASRModel {
         }
 
         // Generate text using the text decoder
-        return generateText(
+        let result = generateText(
             audioEmbeds: audioEmbeds,
             textDecoder: textDecoder,
             language: language,
             maxTokens: maxTokens,
             context: context
         )
+        Memory.clearCache()
+        return result
     }
 
     /// Generate text from audio embeddings.
@@ -252,6 +256,8 @@ public class Qwen3ASRModel {
         // First pass: process the full input embeddings
         var (hiddenStates, newCache) = textDecoder(inputsEmbeds: inputEmbeds, cache: cache)
         cache = newCache
+
+        eval(hiddenStates)
 
         // Get logits from the last position using embedding as LM head (tied weights)
         let seqLen = hiddenStates.dim(1)
