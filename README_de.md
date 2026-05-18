@@ -8,6 +8,15 @@ Spracherkennung, -synthese und -verständnis auf dem Gerät für Mac und iOS. L�
 
 **[📚 Vollständige Dokumentation →](https://soniqo.audio/de)** · **[🤗 HuggingFace-Modelle](https://huggingface.co/aufklarer)** · **[📝 Blog](https://blog.ivan.digital)** · **[💬 Discord](https://discord.gg/TnCryqEMgu)**
 
+<p align="center">
+  <a href="https://youtu.be/x9zgcaW0gUk">
+    <img src="https://img.youtube.com/vi/x9zgcaW0gUk/maxresdefault.jpg" width="640" alt="Lokale Sprach-KI auf einem MacBook — die vierminütige Tour durch die Open-Source-Bibliothek auf YouTube ansehen">
+  </a>
+</p>
+<p align="center"><em>Lokale Sprach-KI auf einem MacBook — die vierminütige Tour durch die Open-Source-Bibliothek auf YouTube ansehen</em></p>
+
+**Anwendungsfälle:** [Sprachagenten](https://soniqo.audio/de/voice-agents) · [Transkription](https://soniqo.audio/de/transcription) · [Sprachsynthese](https://soniqo.audio/de/speech-generation)
+
 - **[Qwen3-ASR](https://soniqo.audio/de/guides/transcribe)** — Sprache-zu-Text (automatische Spracherkennung, 52 Sprachen, MLX + CoreML)
 - **[Parakeet TDT](https://soniqo.audio/de/guides/parakeet)** — Sprache-zu-Text über CoreML (Neural Engine, NVIDIA FastConformer + TDT-Decoder, 25 Sprachen)
 - **[Omnilingual ASR](https://soniqo.audio/de/guides/omnilingual)** — Sprache-zu-Text (Meta wav2vec2 + CTC, **1.672 Sprachen** in 32 Schriften, CoreML 300M + MLX 300M/1B/3B/7B)
@@ -16,6 +25,7 @@ Spracherkennung, -synthese und -verständnis auf dem Gerät für Mac und iOS. L�
 - **[Qwen3-ForcedAligner](https://soniqo.audio/de/guides/align)** — Wortgenaue Zeitstempel-Zuordnung (Audio + Text → Zeitstempel)
 - **[Qwen3-TTS](https://soniqo.audio/de/guides/speak)** — Sprachsynthese (höchste Qualität, Streaming, benutzerdefinierte Sprecher, 10 Sprachen)
 - **[CosyVoice TTS](https://soniqo.audio/de/guides/cosyvoice)** — Streaming-TTS mit Stimmklonen, Mehrsprecherdialog, Emotions-Tags (9 Sprachen)
+- **[VoxCPM2](https://soniqo.audio/de/speech-generation)** — 48-kHz-Studio-TTS mit Stimmklonen und sprachbeschreibungsgesteuertem Voice Design (2B, MLX bf16/int8/int4, 30 Sprachen)
 - **[Kokoro TTS](https://soniqo.audio/de/guides/kokoro)** — TTS auf dem Gerät (82M, CoreML/Neural Engine, 54 Stimmen, iOS-tauglich, 10 Sprachen)
 - **[VibeVoice TTS](https://soniqo.audio/de/guides/vibevoice)** — Langform-/Multi-Speaker-TTS (Microsoft VibeVoice Realtime-0.5B + 1.5B, MLX, bis zu 90 Min. Podcast-/Hörbuch-Synthese, EN/ZH)
 - **[Qwen3.5-Chat](https://soniqo.audio/de/guides/chat)** — LLM-Chat auf dem Gerät (0.8B, MLX INT4 + CoreML INT8, DeltaNet-Hybrid, Token-Streaming)
@@ -96,7 +106,7 @@ struct DictateView: View {
 
 `SpeechUI` liefert nur `TranscriptionView` (finale + partielle Ergebnisse) und `TranscriptionStore` (Streaming-ASR-Adapter). Verwende AVFoundation für Audio-Visualisierung und Wiedergabe.
 
-Verfügbare SPM-Produkte: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `PersonaPlex`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
+Verfügbare SPM-Produkte: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `PersonaPlex`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
 
 ## Modelle
 
@@ -112,6 +122,7 @@ Kompakte Übersicht unten. **[Vollständiger Modellkatalog mit Größen, Quantis
 | [Qwen3-ForcedAligner](https://soniqo.audio/de/guides/align) | Audio + Text → Zeitstempel | MLX, CoreML | 0.6B | Multi |
 | [Qwen3-TTS](https://soniqo.audio/de/guides/speak) | Text → Sprache | MLX, CoreML | 0.6B, 1.7B | 10 |
 | [CosyVoice3](https://soniqo.audio/de/guides/cosyvoice) | Text → Sprache | MLX | 0.5B | 9 |
+| [VoxCPM2](https://soniqo.audio/de/speech-generation) | Text → Sprache (48 kHz, Voice Design + Klonen) | MLX | 2B (bf16/int8/int4) | 30 |
 | [Kokoro-82M](https://soniqo.audio/de/guides/kokoro) | Text → Sprache | CoreML (ANE) | 82M | 10 |
 | [VibeVoice Realtime-0.5B](https://soniqo.audio/de/guides/vibevoice) | Text → Sprache (Langform, Multi-Speaker) | MLX | 0.5B | EN/ZH |
 | [VibeVoice 1.5B](https://soniqo.audio/de/guides/vibevoice) | Text → Sprache (bis zu 90 Min. Podcast) | MLX | 1.5B | EN/ZH |
@@ -132,18 +143,17 @@ Kompakte Übersicht unten. **[Vollständiger Modellkatalog mit Größen, Quantis
 Erfordert natives ARM-Homebrew (`/opt/homebrew`). Rosetta/x86_64-Homebrew wird nicht unterstützt.
 
 ```bash
-brew tap soniqo/speech https://github.com/soniqo/speech-swift
-brew install speech
+brew install soniqo/tap/speech
 ```
 
 Dann:
 
 ```bash
-audio transcribe recording.wav
-audio speak "Hello world"
-audio translate "Hello, how are you?" --to es
-audio respond --input question.wav --transcript
-audio-server --port 8080            # lokaler HTTP/WebSocket-Server (OpenAI-kompatibles /v1/realtime)
+speech transcribe recording.wav
+speech speak "Hello world"
+speech translate "Hello, how are you?" --to es
+speech respond --input question.wav --transcript
+speech-server --port 8080            # lokaler HTTP/WebSocket-Server (OpenAI-kompatibles /v1/realtime)
 ```
 
 **[Vollständige CLI-Referenz →](https://soniqo.audio/de/cli)**
@@ -166,6 +176,7 @@ import NemotronStreamingASR // Englisches Streaming-ASR mit nativer Interpunktio
 import OmnilingualASR       // 1.672 Sprachen (CoreML + MLX)
 import Qwen3TTS             // Sprachsynthese
 import CosyVoiceTTS         // Sprachsynthese mit Stimmklonen
+import VoxCPM2TTS           // 48-kHz-TTS, Stimmklonen + Voice Design (2B)
 import KokoroTTS            // Sprachsynthese (iOS-tauglich)
 import VibeVoiceTTS         // Langform-/Multi-Speaker-TTS (EN/ZH)
 import Qwen3Chat            // LLM-Chat auf dem Gerät
@@ -310,7 +321,7 @@ let denoiser = try await DeepFilterNet3Model.fromPretrained()
 let clean = try denoiser.enhance(audio: noisySamples, sampleRate: 48000)
 ```
 
-### Voice Pipeline (ASR → LLM → TTS) — [vollständige Anleitung →](https://soniqo.audio/de/api)
+### Voice Pipeline (ASR → LLM → TTS) — [vollständige Anleitung →](https://soniqo.audio/de/voice-agents)
 
 ```swift
 import SpeechCore
@@ -331,7 +342,7 @@ pipeline.pushAudio(micSamples)
 ### HTTP-API-Server
 
 ```bash
-audio-server --port 8080
+speech-server --port 8080
 ```
 
 Stellt jedes Modell über HTTP-REST- + WebSocket-Endpunkte bereit, einschließlich eines mit OpenAI Realtime API kompatiblen WebSocket unter `/v1/realtime`. Siehe [`Sources/AudioServer/`](Sources/AudioServer/).

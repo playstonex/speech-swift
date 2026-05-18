@@ -8,6 +8,15 @@ Mac और iOS के लिए ऑन-डिवाइस स्पीच रि
 
 **[📚 पूर्ण डॉक्यूमेंटेशन →](https://soniqo.audio/hi)** · **[🤗 HuggingFace मॉडल](https://huggingface.co/aufklarer)** · **[📝 ब्लॉग](https://blog.ivan.digital)**
 
+<p align="center">
+  <a href="https://youtu.be/x9zgcaW0gUk">
+    <img src="https://img.youtube.com/vi/x9zgcaW0gUk/maxresdefault.jpg" width="640" alt="MacBook पर लोकल स्पीच AI — YouTube पर चार मिनट का ओपन-सोर्स लाइब्रेरी टूर देखें">
+  </a>
+</p>
+<p align="center"><em>MacBook पर लोकल स्पीच AI — YouTube पर चार मिनट का ओपन-सोर्स लाइब्रेरी टूर देखें</em></p>
+
+**यूज़-केस:** [वॉइस एजेंट](https://soniqo.audio/hi/voice-agents) · [ट्रांसक्रिप्शन](https://soniqo.audio/hi/transcription) · [स्पीच जनरेशन](https://soniqo.audio/hi/speech-generation)
+
 - **[Qwen3-ASR](https://soniqo.audio/hi/guides/transcribe)** — स्पीच-टू-टेक्स्ट (ऑटोमैटिक स्पीच रिकग्निशन, 52 भाषाएँ, MLX + CoreML)
 - **[Parakeet TDT](https://soniqo.audio/hi/guides/parakeet)** — CoreML के माध्यम से स्पीच-टू-टेक्स्ट (Neural Engine, NVIDIA FastConformer + TDT decoder, 25 भाषाएँ)
 - **[Omnilingual ASR](https://soniqo.audio/hi/guides/omnilingual)** — स्पीच-टू-टेक्स्ट (Meta wav2vec2 + CTC, **1,672 भाषाएँ** 32 लिपियों में, CoreML 300M + MLX 300M/1B/3B/7B)
@@ -16,6 +25,7 @@ Mac और iOS के लिए ऑन-डिवाइस स्पीच रि
 - **[Qwen3-ForcedAligner](https://soniqo.audio/hi/guides/align)** — शब्द-स्तरीय टाइमस्टैम्प अलाइनमेंट (ऑडियो + टेक्स्ट → टाइमस्टैम्प)
 - **[Qwen3-TTS](https://soniqo.audio/hi/guides/speak)** — टेक्स्ट-टू-स्पीच (सर्वोच्च गुणवत्ता, स्ट्रीमिंग, कस्टम स्पीकर, 10 भाषाएँ)
 - **[CosyVoice TTS](https://soniqo.audio/hi/guides/cosyvoice)** — वॉयस क्लोनिंग, मल्टी-स्पीकर डायलॉग, इमोशन टैग के साथ स्ट्रीमिंग TTS (9 भाषाएँ)
+- **[VoxCPM2](https://soniqo.audio/hi/speech-generation)** — वॉयस क्लोनिंग + निर्देश-आधारित वॉयस डिज़ाइन के साथ 48 kHz स्टूडियो-गुणवत्ता TTS (2B, MLX bf16/int8/int4, 30 भाषाएँ)
 - **[Kokoro TTS](https://soniqo.audio/hi/guides/kokoro)** — ऑन-डिवाइस TTS (82M, CoreML/Neural Engine, 54 वॉयस, iOS-ready, 10 भाषाएँ)
 - **[VibeVoice TTS](https://soniqo.audio/hi/guides/vibevoice)** — लंबे-रूप / बहु-वक्ता TTS (Microsoft VibeVoice Realtime-0.5B + 1.5B, MLX, 90 मिनट तक के पॉडकास्ट / ऑडियोबुक संश्लेषण, EN/ZH)
 - **[Qwen3.5-Chat](https://soniqo.audio/hi/guides/chat)** — ऑन-डिवाइस LLM चैट (0.8B, MLX INT4 + CoreML INT8, DeltaNet हाइब्रिड, स्ट्रीमिंग टोकन)
@@ -96,7 +106,7 @@ struct DictateView: View {
 
 `SpeechUI` केवल `TranscriptionView` (finals + partials) और `TranscriptionStore` (स्ट्रीमिंग ASR एडाप्टर) प्रदान करता है। ऑडियो विज़ुअलाइज़ेशन और प्लेबैक के लिए AVFoundation का उपयोग करें।
 
-उपलब्ध SPM उत्पाद: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `PersonaPlex`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
+उपलब्ध SPM उत्पाद: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `PersonaPlex`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
 
 ## मॉडल
 
@@ -112,6 +122,7 @@ struct DictateView: View {
 | [Qwen3-ForcedAligner](https://soniqo.audio/hi/guides/align) | ऑडियो + टेक्स्ट → टाइमस्टैम्प | MLX, CoreML | 0.6B | बहुभाषी |
 | [Qwen3-TTS](https://soniqo.audio/hi/guides/speak) | टेक्स्ट → स्पीच | MLX, CoreML | 0.6B, 1.7B | 10 |
 | [CosyVoice3](https://soniqo.audio/hi/guides/cosyvoice) | टेक्स्ट → स्पीच | MLX | 0.5B | 9 |
+| [VoxCPM2](https://soniqo.audio/hi/speech-generation) | टेक्स्ट → स्पीच (48 kHz, वॉयस डिज़ाइन + क्लोनिंग) | MLX | 2B (bf16/int8/int4) | 30 |
 | [Kokoro-82M](https://soniqo.audio/hi/guides/kokoro) | टेक्स्ट → स्पीच | CoreML (ANE) | 82M | 10 |
 | [VibeVoice Realtime-0.5B](https://soniqo.audio/hi/guides/vibevoice) | टेक्स्ट → स्पीच (लंबे-रूप, बहु-वक्ता) | MLX | 0.5B | EN/ZH |
 | [VibeVoice 1.5B](https://soniqo.audio/hi/guides/vibevoice) | टेक्स्ट → स्पीच (90 मिनट तक पॉडकास्ट) | MLX | 1.5B | EN/ZH |
@@ -132,18 +143,17 @@ struct DictateView: View {
 नेटिव ARM Homebrew (`/opt/homebrew`) आवश्यक है। Rosetta/x86_64 Homebrew समर्थित नहीं है।
 
 ```bash
-brew tap soniqo/speech https://github.com/soniqo/speech-swift
-brew install speech
+brew install soniqo/tap/speech
 ```
 
 फिर:
 
 ```bash
-audio transcribe recording.wav
-audio speak "Hello world"
-audio translate "Hello, how are you?" --to es
-audio respond --input question.wav --transcript
-audio-server --port 8080            # स्थानीय HTTP / WebSocket सर्वर (OpenAI-compatible /v1/realtime)
+speech transcribe recording.wav
+speech speak "Hello world"
+speech translate "Hello, how are you?" --to es
+speech respond --input question.wav --transcript
+speech-server --port 8080            # स्थानीय HTTP / WebSocket सर्वर (OpenAI-compatible /v1/realtime)
 ```
 
 **[पूर्ण CLI संदर्भ →](https://soniqo.audio/hi/cli)**
@@ -166,6 +176,7 @@ import NemotronStreamingASR // अंग्रेज़ी स्ट्रीम
 import OmnilingualASR       // 1,672 भाषाएँ (CoreML + MLX)
 import Qwen3TTS             // टेक्स्ट-टू-स्पीच
 import CosyVoiceTTS         // वॉयस क्लोनिंग के साथ TTS
+import VoxCPM2TTS           // 48 kHz TTS, वॉयस क्लोनिंग + वॉयस डिज़ाइन (2B)
 import KokoroTTS            // टेक्स्ट-टू-स्पीच (iOS-ready)
 import VibeVoiceTTS         // लंबे-रूप / बहु-वक्ता TTS (EN/ZH)
 import Qwen3Chat            // ऑन-डिवाइस LLM चैट
@@ -310,7 +321,7 @@ let denoiser = try await DeepFilterNet3Model.fromPretrained()
 let clean = try denoiser.enhance(audio: noisySamples, sampleRate: 48000)
 ```
 
-### वॉयस पाइपलाइन (ASR → LLM → TTS) — [पूर्ण गाइड →](https://soniqo.audio/hi/api)
+### वॉयस पाइपलाइन (ASR → LLM → TTS) — [पूर्ण गाइड →](https://soniqo.audio/hi/voice-agents)
 
 ```swift
 import SpeechCore
@@ -331,7 +342,7 @@ pipeline.pushAudio(micSamples)
 ### HTTP API सर्वर
 
 ```bash
-audio-server --port 8080
+speech-server --port 8080
 ```
 
 सभी मॉडलों को HTTP REST + WebSocket endpoints के माध्यम से एक्सपोज़ करता है, जिसमें `/v1/realtime` पर OpenAI Realtime API-संगत WebSocket शामिल है। देखें [`Sources/AudioServer/`](Sources/AudioServer/)।

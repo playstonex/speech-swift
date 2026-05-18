@@ -8,6 +8,15 @@ Mac・iOS向けのオンデバイス音声認識・合成・理解。Apple Silic
 
 **[📚 ドキュメント →](https://soniqo.audio/ja)** · **[🤗 HuggingFaceモデル](https://huggingface.co/aufklarer)** · **[📝 ブログ](https://blog.ivan.digital)**
 
+<p align="center">
+  <a href="https://youtu.be/x9zgcaW0gUk">
+    <img src="https://img.youtube.com/vi/x9zgcaW0gUk/maxresdefault.jpg" width="640" alt="MacBook で動くローカル音声 AI ―― YouTube で 4 分間のオープンソースライブラリツアーを視聴">
+  </a>
+</p>
+<p align="center"><em>MacBook で動くローカル音声 AI ―― YouTube で 4 分間のオープンソースライブラリツアーを視聴</em></p>
+
+**ユースケース：** [音声エージェント](https://soniqo.audio/ja/voice-agents) · [文字起こし](https://soniqo.audio/ja/transcription) · [音声合成](https://soniqo.audio/ja/speech-generation)
+
 - **[Qwen3-ASR](https://soniqo.audio/ja/guides/transcribe)** — 音声認識（自動音声認識、52言語、MLX + CoreML）
 - **[Parakeet TDT](https://soniqo.audio/ja/guides/parakeet)** — CoreMLによる音声認識（Neural Engine、NVIDIA FastConformer + TDTデコーダー、25言語）
 - **[Omnilingual ASR](https://soniqo.audio/ja/guides/omnilingual)** — 音声認識（Meta wav2vec2 + CTC、**1,672言語**、32文字体系、CoreML 300M + MLX 300M/1B/3B/7B）
@@ -16,6 +25,7 @@ Mac・iOS向けのオンデバイス音声認識・合成・理解。Apple Silic
 - **[Qwen3-ForcedAligner](https://soniqo.audio/ja/guides/align)** — 単語レベルのタイムスタンプ整列（音声 + テキスト → タイムスタンプ）
 - **[Qwen3-TTS](https://soniqo.audio/ja/guides/speak)** — 音声合成（最高品質、ストリーミング、カスタムスピーカー、10言語）
 - **[CosyVoice TTS](https://soniqo.audio/ja/guides/cosyvoice)** — 音声クローン、マルチスピーカー対話、感情タグを備えたストリーミングTTS（9言語）
+- **[VoxCPM2](https://soniqo.audio/ja/speech-generation)** — 48 kHz スタジオ品質の TTS。音声クローンと指示ベースのボイスデザインに対応（2B、MLX bf16/int8/int4、30言語）
 - **[Kokoro TTS](https://soniqo.audio/ja/guides/kokoro)** — オンデバイスTTS（82M、CoreML/Neural Engine、54ボイス、iOS対応、10言語）
 - **[VibeVoice TTS](https://soniqo.audio/ja/guides/vibevoice)** — 長尺・マルチスピーカーTTS（Microsoft VibeVoice Realtime-0.5B + 1.5B、MLX、最長90分のポッドキャスト／オーディオブック生成、EN/ZH）
 - **[Qwen3.5-Chat](https://soniqo.audio/ja/guides/chat)** — オンデバイスLLMチャット（0.8B、MLX INT4 + CoreML INT8、DeltaNetハイブリッド、ストリーミングトークン）
@@ -96,7 +106,7 @@ struct DictateView: View {
 
 `SpeechUI` には `TranscriptionView`（確定 + 部分）と `TranscriptionStore`（ストリーミングASRアダプター）のみが含まれます。音声の可視化や再生には AVFoundation をお使いください。
 
-利用可能なSPMプロダクト：`Qwen3ASR`、`Qwen3TTS`、`Qwen3TTSCoreML`、`ParakeetASR`、`ParakeetStreamingASR`、`NemotronStreamingASR`、`OmnilingualASR`、`KokoroTTS`、`VibeVoiceTTS`、`CosyVoiceTTS`、`PersonaPlex`、`SpeechVAD`、`SpeechEnhancement`、`SourceSeparation`、`Qwen3Chat`、`SpeechCore`、`SpeechUI`、`AudioCommon`。
+利用可能なSPMプロダクト：`Qwen3ASR`、`Qwen3TTS`、`Qwen3TTSCoreML`、`ParakeetASR`、`ParakeetStreamingASR`、`NemotronStreamingASR`、`OmnilingualASR`、`KokoroTTS`、`VibeVoiceTTS`、`CosyVoiceTTS`、`VoxCPM2TTS`、`PersonaPlex`、`SpeechVAD`、`SpeechEnhancement`、`SourceSeparation`、`Qwen3Chat`、`SpeechCore`、`SpeechUI`、`AudioCommon`。
 
 ## モデル
 
@@ -112,6 +122,7 @@ struct DictateView: View {
 | [Qwen3-ForcedAligner](https://soniqo.audio/ja/guides/align) | 音声 + テキスト → タイムスタンプ | MLX、CoreML | 0.6B | 多言語 |
 | [Qwen3-TTS](https://soniqo.audio/ja/guides/speak) | テキスト → 音声 | MLX、CoreML | 0.6B、1.7B | 10 |
 | [CosyVoice3](https://soniqo.audio/ja/guides/cosyvoice) | テキスト → 音声 | MLX | 0.5B | 9 |
+| [VoxCPM2](https://soniqo.audio/ja/speech-generation) | テキスト → 音声 (48 kHz、ボイスデザイン + クローン) | MLX | 2B (bf16/int8/int4) | 30 |
 | [Kokoro-82M](https://soniqo.audio/ja/guides/kokoro) | テキスト → 音声 | CoreML (ANE) | 82M | 10 |
 | [VibeVoice Realtime-0.5B](https://soniqo.audio/ja/guides/vibevoice) | テキスト → 音声（長尺・マルチスピーカー） | MLX | 0.5B | EN/ZH |
 | [VibeVoice 1.5B](https://soniqo.audio/ja/guides/vibevoice) | テキスト → 音声（最長90分のポッドキャスト） | MLX | 1.5B | EN/ZH |
@@ -132,18 +143,17 @@ struct DictateView: View {
 ネイティブARM Homebrew（`/opt/homebrew`）が必要です。Rosetta/x86_64 Homebrewはサポートされません。
 
 ```bash
-brew tap soniqo/speech https://github.com/soniqo/speech-swift
-brew install speech
+brew install soniqo/tap/speech
 ```
 
 その後：
 
 ```bash
-audio transcribe recording.wav
-audio speak "Hello world"
-audio translate "Hello, how are you?" --to es
-audio respond --input question.wav --transcript
-audio-server --port 8080            # ローカル HTTP / WebSocket サーバー（OpenAI 互換 /v1/realtime）
+speech transcribe recording.wav
+speech speak "Hello world"
+speech translate "Hello, how are you?" --to es
+speech respond --input question.wav --transcript
+speech-server --port 8080            # ローカル HTTP / WebSocket サーバー（OpenAI 互換 /v1/realtime）
 ```
 
 **[完全なCLIリファレンス →](https://soniqo.audio/ja/cli)**
@@ -166,6 +176,7 @@ import NemotronStreamingASR // 英語ストリーミングASR、ネイティブ�
 import OmnilingualASR       // 1,672言語 (CoreML + MLX)
 import Qwen3TTS             // 音声合成
 import CosyVoiceTTS         // 音声クローン付き音声合成
+import VoxCPM2TTS           // 48 kHz TTS、音声クローン + ボイスデザイン (2B)
 import KokoroTTS            // 音声合成 (iOS対応)
 import VibeVoiceTTS         // 長尺・マルチスピーカーTTS（EN/ZH）
 import Qwen3Chat            // オンデバイスLLMチャット
@@ -310,7 +321,7 @@ let denoiser = try await DeepFilterNet3Model.fromPretrained()
 let clean = try denoiser.enhance(audio: noisySamples, sampleRate: 48000)
 ```
 
-### 音声パイプライン（ASR → LLM → TTS）— [完全ガイド →](https://soniqo.audio/ja/api)
+### 音声パイプライン（ASR → LLM → TTS）— [完全ガイド →](https://soniqo.audio/ja/voice-agents)
 
 ```swift
 import SpeechCore
@@ -331,7 +342,7 @@ pipeline.pushAudio(micSamples)
 ### HTTP APIサーバー
 
 ```bash
-audio-server --port 8080
+speech-server --port 8080
 ```
 
 HTTP REST + WebSocketエンドポイントですべてのモデルを公開します。OpenAI Realtime API互換のWebSocket `/v1/realtime` も含まれます。[`Sources/AudioServer/`](Sources/AudioServer/) を参照してください。

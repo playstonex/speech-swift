@@ -8,6 +8,15 @@
 
 **[📚 Полная документация →](https://soniqo.audio/ru)** · **[🤗 Модели на HuggingFace](https://huggingface.co/aufklarer)** · **[📝 Блог](https://blog.ivan.digital)**
 
+<p align="center">
+  <a href="https://youtu.be/x9zgcaW0gUk">
+    <img src="https://img.youtube.com/vi/x9zgcaW0gUk/maxresdefault.jpg" width="640" alt="Локальный речевой ИИ на MacBook — четырёхминутный обзор open source библиотеки на YouTube">
+  </a>
+</p>
+<p align="center"><em>Локальный речевой ИИ на MacBook — четырёхминутный обзор open source библиотеки на YouTube</em></p>
+
+**Сценарии:** [Голосовые агенты](https://soniqo.audio/ru/voice-agents) · [Транскрипция](https://soniqo.audio/ru/transcription) · [Синтез речи](https://soniqo.audio/ru/speech-generation)
+
 - **[Qwen3-ASR](https://soniqo.audio/ru/guides/transcribe)** — Распознавание речи (автоматическое распознавание речи, 52 языка, MLX + CoreML)
 - **[Parakeet TDT](https://soniqo.audio/ru/guides/parakeet)** — Распознавание речи через CoreML (Neural Engine, NVIDIA FastConformer + TDT-декодер, 25 языков)
 - **[Omnilingual ASR](https://soniqo.audio/ru/guides/omnilingual)** — Распознавание речи (Meta wav2vec2 + CTC, **1 672 языка** в 32 письменностях, CoreML 300M + MLX 300M/1B/3B/7B)
@@ -16,6 +25,7 @@
 - **[Qwen3-ForcedAligner](https://soniqo.audio/ru/guides/align)** — Выравнивание временных меток на уровне слов (аудио + текст → временные метки)
 - **[Qwen3-TTS](https://soniqo.audio/ru/guides/speak)** — Синтез речи (наивысшее качество, потоковый режим, пользовательские голоса, 10 языков)
 - **[CosyVoice TTS](https://soniqo.audio/ru/guides/cosyvoice)** — Потоковый синтез речи с клонированием голоса, многоголосым диалогом, тегами эмоций (9 языков)
+- **[VoxCPM2](https://soniqo.audio/ru/speech-generation)** — TTS студийного качества 48 кГц с клонированием голоса и описанием голоса инструкцией (2B, MLX bf16/int8/int4, 30 языков)
 - **[Kokoro TTS](https://soniqo.audio/ru/guides/kokoro)** — Синтез речи на устройстве (82M, CoreML/Neural Engine, 54 голоса, готов для iOS, 10 языков)
 - **[VibeVoice TTS](https://soniqo.audio/ru/guides/vibevoice)** — Длинный формат / многоголосый TTS (Microsoft VibeVoice Realtime-0.5B + 1.5B, MLX, синтез подкастов/аудиокниг до 90 минут, EN/ZH)
 - **[Qwen3.5-Chat](https://soniqo.audio/ru/guides/chat)** — Локальный чат на базе LLM (0.8B, MLX INT4 + CoreML INT8, гибрид DeltaNet, потоковая генерация токенов)
@@ -96,7 +106,7 @@ struct DictateView: View {
 
 `SpeechUI` предоставляет только `TranscriptionView` (финальные + частичные результаты) и `TranscriptionStore` (адаптер для потокового ASR). Для визуализации и воспроизведения аудио используйте AVFoundation.
 
-Доступные SPM-продукты: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `PersonaPlex`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
+Доступные SPM-продукты: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `PersonaPlex`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
 
 ## Модели
 
@@ -112,6 +122,7 @@ struct DictateView: View {
 | [Qwen3-ForcedAligner](https://soniqo.audio/ru/guides/align) | Аудио + Текст → Метки | MLX, CoreML | 0.6B | Многоязычный |
 | [Qwen3-TTS](https://soniqo.audio/ru/guides/speak) | Текст → Речь | MLX, CoreML | 0.6B, 1.7B | 10 |
 | [CosyVoice3](https://soniqo.audio/ru/guides/cosyvoice) | Текст → Речь | MLX | 0.5B | 9 |
+| [VoxCPM2](https://soniqo.audio/ru/speech-generation) | Текст → Речь (48 кГц, описание голоса + клонирование) | MLX | 2B (bf16/int8/int4) | 30 |
 | [Kokoro-82M](https://soniqo.audio/ru/guides/kokoro) | Текст → Речь | CoreML (ANE) | 82M | 10 |
 | [VibeVoice Realtime-0.5B](https://soniqo.audio/ru/guides/vibevoice) | Текст → Речь (длинный формат, многоголосый) | MLX | 0.5B | EN/ZH |
 | [VibeVoice 1.5B](https://soniqo.audio/ru/guides/vibevoice) | Текст → Речь (подкаст до 90 минут) | MLX | 1.5B | EN/ZH |
@@ -132,18 +143,17 @@ struct DictateView: View {
 Требуется нативный ARM Homebrew (`/opt/homebrew`). Rosetta/x86_64-версия Homebrew не поддерживается.
 
 ```bash
-brew tap soniqo/speech https://github.com/soniqo/speech-swift
-brew install speech
+brew install soniqo/tap/speech
 ```
 
 Затем:
 
 ```bash
-audio transcribe recording.wav
-audio speak "Hello world"
-audio translate "Hello, how are you?" --to es
-audio respond --input question.wav --transcript
-audio-server --port 8080            # локальный HTTP / WebSocket сервер (OpenAI-совместимый /v1/realtime)
+speech transcribe recording.wav
+speech speak "Hello world"
+speech translate "Hello, how are you?" --to es
+speech respond --input question.wav --transcript
+speech-server --port 8080            # локальный HTTP / WebSocket сервер (OpenAI-совместимый /v1/realtime)
 ```
 
 **[Полный справочник CLI →](https://soniqo.audio/ru/cli)**
@@ -166,6 +176,7 @@ import NemotronStreamingASR // Потоковое ASR для английско�
 import OmnilingualASR       // 1 672 языка (CoreML + MLX)
 import Qwen3TTS             // Синтез речи
 import CosyVoiceTTS         // Синтез речи с клонированием голоса
+import VoxCPM2TTS           // TTS 48 кГц, клонирование голоса + описание голоса (2B)
 import KokoroTTS            // Синтез речи (готов для iOS)
 import VibeVoiceTTS         // Длинный формат / многоголосый TTS (EN/ZH)
 import Qwen3Chat            // Локальный чат на базе LLM
@@ -310,7 +321,7 @@ let denoiser = try await DeepFilterNet3Model.fromPretrained()
 let clean = try denoiser.enhance(audio: noisySamples, sampleRate: 48000)
 ```
 
-### Голосовой пайплайн (ASR → LLM → TTS) — [полное руководство →](https://soniqo.audio/ru/api)
+### Голосовой пайплайн (ASR → LLM → TTS) — [полное руководство →](https://soniqo.audio/ru/voice-agents)
 
 ```swift
 import SpeechCore
@@ -331,7 +342,7 @@ pipeline.pushAudio(micSamples)
 ### HTTP API-сервер
 
 ```bash
-audio-server --port 8080
+speech-server --port 8080
 ```
 
 Предоставляет все модели через HTTP REST + WebSocket-эндпоинты, включая совместимый с OpenAI Realtime API WebSocket по адресу `/v1/realtime`. См. [`Sources/AudioServer/`](Sources/AudioServer/).

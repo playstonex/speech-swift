@@ -8,6 +8,15 @@ Mac과 iOS를 위한 온디바이스 음성 인식, 합성 및 이해. Apple Sil
 
 **[📚 전체 문서 →](https://soniqo.audio/ko)** · **[🤗 HuggingFace 모델](https://huggingface.co/aufklarer)** · **[📝 블로그](https://blog.ivan.digital)**
 
+<p align="center">
+  <a href="https://youtu.be/x9zgcaW0gUk">
+    <img src="https://img.youtube.com/vi/x9zgcaW0gUk/maxresdefault.jpg" width="640" alt="MacBook에서 동작하는 로컬 음성 AI — YouTube에서 4분 분량의 오픈소스 라이브러리 투어 시청">
+  </a>
+</p>
+<p align="center"><em>MacBook에서 동작하는 로컬 음성 AI — YouTube에서 4분 분량의 오픈소스 라이브러리 투어 시청</em></p>
+
+**사용 사례:** [음성 에이전트](https://soniqo.audio/ko/voice-agents) · [전사](https://soniqo.audio/ko/transcription) · [음성 합성](https://soniqo.audio/ko/speech-generation)
+
 - **[Qwen3-ASR](https://soniqo.audio/ko/guides/transcribe)** — 음성-텍스트 변환 (자동 음성 인식, 52개 언어, MLX + CoreML)
 - **[Parakeet TDT](https://soniqo.audio/ko/guides/parakeet)** — CoreML을 통한 음성-텍스트 변환 (Neural Engine, NVIDIA FastConformer + TDT 디코더, 25개 언어)
 - **[Omnilingual ASR](https://soniqo.audio/ko/guides/omnilingual)** — 음성-텍스트 변환 (Meta wav2vec2 + CTC, **1,672개 언어**, 32개 문자 체계, CoreML 300M + MLX 300M/1B/3B/7B)
@@ -16,6 +25,7 @@ Mac과 iOS를 위한 온디바이스 음성 인식, 합성 및 이해. Apple Sil
 - **[Qwen3-ForcedAligner](https://soniqo.audio/ko/guides/align)** — 단어 수준 타임스탬프 정렬 (오디오 + 텍스트 → 타임스탬프)
 - **[Qwen3-TTS](https://soniqo.audio/ko/guides/speak)** — 텍스트-음성 변환 (최고 품질, 스트리밍, 커스텀 화자, 10개 언어)
 - **[CosyVoice TTS](https://soniqo.audio/ko/guides/cosyvoice)** — 음성 복제, 다화자 대화, 감정 태그를 지원하는 스트리밍 TTS (9개 언어)
+- **[VoxCPM2](https://soniqo.audio/ko/speech-generation)** — 48 kHz 스튜디오 품질 TTS, 음성 복제 + 명령 기반 보이스 디자인 (2B, MLX bf16/int8/int4, 30개 언어)
 - **[Kokoro TTS](https://soniqo.audio/ko/guides/kokoro)** — 온디바이스 TTS (82M, CoreML/Neural Engine, 54개 음색, iOS 지원, 10개 언어)
 - **[VibeVoice TTS](https://soniqo.audio/ko/guides/vibevoice)** — 장문 / 멀티 스피커 TTS (Microsoft VibeVoice Realtime-0.5B + 1.5B, MLX, 최대 90분 팟캐스트 / 오디오북 합성, EN/ZH)
 - **[Qwen3.5-Chat](https://soniqo.audio/ko/guides/chat)** — 온디바이스 LLM 채팅 (0.8B, MLX INT4 + CoreML INT8, DeltaNet 하이브리드, 스트리밍 토큰)
@@ -96,7 +106,7 @@ struct DictateView: View {
 
 `SpeechUI`에는 `TranscriptionView`(파이널 + 파셜)와 `TranscriptionStore`(스트리밍 ASR 어댑터)만 포함됩니다. 오디오 시각화와 재생에는 AVFoundation을 사용하세요.
 
-사용 가능한 SPM 프로덕트: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `PersonaPlex`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
+사용 가능한 SPM 프로덕트: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `PersonaPlex`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
 
 ## 모델
 
@@ -112,6 +122,7 @@ struct DictateView: View {
 | [Qwen3-ForcedAligner](https://soniqo.audio/ko/guides/align) | 오디오 + 텍스트 → 타임스탬프 | MLX, CoreML | 0.6B | 다언어 |
 | [Qwen3-TTS](https://soniqo.audio/ko/guides/speak) | 텍스트 → 음성 | MLX, CoreML | 0.6B, 1.7B | 10 |
 | [CosyVoice3](https://soniqo.audio/ko/guides/cosyvoice) | 텍스트 → 음성 | MLX | 0.5B | 9 |
+| [VoxCPM2](https://soniqo.audio/ko/speech-generation) | 텍스트 → 음성 (48 kHz, 보이스 디자인 + 복제) | MLX | 2B (bf16/int8/int4) | 30 |
 | [Kokoro-82M](https://soniqo.audio/ko/guides/kokoro) | 텍스트 → 음성 | CoreML (ANE) | 82M | 10 |
 | [VibeVoice Realtime-0.5B](https://soniqo.audio/ko/guides/vibevoice) | 텍스트 → 음성 (장문, 멀티 스피커) | MLX | 0.5B | EN/ZH |
 | [VibeVoice 1.5B](https://soniqo.audio/ko/guides/vibevoice) | 텍스트 → 음성 (최대 90분 팟캐스트) | MLX | 1.5B | EN/ZH |
@@ -132,18 +143,17 @@ struct DictateView: View {
 네이티브 ARM Homebrew(`/opt/homebrew`)가 필요합니다. Rosetta/x86_64 Homebrew는 지원되지 않습니다.
 
 ```bash
-brew tap soniqo/speech https://github.com/soniqo/speech-swift
-brew install speech
+brew install soniqo/tap/speech
 ```
 
 그런 다음:
 
 ```bash
-audio transcribe recording.wav
-audio speak "Hello world"
-audio translate "Hello, how are you?" --to es
-audio respond --input question.wav --transcript
-audio-server --port 8080            # 로컬 HTTP / WebSocket 서버 (OpenAI 호환 /v1/realtime)
+speech transcribe recording.wav
+speech speak "Hello world"
+speech translate "Hello, how are you?" --to es
+speech respond --input question.wav --transcript
+speech-server --port 8080            # 로컬 HTTP / WebSocket 서버 (OpenAI 호환 /v1/realtime)
 ```
 
 **[전체 CLI 레퍼런스 →](https://soniqo.audio/ko/cli)**
@@ -166,6 +176,7 @@ import NemotronStreamingASR // 영어 스트리밍 ASR, 네이티브 구두점 (
 import OmnilingualASR       // 1,672개 언어 (CoreML + MLX)
 import Qwen3TTS             // 텍스트-음성 변환
 import CosyVoiceTTS         // 음성 복제 포함 텍스트-음성 변환
+import VoxCPM2TTS           // 48 kHz TTS, 음성 복제 + 보이스 디자인 (2B)
 import KokoroTTS            // 텍스트-음성 변환 (iOS 지원)
 import VibeVoiceTTS         // 장문 / 멀티 스피커 TTS (EN/ZH)
 import Qwen3Chat            // 온디바이스 LLM 채팅
@@ -310,7 +321,7 @@ let denoiser = try await DeepFilterNet3Model.fromPretrained()
 let clean = try denoiser.enhance(audio: noisySamples, sampleRate: 48000)
 ```
 
-### 음성 파이프라인 (ASR → LLM → TTS) — [전체 가이드 →](https://soniqo.audio/ko/api)
+### 음성 파이프라인 (ASR → LLM → TTS) — [전체 가이드 →](https://soniqo.audio/ko/voice-agents)
 
 ```swift
 import SpeechCore
@@ -331,7 +342,7 @@ pipeline.pushAudio(micSamples)
 ### HTTP API 서버
 
 ```bash
-audio-server --port 8080
+speech-server --port 8080
 ```
 
 HTTP REST + WebSocket 엔드포인트로 모든 모델을 공개합니다. OpenAI Realtime API 호환 WebSocket `/v1/realtime`도 포함됩니다. [`Sources/AudioServer/`](Sources/AudioServer/)를 참조하세요.

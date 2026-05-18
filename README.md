@@ -8,6 +8,15 @@ On-device speech recognition, synthesis, and understanding for Mac and iOS. Runs
 
 **[📚 Full Documentation →](https://soniqo.audio)** · **[🤗 HuggingFace Models](https://huggingface.co/aufklarer)** · **[📝 Blog](https://blog.ivan.digital)** · **[💬 Discord](https://discord.gg/TnCryqEMgu)**
 
+<p align="center">
+  <a href="https://youtu.be/x9zgcaW0gUk">
+    <img src="https://img.youtube.com/vi/x9zgcaW0gUk/maxresdefault.jpg" width="640" alt="Local Speech AI on a MacBook — watch the 4-minute open-source library tour on YouTube">
+  </a>
+</p>
+<p align="center"><em>Local Speech AI on a MacBook — watch the 4-minute open-source library tour on YouTube</em></p>
+
+**Use cases:** [Voice Agents](https://soniqo.audio/voice-agents) · [Transcription](https://soniqo.audio/transcription) · [Speech Generation](https://soniqo.audio/speech-generation)
+
 - **[Qwen3-ASR](https://soniqo.audio/guides/transcribe)** — Speech-to-text (automatic speech recognition, 52 languages, MLX + CoreML)
 - **[Parakeet TDT](https://soniqo.audio/guides/parakeet)** — Speech-to-text via CoreML (Neural Engine, NVIDIA FastConformer + TDT decoder, 25 languages)
 - **[Omnilingual ASR](https://soniqo.audio/guides/omnilingual)** — Speech-to-text (Meta wav2vec2 + CTC, **1,672 languages** across 32 scripts, CoreML 300M + MLX 300M/1B/3B/7B)
@@ -16,6 +25,7 @@ On-device speech recognition, synthesis, and understanding for Mac and iOS. Runs
 - **[Qwen3-ForcedAligner](https://soniqo.audio/guides/align)** — Word-level timestamp alignment (audio + text → timestamps)
 - **[Qwen3-TTS](https://soniqo.audio/guides/speak)** — Text-to-speech (highest quality, streaming, custom speakers, 10 languages)
 - **[CosyVoice TTS](https://soniqo.audio/guides/cosyvoice)** — Streaming TTS with voice cloning, multi-speaker dialogue, emotion tags (9 languages)
+- **[VoxCPM2](https://soniqo.audio/speech-generation)** — 48 kHz studio-quality TTS with voice cloning + instruction-driven voice design (2B, MLX bf16/int8/int4, 30 languages)
 - **[Kokoro TTS](https://soniqo.audio/guides/kokoro)** — On-device TTS (82M, CoreML/Neural Engine, 54 voices, iOS-ready, 10 languages)
 - **[VibeVoice TTS](https://soniqo.audio/guides/vibevoice)** — Long-form / multi-speaker TTS (Microsoft VibeVoice Realtime-0.5B + 1.5B, MLX, up to 90-min podcast/audiobook synthesis, EN/ZH)
 - **[Qwen3.5-Chat](https://soniqo.audio/guides/chat)** — On-device LLM chat (0.8B, MLX INT4 + CoreML INT8, DeltaNet hybrid, streaming tokens)
@@ -96,7 +106,7 @@ struct DictateView: View {
 
 `SpeechUI` ships only `TranscriptionView` (finals + partials) and `TranscriptionStore` (streaming ASR adapter). Use AVFoundation for audio visualization and playback.
 
-Available SPM products: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `PersonaPlex`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
+Available SPM products: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `PersonaPlex`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
 
 ## Models
 
@@ -112,6 +122,7 @@ Compact view below. **[Full model catalogue with sizes, quantisations, download 
 | [Qwen3-ForcedAligner](https://soniqo.audio/guides/align) | Audio + Text → Timestamps | MLX, CoreML | 0.6B | Multi |
 | [Qwen3-TTS](https://soniqo.audio/guides/speak) | Text → Speech | MLX, CoreML | 0.6B, 1.7B | 10 |
 | [CosyVoice3](https://soniqo.audio/guides/cosyvoice) | Text → Speech | MLX | 0.5B | 9 |
+| [VoxCPM2](https://soniqo.audio/speech-generation) | Text → Speech (48 kHz, voice design + cloning) | MLX | 2B (bf16/int8/int4) | 30 |
 | [Kokoro-82M](https://soniqo.audio/guides/kokoro) | Text → Speech | CoreML (ANE) | 82M | 10 |
 | [VibeVoice Realtime-0.5B](https://soniqo.audio/guides/vibevoice) | Text → Speech (long-form, multi-speaker) | MLX | 0.5B | EN/ZH |
 | [VibeVoice 1.5B](https://soniqo.audio/guides/vibevoice) | Text → Speech (up to 90-min podcast) | MLX | 1.5B | EN/ZH |
@@ -132,18 +143,17 @@ Compact view below. **[Full model catalogue with sizes, quantisations, download 
 Requires native ARM Homebrew (`/opt/homebrew`). Rosetta/x86_64 Homebrew is not supported.
 
 ```bash
-brew tap soniqo/speech https://github.com/soniqo/speech-swift
-brew install speech
+brew install soniqo/tap/speech
 ```
 
 Then:
 
 ```bash
-audio transcribe recording.wav
-audio speak "Hello world"
-audio translate "Hello, how are you?" --to es
-audio respond --input question.wav --transcript
-audio-server --port 8080            # local HTTP / WebSocket server (OpenAI-compatible /v1/realtime)
+speech transcribe recording.wav
+speech speak "Hello world"
+speech translate "Hello, how are you?" --to es
+speech respond --input question.wav --transcript
+speech-server --port 8080            # local HTTP / WebSocket server (OpenAI-compatible /v1/realtime)
 ```
 
 **[Full CLI reference →](https://soniqo.audio/cli)**
@@ -166,6 +176,7 @@ import NemotronStreamingASR // English streaming ASR with native punctuation (0.
 import OmnilingualASR       // 1,672 languages (CoreML + MLX)
 import Qwen3TTS             // Text-to-speech
 import CosyVoiceTTS         // Text-to-speech with voice cloning
+import VoxCPM2TTS           // 48 kHz TTS with voice cloning + voice design (2B)
 import KokoroTTS            // Text-to-speech (iOS-ready)
 import VibeVoiceTTS         // Long-form / multi-speaker TTS (EN/ZH)
 import Qwen3Chat            // On-device LLM chat
@@ -310,7 +321,7 @@ let denoiser = try await DeepFilterNet3Model.fromPretrained()
 let clean = try denoiser.enhance(audio: noisySamples, sampleRate: 48000)
 ```
 
-### Voice Pipeline (ASR → LLM → TTS) — [full guide →](https://soniqo.audio/api)
+### Voice Pipeline (ASR → LLM → TTS) — [full guide →](https://soniqo.audio/voice-agents)
 
 ```swift
 import SpeechCore
@@ -331,7 +342,7 @@ pipeline.pushAudio(micSamples)
 ### HTTP API server
 
 ```bash
-audio-server --port 8080
+speech-server --port 8080
 ```
 
 Exposes every model via HTTP REST + WebSocket endpoints, including an OpenAI Realtime API-compatible WebSocket at `/v1/realtime`. See [`Sources/AudioServer/`](Sources/AudioServer/).

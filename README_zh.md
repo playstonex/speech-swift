@@ -8,6 +8,15 @@
 
 **[📚 完整文档 →](https://soniqo.audio/zh)** · **[🤗 HuggingFace 模型](https://huggingface.co/aufklarer)** · **[📝 博客](https://blog.ivan.digital)**
 
+<p align="center">
+  <a href="https://youtu.be/x9zgcaW0gUk">
+    <img src="https://img.youtube.com/vi/x9zgcaW0gUk/maxresdefault.jpg" width="640" alt="在 MacBook 上运行的本地语音 AI —— 在 YouTube 上观看四分钟开源库导览">
+  </a>
+</p>
+<p align="center"><em>在 MacBook 上运行的本地语音 AI —— 在 YouTube 上观看四分钟开源库导览</em></p>
+
+**使用场景：** [语音代理](https://soniqo.audio/zh/voice-agents) · [转录](https://soniqo.audio/zh/transcription) · [语音合成](https://soniqo.audio/zh/speech-generation)
+
 - **[Qwen3-ASR](https://soniqo.audio/zh/guides/transcribe)** — 语音转文字（自动语音识别，52 种语言，MLX + CoreML）
 - **[Parakeet TDT](https://soniqo.audio/zh/guides/parakeet)** — 通过 CoreML 进行语音转文字（神经引擎，NVIDIA FastConformer + TDT 解码器，25 种语言）
 - **[Omnilingual ASR](https://soniqo.audio/zh/guides/omnilingual)** — 语音转文字（Meta wav2vec2 + CTC，**1,672 种语言**，覆盖 32 种文字系统，CoreML 300M + MLX 300M/1B/3B/7B）
@@ -16,6 +25,7 @@
 - **[Qwen3-ForcedAligner](https://soniqo.audio/zh/guides/align)** — 词级时间戳对齐（音频 + 文本 → 时间戳）
 - **[Qwen3-TTS](https://soniqo.audio/zh/guides/speak)** — 文本转语音（最高质量、流式输出、自定义说话人，10 种语言）
 - **[CosyVoice TTS](https://soniqo.audio/zh/guides/cosyvoice)** — 流式 TTS，支持声音克隆、多说话人对话、情感标签（9 种语言）
+- **[VoxCPM2](https://soniqo.audio/zh/speech-generation)** — 48 kHz 录音棚级 TTS，支持声音克隆与基于指令的声音设计（2B，MLX bf16/int8/int4，30 种语言）
 - **[Kokoro TTS](https://soniqo.audio/zh/guides/kokoro)** — 端侧 TTS（82M，CoreML/神经引擎，54 种音色，iOS 就绪，10 种语言）
 - **[VibeVoice TTS](https://soniqo.audio/zh/guides/vibevoice)** — 长篇 / 多说话人 TTS（Microsoft VibeVoice Realtime-0.5B + 1.5B，MLX，可合成最长 90 分钟的播客 / 有声书，英语 / 中文）
 - **[Qwen3.5-Chat](https://soniqo.audio/zh/guides/chat)** — 端侧 LLM 对话（0.8B，MLX INT4 + CoreML INT8，DeltaNet 混合架构，流式 token）
@@ -96,7 +106,7 @@ struct DictateView: View {
 
 `SpeechUI` 只提供 `TranscriptionView`（最终结果 + 部分结果）与 `TranscriptionStore`（流式 ASR 适配器）。音频可视化和播放请使用 AVFoundation。
 
-可用的 SPM products：`Qwen3ASR`、`Qwen3TTS`、`Qwen3TTSCoreML`、`ParakeetASR`、`ParakeetStreamingASR`、`NemotronStreamingASR`、`OmnilingualASR`、`KokoroTTS`、`VibeVoiceTTS`、`CosyVoiceTTS`、`PersonaPlex`、`SpeechVAD`、`SpeechEnhancement`、`SourceSeparation`、`Qwen3Chat`、`SpeechCore`、`SpeechUI`、`AudioCommon`。
+可用的 SPM products：`Qwen3ASR`、`Qwen3TTS`、`Qwen3TTSCoreML`、`ParakeetASR`、`ParakeetStreamingASR`、`NemotronStreamingASR`、`OmnilingualASR`、`KokoroTTS`、`VibeVoiceTTS`、`CosyVoiceTTS`、`VoxCPM2TTS`、`PersonaPlex`、`SpeechVAD`、`SpeechEnhancement`、`SourceSeparation`、`Qwen3Chat`、`SpeechCore`、`SpeechUI`、`AudioCommon`。
 
 ## 模型
 
@@ -112,6 +122,7 @@ struct DictateView: View {
 | [Qwen3-ForcedAligner](https://soniqo.audio/zh/guides/align) | 音频 + 文本 → 时间戳 | MLX、CoreML | 0.6B | 多语言 |
 | [Qwen3-TTS](https://soniqo.audio/zh/guides/speak) | 文本 → 语音 | MLX、CoreML | 0.6B、1.7B | 10 |
 | [CosyVoice3](https://soniqo.audio/zh/guides/cosyvoice) | 文本 → 语音 | MLX | 0.5B | 9 |
+| [VoxCPM2](https://soniqo.audio/zh/speech-generation) | 文本 → 语音 (48 kHz, 声音设计 + 克隆) | MLX | 2B (bf16/int8/int4) | 30 |
 | [Kokoro-82M](https://soniqo.audio/zh/guides/kokoro) | 文本 → 语音 | CoreML (ANE) | 82M | 10 |
 | [VibeVoice Realtime-0.5B](https://soniqo.audio/zh/guides/vibevoice) | 文本 → 语音（长篇、多说话人） | MLX | 0.5B | EN/ZH |
 | [VibeVoice 1.5B](https://soniqo.audio/zh/guides/vibevoice) | 文本 → 语音（最长 90 分钟播客） | MLX | 1.5B | EN/ZH |
@@ -132,18 +143,17 @@ struct DictateView: View {
 需要原生 ARM Homebrew（`/opt/homebrew`），不支持 Rosetta/x86_64 Homebrew。
 
 ```bash
-brew tap soniqo/speech https://github.com/soniqo/speech-swift
-brew install speech
+brew install soniqo/tap/speech
 ```
 
 然后：
 
 ```bash
-audio transcribe recording.wav
-audio speak "Hello world"
-audio translate "Hello, how are you?" --to es
-audio respond --input question.wav --transcript
-audio-server --port 8080            # 本地 HTTP / WebSocket 服务器（OpenAI 兼容 /v1/realtime）
+speech transcribe recording.wav
+speech speak "Hello world"
+speech translate "Hello, how are you?" --to es
+speech respond --input question.wav --transcript
+speech-server --port 8080            # 本地 HTTP / WebSocket 服务器（OpenAI 兼容 /v1/realtime）
 ```
 
 **[完整 CLI 参考 →](https://soniqo.audio/zh/cli)**
@@ -166,6 +176,7 @@ import NemotronStreamingASR // 英语流式 ASR，原生标点（0.6B）
 import OmnilingualASR       // 1,672 种语言 (CoreML + MLX)
 import Qwen3TTS             // 文本转语音
 import CosyVoiceTTS         // 带声音克隆的文本转语音
+import VoxCPM2TTS           // 48 kHz TTS，声音克隆 + 声音设计 (2B)
 import KokoroTTS            // 文本转语音 (iOS 就绪)
 import VibeVoiceTTS         // 长篇 / 多说话人 TTS（英语 / 中文）
 import Qwen3Chat            // 端侧 LLM 对话
@@ -310,7 +321,7 @@ let denoiser = try await DeepFilterNet3Model.fromPretrained()
 let clean = try denoiser.enhance(audio: noisySamples, sampleRate: 48000)
 ```
 
-### 语音流水线（ASR → LLM → TTS） — [完整指南 →](https://soniqo.audio/zh/api)
+### 语音流水线（ASR → LLM → TTS） — [完整指南 →](https://soniqo.audio/zh/voice-agents)
 
 ```swift
 import SpeechCore
@@ -331,7 +342,7 @@ pipeline.pushAudio(micSamples)
 ### HTTP API 服务器
 
 ```bash
-audio-server --port 8080
+speech-server --port 8080
 ```
 
 通过 HTTP REST + WebSocket 接口暴露每个模型，包括一个兼容 OpenAI Realtime API 的 WebSocket 接口 `/v1/realtime`。详见 [`Sources/AudioServer/`](Sources/AudioServer/)。
