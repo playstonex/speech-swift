@@ -5,18 +5,21 @@ import MLX
 import Qwen3TTS
 import CosyVoiceTTS
 import VoxCPM2TTS
+import MagpieTTS
+import MagpieTTSCoreML
 import AudioCommon
+import SpeechRestoration
 
 public struct SpeakCommand: ParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "speak",
-        abstract: "Text-to-speech synthesis (Qwen3-TTS, CosyVoice, or VoxCPM2). For CoreML, use the `qwen3-tts-coreml` subcommand."
+        abstract: "Text-to-speech synthesis (Qwen3-TTS, CosyVoice, VoxCPM2, or Magpie). For CoreML, use the `qwen3-tts-coreml` subcommand."
     )
 
     @Argument(help: "Text to synthesize (omit when using --list-speakers or --batch-file)")
     public var text: String?
 
-    @Option(name: .long, help: "TTS engine: qwen3 (default), cosyvoice, or voxcpm2")
+    @Option(name: .long, help: "TTS engine: qwen3 (default), cosyvoice, voxcpm2, magpie, or magpie-coreml")
     public var engine: String = "qwen3"
 
     @Option(name: .shortAndLong, help: "Output WAV file path")
@@ -41,6 +44,12 @@ public struct SpeakCommand: ParsableCommand {
 
     @Option(name: .long, help: "Reference audio file for voice cloning (qwen3 Base, cosyvoice, or voxcpm2)")
     public var voiceSample: String?
+
+    @Flag(name: .long, help: "Restore (denoise + dereverb) the voice-cloning reference with Sidon before cloning. Opt-in; preserves speaker identity. Applies to qwen3/cosyvoice/voxcpm2 references.")
+    public var cleanReference: Bool = false
+
+    @Option(name: .long, help: "Sidon variant for --clean-reference: fp16 (default) or int8")
+    public var cleanReferenceVariant: String = "fp16"
 
     @Option(name: .long, help: "[qwen3] Model variant: base (default), base-8bit, 1.7b, 1.7b-8bit, customVoice, or full HF model ID. Note: --speaker requires customVoice.")
     public var model: String = "base"
@@ -71,8 +80,11 @@ public struct SpeakCommand: ParsableCommand {
 
     // MARK: - CosyVoice-specific options
 
-    @Option(name: .long, help: "[cosyvoice] HuggingFace model ID")
-    public var modelId: String = "aufklarer/CosyVoice3-0.5B-MLX-4bit"
+    @Option(name: .long, help: "[cosyvoice] HuggingFace model ID. Set explicitly to bypass --cosyvoice-variant resolution.")
+    public var modelId: String?
+
+    @Option(name: .long, help: "[cosyvoice] Quantization variant: 4bit (default), 8bit, 8bit-full, bf16. Resolves to aufklarer/CosyVoice3-0.5B-MLX-<variant>. Ignored when --model-id is set.")
+    public var cosyvoiceVariant: String = "4bit"
 
     @Option(name: .long, help: "[cosyvoice] Speaker mapping: s1=alice.wav,s2=bob.wav")
     public var speakers: String?
@@ -133,6 +145,29 @@ public struct SpeakCommand: ParsableCommand {
     @Option(name: .long, help: "[voxcpm2] Warmup patches to skip before emitting audio")
     public var voxcpm2WarmupPatches: Int = 0
 
+    // MARK: - Magpie-specific options
+
+    @Option(name: .long, help: "[magpie] Quantization variant: int4 (default) or int8. Resolves to aufklarer/Magpie-TTS-Multilingual-357M-MLX-<variant>.")
+    public var magpieVariant: String = "int4"
+
+    @Option(name: .long, help: "[magpie] Baked speaker: sofia (default), aria, jason, leo, john. No voice cloning.")
+    public var magpieSpeaker: String = "sofia"
+
+    @Option(name: .long, help: "[magpie] Sampling temperature (default 0.6)")
+    public var magpieTemperature: Float = 0.6
+
+    @Option(name: .long, help: "[magpie] Top-k sampling (default 80)")
+    public var magpieTopK: Int = 80
+
+    @Option(name: .long, help: "[magpie] Maximum codec frames (500 ≈ 23s)")
+    public var magpieMaxFrames: Int = 500
+
+    @Option(name: .long, help: "[magpie] Minimum frames before EOS (default 4)")
+    public var magpieMinFrames: Int = 4
+
+    @Flag(name: .long, help: "[magpie] Treat --text input as pre-phonemised IPA (skip text normalisation)")
+    public var magpiePrephonemized: Bool = false
+
     @Flag(name: .long, help: "Show detailed timing info")
     public var verbose: Bool = false
 
@@ -146,8 +181,9 @@ public struct SpeakCommand: ParsableCommand {
 
     public func validate() throws {
         let eng = engine.lowercased()
-        guard eng == "qwen3" || eng == "cosyvoice" || eng == "voxcpm2" else {
-            throw ValidationError("--engine must be 'qwen3', 'cosyvoice', or 'voxcpm2'. For CoreML, use the `qwen3-tts-coreml` subcommand.")
+        guard eng == "qwen3" || eng == "cosyvoice" || eng == "voxcpm2"
+                || eng == "magpie" || eng == "magpie-coreml" else {
+            throw ValidationError("--engine must be 'qwen3', 'cosyvoice', 'voxcpm2', 'magpie', or 'magpie-coreml'. For Qwen3-TTS CoreML, use the `qwen3-tts-coreml` subcommand.")
         }
         if text == nil && batchFile == nil && !listSpeakers {
             throw ValidationError("Either a text argument, --batch-file, or --list-speakers must be provided")
@@ -160,6 +196,59 @@ public struct SpeakCommand: ParsableCommand {
                 throw ValidationError("--voxcpm2-prompt-audio and --voxcpm2-prompt-text must be provided together")
             }
         }
+        if eng == "magpie" || eng == "magpie-coreml" {
+            if batchFile != nil {
+                throw ValidationError("--engine \(eng) does not support --batch-file (single utterance only)")
+            }
+            if MagpieSpeaker(named: magpieSpeaker) == nil {
+                throw ValidationError("--magpie-speaker must be one of sofia, aria, jason, leo, john (got '\(magpieSpeaker)')")
+            }
+            guard magpieVariant.lowercased() == "int4" || magpieVariant.lowercased() == "int8" else {
+                throw ValidationError("--magpie-variant must be int4 or int8 (got '\(magpieVariant)')")
+            }
+            // magpie-coreml validation: nothing extra needed beyond the
+            // shared --magpie-* flag checks above. --stream is supported
+            // via the dedicated 8-frame streaming nanocodec model.
+            // Magpie has 5 baked speakers and no zero-shot speaker
+            // conditioning in the model — reject voice-cloning / speaker
+            // flags borrowed from the other engines so users don't think
+            // the cloning silently worked.
+            if voiceSample != nil {
+                throw ValidationError(
+                    "--engine \(eng) does not support --voice-sample. " +
+                    "Magpie has 5 baked speakers and no zero-shot cloning. " +
+                    "Use --magpie-speaker {sofia|aria|jason|leo|john} instead, " +
+                    "or use --engine qwen3 / cosyvoice / voxcpm2 for cloning.")
+            }
+            if speaker != nil {
+                throw ValidationError(
+                    "--engine \(eng) does not support --speaker " +
+                    "(that's a qwen3 CustomVoice flag). " +
+                    "Use --magpie-speaker {sofia|aria|jason|leo|john}.")
+            }
+            if instruct != nil {
+                throw ValidationError(
+                    "--engine \(eng) does not support --instruct " +
+                    "(style/instruction control is not in the Magpie model).")
+            }
+            if listSpeakers {
+                // Friendlier than a silent no-op: print the 5 baked
+                // speakers and return early.
+                print("Magpie has 5 baked speakers (use with --magpie-speaker):")
+                for spk in MagpieSpeaker.allCases {
+                    let cliName: String
+                    switch spk {
+                    case .sofia:       cliName = "sofia"
+                    case .aria:        cliName = "aria"
+                    case .jason:       cliName = "jason"
+                    case .leo:         cliName = "leo"
+                    case .johnVanStan: cliName = "john"
+                    }
+                    print("  - \(cliName)  (\(spk.displayName))")
+                }
+                throw ExitCode(0)
+            }
+        }
     }
 
     public func run() throws {
@@ -168,8 +257,247 @@ public struct SpeakCommand: ParsableCommand {
             try runCosyVoice()
         case "voxcpm2":
             try runVoxCPM2()
+        case "magpie":
+            try runMagpie()
+        case "magpie-coreml":
+            try runMagpieCoreML()
         default:
             try runQwen3()
+        }
+    }
+
+    // MARK: - Reference cleanup (opt-in, Sidon)
+
+    /// Load a voice-cloning reference and, when `--clean-reference` is set, run
+    /// it through Sidon (denoise + dereverb) before returning it at
+    /// `targetSampleRate`. When the flag is off this is a plain load — same
+    /// behaviour as before.
+    ///
+    /// Sidon's pipeline is 16 kHz in / 48 kHz out; this loads at 16 kHz, restores,
+    /// then resamples the 48 kHz result to whatever the engine wants. Implemented
+    /// synchronously (semaphore bridge) so it slots into both the sync Qwen3 path
+    /// and the async VoxCPM2 / CosyVoice paths without signature churn.
+    func loadReference(path: String, targetSampleRate: Int) throws -> [Float] {
+        guard cleanReference else {
+            return try AudioFileLoader.load(
+                url: URL(fileURLWithPath: path), targetSampleRate: targetSampleRate)
+        }
+        guard let variantEnum = SidonVariant(rawValue: cleanReferenceVariant) else {
+            throw ValidationError(
+                "--clean-reference-variant must be one of: "
+                + SidonVariant.allCases.map { $0.rawValue }.joined(separator: ", "))
+        }
+        let raw16k = try AudioFileLoader.load(
+            url: URL(fileURLWithPath: path),
+            targetSampleRate: SpeechRestorer.inputSampleRate)
+        print("  Cleaning reference with Sidon (\(cleanReferenceVariant))…")
+
+        var restored48k: [Float] = []
+        var thrown: Error?
+        let sema = DispatchSemaphore(value: 0)
+        Task {
+            do {
+                let restorer = try await SpeechRestorer.fromPretrained(variant: variantEnum)
+                restored48k = try restorer.restore(
+                    audio: raw16k, sampleRate: SpeechRestorer.inputSampleRate)
+            } catch {
+                thrown = error
+            }
+            sema.signal()
+        }
+        sema.wait()
+        if let thrown { throw thrown }
+
+        if targetSampleRate == SpeechRestorer.outputSampleRate { return restored48k }
+        return AudioFileLoader.resample(
+            restored48k, from: SpeechRestorer.outputSampleRate, to: targetSampleRate)
+    }
+
+    // MARK: - Magpie engine
+
+    private func runMagpie() throws {
+        try runAsync {
+            guard let inputText = text else {
+                print("Error: text argument is required for Magpie")
+                throw ExitCode(1)
+            }
+            guard let speaker = MagpieSpeaker(named: magpieSpeaker) else {
+                print("Error: invalid Magpie speaker '\(magpieSpeaker)'")
+                throw ExitCode(1)
+            }
+            let variant: MagpieTTSVariant =
+                (magpieVariant.lowercased() == "int8") ? .int8 : .int4
+            let language: MagpieLanguage =
+                MagpieLanguage(code: effectiveLanguage) ?? .english
+
+            print("Loading Magpie-TTS (\(variant.huggingFaceRepoId))...")
+            let model = try await MagpieTTS.fromPretrained(
+                variant: variant,
+                progressHandler: { reportProgress($0, "Downloading") })
+
+            let params = MagpieTTSParams(
+                temperature: magpieTemperature,
+                topK: magpieTopK,
+                maxSteps: magpieMaxFrames,
+                minFrames: magpieMinFrames,
+                seed: seed)
+
+            print("Synthesizing with Magpie (\(language.displayName), speaker \(speaker.displayName))...")
+            let t0 = CFAbsoluteTimeGetCurrent()
+
+            if stream {
+                var collected: [Float] = []
+                var chunkCount = 0
+                var firstPacketLatency: Double?
+                let audioStream = model.synthesizeStream(
+                    text: inputText, speaker: speaker, language: language,
+                    prephonemized: magpiePrephonemized, params: params)
+                for try await chunk in audioStream {
+                    if firstPacketLatency == nil {
+                        firstPacketLatency = CFAbsoluteTimeGetCurrent() - t0
+                    }
+                    chunkCount += 1
+                    collected.append(contentsOf: chunk.samples)
+                    if verbose {
+                        let ms = (chunk.elapsedTime ?? 0) * 1000
+                        print("  chunk \(chunkCount): \(chunk.samples.count) samples @ \(Int(ms))ms")
+                    }
+                    if chunk.isFinal { break }
+                }
+                if let l = firstPacketLatency {
+                    print(String(format: "  First-packet latency: %.0f ms", l * 1000))
+                }
+                try writeOrPlay(samples: collected, sampleRate: MagpieTTS.sampleRate, t0: t0)
+            } else {
+                let audio = try model.synthesize(
+                    text: inputText, speaker: speaker, language: language,
+                    prephonemized: magpiePrephonemized, params: params)
+                try writeOrPlay(samples: audio, sampleRate: MagpieTTS.sampleRate, t0: t0)
+            }
+        }
+    }
+
+    // MARK: - Magpie CoreML engine
+
+    /// CoreML variant of `--engine magpie`. Same 5 baked speakers, no
+    /// streaming, no Japanese (CoreML bundle hasn't shipped JA tokenizer
+    /// assets yet). When `--language ja` is requested with this engine, we
+    /// transparently route to the MLX backend and log a stderr note so the
+    /// user sees the fallback.
+    private func runMagpieCoreML() throws {
+        try runAsync {
+            guard let inputText = text else {
+                print("Error: text argument is required for Magpie")
+                throw ExitCode(1)
+            }
+            guard let coreSpeaker = MagpieCoreMLSpeaker(named: magpieSpeaker) else {
+                print("Error: invalid Magpie speaker '\(magpieSpeaker)'")
+                throw ExitCode(1)
+            }
+            let mlxLang: MagpieLanguage =
+                MagpieLanguage(code: effectiveLanguage) ?? .english
+
+            // Japanese: CoreML bundle has no JA tokenizer/G2P assets.
+            // Fall back to the MLX backend transparently.
+            if mlxLang == .japanese {
+                FileHandle.standardError.write(Data(
+                    "[magpie-coreml] --language ja not supported by the CoreML bundle; using MLX backend.\n".utf8))
+                let variant: MagpieTTSVariant =
+                    (magpieVariant.lowercased() == "int8") ? .int8 : .int4
+                let model = try await MagpieTTS.fromPretrained(
+                    variant: variant,
+                    progressHandler: { reportProgress($0, "Downloading MLX fallback") })
+                let params = MagpieTTSParams(
+                    temperature: magpieTemperature,
+                    topK: magpieTopK,
+                    maxSteps: magpieMaxFrames,
+                    minFrames: magpieMinFrames,
+                    seed: seed)
+                let t0 = CFAbsoluteTimeGetCurrent()
+                let audio = try model.synthesize(
+                    text: inputText, speaker: coreSpeaker.mlxSpeaker, language: .japanese,
+                    prephonemized: magpiePrephonemized, params: params)
+                try writeOrPlay(samples: audio, sampleRate: MagpieTTS.sampleRate, t0: t0)
+                return
+            }
+
+            guard let coreLang = MagpieCoreMLLanguage(mlx: mlxLang) else {
+                // Should be unreachable since JA is the only excluded case.
+                throw ExitCode(1)
+            }
+
+            print("Loading Magpie-TTS CoreML (\(MagpieCoreMLConstants.huggingFaceRepo))...")
+            let model = try await MagpieTTSCoreML.fromPretrained(
+                progressHandler: { reportProgress($0, "Downloading") })
+
+            let params = MagpieCoreMLParams(
+                temperature: magpieTemperature,
+                topK: magpieTopK,
+                maxSteps: magpieMaxFrames,
+                minFrames: magpieMinFrames,
+                seed: seed)
+
+            // Greedy sampling on ANE produces broken audio (BF16
+            // precision drift flips argmax). Warn so the user knows
+            // why they should let sampling stay default.
+            if magpieTemperature <= 1e-3
+                && ProcessInfo.processInfo.environment["MAGPIE_COREML_COMPUTE"] == nil {
+                FileHandle.standardError.write(Data(
+                    "[magpie-coreml] --magpie-temperature 0 (greedy) is unreliable on ANE due to BF16 precision drift. Falling back to .all compute units for this run; set MAGPIE_COREML_COMPUTE=ane to force ANE anyway, or omit --magpie-temperature for the default stochastic sampling (the recommended path — ANE-fast and quality-correct).\n".utf8))
+                setenv("MAGPIE_COREML_COMPUTE", "all", 1)
+            }
+
+            print("Synthesizing with Magpie CoreML (\(coreLang.mlx.displayName), speaker \(coreSpeaker.displayName))...")
+            let t0 = CFAbsoluteTimeGetCurrent()
+            if stream {
+                var collected: [Float] = []
+                var chunkCount = 0
+                var firstPacketLatency: Double?
+                let audioStream = model.synthesizeStream(
+                    text: inputText, speaker: coreSpeaker, language: coreLang,
+                    prephonemized: magpiePrephonemized, params: params)
+                for try await chunk in audioStream {
+                    if firstPacketLatency == nil && !chunk.samples.isEmpty {
+                        firstPacketLatency = CFAbsoluteTimeGetCurrent() - t0
+                    }
+                    chunkCount += 1
+                    collected.append(contentsOf: chunk.samples)
+                    if verbose {
+                        let ms = (chunk.elapsedTime ?? 0) * 1000
+                        print("  chunk \(chunkCount): \(chunk.samples.count) samples @ \(Int(ms))ms")
+                    }
+                    if chunk.isFinal { break }
+                }
+                if let l = firstPacketLatency {
+                    print(String(format: "  First-packet latency: %.0f ms", l * 1000))
+                }
+                try writeOrPlay(samples: collected, sampleRate: MagpieTTSCoreML.sampleRate, t0: t0)
+            } else {
+                let audio = try model.synthesize(
+                    text: inputText, speaker: coreSpeaker, language: coreLang,
+                    prephonemized: magpiePrephonemized, params: params)
+                try writeOrPlay(samples: audio, sampleRate: MagpieTTSCoreML.sampleRate, t0: t0)
+            }
+        }
+    }
+
+    /// Shared "save or play" tail used by Magpie. The other engines have
+    /// bespoke logic; Magpie's output is always 22.05 kHz mono PCM.
+    private func writeOrPlay(samples: [Float], sampleRate: Int, t0: CFAbsoluteTime) throws {
+        guard !samples.isEmpty else {
+            print("Error: no audio generated")
+            throw ExitCode(1)
+        }
+        let elapsed = CFAbsoluteTimeGetCurrent() - t0
+        let secs = Double(samples.count) / Double(sampleRate)
+        print(String(format: "  %.2fs audio in %.2fs (RTF %.2f)",
+                     secs, elapsed, elapsed / secs))
+        if play {
+            playAudio(samples: samples, sampleRate: sampleRate)
+        } else {
+            let outputURL = URL(fileURLWithPath: output)
+            try WAVWriter.write(samples: samples, sampleRate: sampleRate, to: outputURL)
+            print("Saved \(samples.count) samples (\(formatDuration(samples.count, sampleRate: sampleRate))s) to \(output)")
         }
     }
 
@@ -361,8 +689,7 @@ public struct SpeakCommand: ParsableCommand {
         let audio: [Float]
         if let voiceSamplePath = voiceSample {
             // Voice cloning mode
-            let refURL = URL(fileURLWithPath: voiceSamplePath)
-            let refSamples = try AudioFileLoader.load(url: refURL, targetSampleRate: 24000)
+            let refSamples = try loadReference(path: voiceSamplePath, targetSampleRate: 24000)
             print("  Reference audio: \(refSamples.count) samples, \(String(format: "%.1f", Double(refSamples.count) / 24000.0))s")
 
             audio = model.synthesizeWithVoiceClone(
@@ -433,12 +760,10 @@ public struct SpeakCommand: ParsableCommand {
 
                 let referenceAudio: [Float]?
                 if let refPath = voxcpm2RefAudio {
-                    let refURL = URL(fileURLWithPath: refPath)
-                    referenceAudio = try AudioFileLoader.load(url: refURL, targetSampleRate: 16000)
+                    referenceAudio = try loadReference(path: refPath, targetSampleRate: 16000)
                     print("  Reference audio: \(referenceAudio?.count ?? 0) samples")
                 } else if let fallbackVoiceSample = voiceSample {
-                    let refURL = URL(fileURLWithPath: fallbackVoiceSample)
-                    referenceAudio = try AudioFileLoader.load(url: refURL, targetSampleRate: 16000)
+                    referenceAudio = try loadReference(path: fallbackVoiceSample, targetSampleRate: 16000)
                     print("  Reference audio: \(referenceAudio?.count ?? 0) samples")
                 } else {
                     referenceAudio = nil
@@ -500,12 +825,26 @@ public struct SpeakCommand: ParsableCommand {
 
     // MARK: - CosyVoice engine
 
+    private func resolvedCosyVoiceModelId() throws -> String {
+        if let explicit = modelId, !explicit.isEmpty { return explicit }
+        switch cosyvoiceVariant.lowercased() {
+        case "4bit":      return "aufklarer/CosyVoice3-0.5B-MLX-4bit"
+        case "8bit":      return "aufklarer/CosyVoice3-0.5B-MLX-8bit"
+        case "8bit-full": return "aufklarer/CosyVoice3-0.5B-MLX-8bit-full"
+        case "bf16":      return "aufklarer/CosyVoice3-0.5B-MLX-bf16"
+        default:
+            throw ValidationError(
+                "--cosyvoice-variant must be 4bit, 8bit, 8bit-full, or bf16 (got '\(cosyvoiceVariant)')")
+        }
+    }
+
     private func runCosyVoice() throws {
         try runAsync {
             print("Loading CosyVoice3 model...")
-            let bundleOverride = cosyBundleDir.map { URL(fileURLWithPath: $0) }
+            let resolvedId = try self.resolvedCosyVoiceModelId()
+            let bundleOverride = self.cosyBundleDir.map { URL(fileURLWithPath: $0) }
             let cosyModel = try await CosyVoiceTTSModel.fromPretrained(
-                modelId: modelId,
+                modelId: resolvedId,
                 cacheDir: bundleOverride,
                 progressHandler: reportProgress)
 
@@ -538,8 +877,7 @@ public struct SpeakCommand: ParsableCommand {
             var defaultEmbedding: [Float]?
             var defaultVoiceProfile: CosyVoiceVoiceProfile?
             if let voiceSamplePath = voiceSample, speakerFiles.isEmpty {
-                let refURL = URL(fileURLWithPath: voiceSamplePath)
-                let refSamples16k = try AudioFileLoader.load(url: refURL, targetSampleRate: 16000)
+                let refSamples16k = try loadReference(path: voiceSamplePath, targetSampleRate: 16000)
                 print("  Reference audio: \(refSamples16k.count) samples (\(String(format: "%.1f", Double(refSamples16k.count) / 16000.0))s)")
 
                 print("Loading CAM++ speaker encoder...")
@@ -557,7 +895,7 @@ public struct SpeakCommand: ParsableCommand {
                 // reference conditioning. Bundles produced before this change
                 // won't have the file — we fall back to the spk-only path with
                 // a warning so the operator knows why cloning quality is capped.
-                let cacheDir = try HuggingFaceDownloader.getCacheDirectory(for: modelId)
+                let cacheDir = try HuggingFaceDownloader.getCacheDirectory(for: resolvedId)
                 let tokURL = cosySpeechTokenizer.map { URL(fileURLWithPath: $0) }
                     ?? cacheDir.appendingPathComponent("speech_tokenizer.safetensors")
                 if FileManager.default.fileExists(atPath: tokURL.path) {

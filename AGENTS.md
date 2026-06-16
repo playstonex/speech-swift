@@ -4,8 +4,9 @@ AI speech models for Apple Silicon (MLX Swift). ASR, TTS, speech-to-speech, VAD,
 
 ## Workflow
 
+- **Always work in a separate git worktree** so concurrent agents don't fight over the same working directory. Create one with `git worktree add ../speech-swift-<task> <branch>`, do all edits there, push from there. Multiple agents may be running against this repo at the same time — checking out branches in the shared working copy clobbers their state and silently loses WIP files. Delete the worktree (`git worktree remove`) when the task is done.
 - **Never commit, push, or comment on GitHub without explicit user confirmation.** Draft first, ask to confirm, then execute.
-- **Every README.md change must update all 9 translations** (`README_zh.md`, `README_ja.md`, `README_ko.md`, `README_es.md`, `README_de.md`, `README_fr.md`, `README_hi.md`, `README_pt.md`, `README_ru.md`). No exceptions.
+- **Every README.md change must update all 10 translations** (`README_zh.md`, `README_ja.md`, `README_ko.md`, `README_es.md`, `README_de.md`, `README_fr.md`, `README_hi.md`, `README_pt.md`, `README_ru.md`, `README_ar.md`). No exceptions.
 
 ## Git Conventions
 
@@ -135,6 +136,7 @@ The `speech` binary is the main entry point (`audio` is a deprecated alias that 
 .build/release/speech vad audio.wav                     # Voice activity detection
 .build/release/speech embed-speaker voice.wav           # Speaker embedding
 .build/release/speech denoise noisy.wav                 # Speech enhancement
+.build/release/speech compose "happy rock" -o music.wav # MAGNeT text-to-music (30s, 32 kHz)
 .build/release/speech kokoro "Hello" --voice af_heart   # Kokoro TTS (iOS)
 .build/release/speech qwen3-tts-coreml "Hello"          # Qwen3-TTS CoreML (6-model pipeline)
 ```
@@ -152,6 +154,8 @@ docs/
     tts-model.md                Qwen3-TTS architecture
     cosyvoice-tts.md            CosyVoice3 architecture
     voxcpm2-tts.md              VoxCPM2 architecture (48 kHz, voice cloning + voice design)
+    magpie-tts.md               Magpie-TTS Multilingual architecture (4-bundle MLX, 8 codebooks, NanoCodec)
+    magnet-music-gen.md         MAGNeT music generation (T5 + EnCodec, masked parallel decoding)
     kokoro-tts.md               Kokoro-82M architecture
     parakeet-asr.md             Parakeet TDT architecture
     personaplex.md              PersonaPlex architecture
@@ -161,6 +165,8 @@ docs/
     parakeet-asr-inference.md   Parakeet TDT inference (CoreML)
     qwen3-tts-inference.md      TTS inference pipeline
     voxcpm2-inference.md        VoxCPM2 inference (48 kHz, --voxcpm2-variant bf16/int8/int4)
+    magpie-tts.md               Magpie-TTS Multilingual inference (CLI flags, languages, performance)
+    magnet-music-gen.md         MAGNeT music generation CLI + tuning
     forced-aligner.md           Forced alignment pipeline
     silero-vad.md               Silero VAD streaming
     fireredvad.md               FireRedVAD inference + tuning results
@@ -217,7 +223,7 @@ soniqo-web/public/
 
 ### README translations
 
-Translated READMEs live in the repo root: `README_zh.md`, `README_ja.md`, `README_ko.md`, `README_es.md`, `README_de.md`, `README_fr.md`, `README_hi.md`, `README_pt.md`, `README_ru.md`. **Whenever README.md is updated, all translations must be updated to match.** Each translation links back to the main README and lists all available languages at the top.
+Translated READMEs live in the repo root: `README_zh.md`, `README_ja.md`, `README_ko.md`, `README_es.md`, `README_de.md`, `README_fr.md`, `README_hi.md`, `README_pt.md`, `README_ru.md`, `README_ar.md`. **Whenever README.md is updated, all translations must be updated to match.** Each translation links back to the main README and lists all available languages at the top.
 
 ### Mapping: code changes → docs pages
 

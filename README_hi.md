@@ -2,11 +2,15 @@
 
 Apple Silicon के लिए AI स्पीच मॉडल, MLX Swift और CoreML द्वारा संचालित।
 
-📖 Read in: [English](README.md) · [中文](README_zh.md) · [日本語](README_ja.md) · [한국어](README_ko.md) · [Español](README_es.md) · [Deutsch](README_de.md) · [Français](README_fr.md) · [हिन्दी](README_hi.md) · [Português](README_pt.md) · [Русский](README_ru.md)
+📖 Read in: [English](README.md) · [中文](README_zh.md) · [日本語](README_ja.md) · [한국어](README_ko.md) · [Español](README_es.md) · [Deutsch](README_de.md) · [Français](README_fr.md) · [हिन्दी](README_hi.md) · [Português](README_pt.md) · [Русский](README_ru.md) · [العربية](README_ar.md) · [Tiếng Việt](README_vi.md) · [Türkçe](README_tr.md) · [ไทย](README_th.md)
 
 Mac और iOS के लिए ऑन-डिवाइस स्पीच रिकग्निशन, सिंथेसिस और समझ। Apple Silicon पर पूरी तरह लोकली चलता है — कोई क्लाउड नहीं, कोई API key नहीं, कोई डेटा डिवाइस से बाहर नहीं जाता।
 
 **[📚 पूर्ण डॉक्यूमेंटेशन →](https://soniqo.audio/hi)** · **[🤗 HuggingFace मॉडल](https://huggingface.co/aufklarer)** · **[📝 ब्लॉग](https://blog.ivan.digital)**
+
+<p align="center">
+  <a href="https://www.producthunt.com/products/speech-swift?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-speech-swift" target="_blank" rel="noopener noreferrer"><img alt="speech-swift -  The whole speech stack, on your laptop. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1151422&amp;theme=light&amp;t=1779261593657"></a>
+</p>
 
 <p align="center">
   <a href="https://youtu.be/x9zgcaW0gUk">
@@ -21,24 +25,29 @@ Mac और iOS के लिए ऑन-डिवाइस स्पीच रि
 - **[Parakeet TDT](https://soniqo.audio/hi/guides/parakeet)** — CoreML के माध्यम से स्पीच-टू-टेक्स्ट (Neural Engine, NVIDIA FastConformer + TDT decoder, 25 भाषाएँ)
 - **[Omnilingual ASR](https://soniqo.audio/hi/guides/omnilingual)** — स्पीच-टू-टेक्स्ट (Meta wav2vec2 + CTC, **1,672 भाषाएँ** 32 लिपियों में, CoreML 300M + MLX 300M/1B/3B/7B)
 - **[Streaming Dictation](https://soniqo.audio/hi/guides/dictate)** — पार्शियल्स और एंड-ऑफ-अटरन्स डिटेक्शन के साथ रियल-टाइम डिक्टेशन (Parakeet-EOU-120M)
-- **[Nemotron Streaming](https://soniqo.audio/hi/guides/nemotron)** — नेटिव विराम चिह्न और कैपिटलाइज़ेशन के साथ लो-लेटेंसी स्ट्रीमिंग ASR (NVIDIA Nemotron-Speech-Streaming-0.6B, CoreML, अंग्रेज़ी)
+- **[Nemotron Streaming (बहुभाषी)](https://soniqo.audio/hi/guides/nemotron)** — नेटिव विराम चिह्न और कैपिटलाइज़ेशन के साथ लो-लेटेंसी स्ट्रीमिंग ASR (NVIDIA Nemotron-3.5-ASR-Streaming-0.6B, CoreML + MLX, **40 भाषा-लोकेल**)
+- **[Nemotron Streaming (अंग्रेज़ी)](https://soniqo.audio/guides/nemotron)** — नेटिव विराम चिह्न और कैपिटलाइज़ेशन के साथ लो-लेटेंसी स्ट्रीमिंग ASR (NVIDIA Nemotron-Speech-Streaming-0.6B, CoreML, केवल अंग्रेज़ी, बहुभाषी संस्करण से छोटा और तेज़)
 - **[Qwen3-ForcedAligner](https://soniqo.audio/hi/guides/align)** — शब्द-स्तरीय टाइमस्टैम्प अलाइनमेंट (ऑडियो + टेक्स्ट → टाइमस्टैम्प)
 - **[Qwen3-TTS](https://soniqo.audio/hi/guides/speak)** — टेक्स्ट-टू-स्पीच (सर्वोच्च गुणवत्ता, स्ट्रीमिंग, कस्टम स्पीकर, 10 भाषाएँ)
 - **[CosyVoice TTS](https://soniqo.audio/hi/guides/cosyvoice)** — वॉयस क्लोनिंग, मल्टी-स्पीकर डायलॉग, इमोशन टैग के साथ स्ट्रीमिंग TTS (9 भाषाएँ)
 - **[VoxCPM2](https://soniqo.audio/hi/speech-generation)** — वॉयस क्लोनिंग + निर्देश-आधारित वॉयस डिज़ाइन के साथ 48 kHz स्टूडियो-गुणवत्ता TTS (2B, MLX bf16/int8/int4, 30 भाषाएँ)
 - **[Kokoro TTS](https://soniqo.audio/hi/guides/kokoro)** — ऑन-डिवाइस TTS (82M, CoreML/Neural Engine, 54 वॉयस, iOS-ready, 10 भाषाएँ)
 - **[VibeVoice TTS](https://soniqo.audio/hi/guides/vibevoice)** — लंबे-रूप / बहु-वक्ता TTS (Microsoft VibeVoice Realtime-0.5B + 1.5B, MLX, 90 मिनट तक के पॉडकास्ट / ऑडियोबुक संश्लेषण, EN/ZH)
+- **[Magpie TTS](https://soniqo.audio/hi/guides/magpie)** — बहुभाषी TTS (NVIDIA Magpie-TTS Multilingual 357M, MLX INT4 247 MB / INT8 411 MB या CoreML INT8 342 MB, 9 भाषाएँ, 5 पूर्व-निर्धारित वक्ता, MLX पर स्ट्रीमिंग)
 - **[Qwen3.5-Chat](https://soniqo.audio/hi/guides/chat)** — ऑन-डिवाइस LLM चैट (0.8B, MLX INT4 + CoreML INT8, DeltaNet हाइब्रिड, स्ट्रीमिंग टोकन)
 - **[MADLAD-400](https://soniqo.audio/hi/guides/translate)** — 400+ भाषाओं में बहु-दिशात्मक अनुवाद (3B, MLX INT4 + INT8, T5 v1.1, Apache 2.0)
+- **[Hibiki Zero-3B](https://soniqo.audio/guides/audio-translate)** — स्ट्रीमिंग स्पीच-टू-स्पीच अनुवाद (FR/ES/PT/DE → EN, MLX INT4 + INT8, Kyutai Moshi/Mimi स्टैक, CC-BY-4.0)
 - **[PersonaPlex](https://soniqo.audio/hi/guides/respond)** — फुल-डुप्लेक्स स्पीच-टू-स्पीच (7B, ऑडियो इन → ऑडियो आउट, 18 वॉयस प्रीसेट)
-- **[DeepFilterNet3](https://soniqo.audio/hi/guides/denoise)** — रियल-टाइम नॉइज़ सप्रेशन (2.1M params, 48 kHz)
-- **[सोर्स सेपरेशन](https://soniqo.audio/hi/guides/separate)** — Open-Unmix के ज़रिए म्यूज़िक सोर्स सेपरेशन (UMX-HQ / UMX-L, 4 स्टेम: वोकल/ड्रम्स/बेस/अन्य, 44.1 kHz स्टीरियो)
+- **[DeepFilterNet3](https://soniqo.audio/hi/guides/denoise)** — रियल-टाइम नॉइज़ सप्रेशन (2.1M params, 48 kHz)। 60 s सिंगल-शॉट सीमा से अधिक लंबे ऑडियो को crossfade के साथ स्वतः चंक किया जाता है — `enhanceChunked(...)` देखें
+- **[सोर्स सेपरेशन](https://soniqo.audio/hi/guides/separate)** — HTDemucs (Demucs v4) + Open-Unmix के ज़रिए म्यूज़िक सोर्स सेपरेशन (UMX-HQ / UMX-L, 4 स्टेम: वोकल/ड्रम्स/बेस/अन्य, 44.1 kHz स्टीरियो)
+- **[MAGNeT](https://soniqo.audio/hi/guides/compose)** — टेक्स्ट से संगीत निर्माण (Meta MAGNeT Small 300M / Medium 1.5B, MLX INT4/INT8, 30 सेकंड क्लिप 32 kHz मोनो, मास्क्ड पैरलल डिकोडिंग)
+- **[FlashSR](https://soniqo.audio/hi/guides/upsample)** — ऑडियो सुपर-रेज़ोल्यूशन (FlashSR ICASSP 2025, MLX, 48 kHz मोनो, 1-स्टेप डिस्टिल्ड डिफ्यूज़न, INT4 363 MB / INT8 720 MB)
 - **[वेक-वर्ड](https://soniqo.audio/hi/guides/wake-word)** — ऑन-डिवाइस कीवर्ड स्पॉटिंग (KWS Zipformer 3M, CoreML, 26× रियल-टाइम, कॉन्फ़िगरेबल कीवर्ड सूची)
 - **[VAD](https://soniqo.audio/hi/guides/vad)** — वॉयस एक्टिविटी डिटेक्शन (Silero स्ट्रीमिंग, Pyannote ऑफ़लाइन, FireRedVAD 100+ भाषाएँ)
 - **[Speaker Diarization](https://soniqo.audio/hi/guides/diarize)** — कौन कब बोला (Pyannote पाइपलाइन, Neural Engine पर एंड-टू-एंड Sortformer)
 - **[Speaker Embeddings](https://soniqo.audio/hi/guides/embed-speaker)** — WeSpeaker ResNet34 (256-dim), CAM++ (192-dim)
 
-पेपर: [Qwen3-ASR](https://arxiv.org/abs/2601.21337) (Alibaba) · [Qwen3-TTS](https://arxiv.org/abs/2601.15621) (Alibaba) · [Omnilingual ASR](https://arxiv.org/abs/2511.09690) (Meta) · [Parakeet TDT](https://arxiv.org/abs/2304.06795) (NVIDIA) · [CosyVoice 3](https://arxiv.org/abs/2505.17589) (Alibaba) · [Kokoro](https://arxiv.org/abs/2301.01695) (StyleTTS 2) · [PersonaPlex](https://arxiv.org/abs/2602.06053) (NVIDIA) · [Mimi](https://arxiv.org/abs/2410.00037) (Kyutai) · [Sortformer](https://arxiv.org/abs/2409.06656) (NVIDIA)
+पेपर: [Qwen3-ASR](https://arxiv.org/abs/2601.21337) (Alibaba) · [Qwen3-TTS](https://arxiv.org/abs/2601.15621) (Alibaba) · [Omnilingual ASR](https://arxiv.org/abs/2511.09690) (Meta) · [Parakeet TDT](https://arxiv.org/abs/2304.06795) (NVIDIA) · [CosyVoice 3](https://arxiv.org/abs/2505.17589) (Alibaba) · [Kokoro](https://arxiv.org/abs/2301.01695) (StyleTTS 2) · [PersonaPlex](https://arxiv.org/abs/2602.06053) (NVIDIA) · [Mimi](https://arxiv.org/abs/2410.00037) (Kyutai) · [Hibiki](https://arxiv.org/abs/2502.03382) (Kyutai) · [Sortformer](https://arxiv.org/abs/2409.06656) (NVIDIA)
 
 ## समाचार
 
@@ -106,7 +115,7 @@ struct DictateView: View {
 
 `SpeechUI` केवल `TranscriptionView` (finals + partials) और `TranscriptionStore` (स्ट्रीमिंग ASR एडाप्टर) प्रदान करता है। ऑडियो विज़ुअलाइज़ेशन और प्लेबैक के लिए AVFoundation का उपयोग करें।
 
-उपलब्ध SPM उत्पाद: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `PersonaPlex`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
+उपलब्ध SPM उत्पाद: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `MagpieTTS`, `MagpieTTSCoreML`, `MAGNeTMusicGen`, `FlashSR`, `PersonaPlex`, `HibikiTranslate`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
 
 ## मॉडल
 
@@ -117,7 +126,8 @@ struct DictateView: View {
 | [Qwen3-ASR](https://soniqo.audio/hi/guides/transcribe) | स्पीच → टेक्स्ट | MLX, CoreML (हाइब्रिड) | 0.6B, 1.7B | 52 |
 | [Parakeet TDT](https://soniqo.audio/hi/guides/parakeet) | स्पीच → टेक्स्ट | CoreML (ANE) | 0.6B | 25 यूरोपीय |
 | [Parakeet EOU](https://soniqo.audio/hi/guides/dictate) | स्पीच → टेक्स्ट (स्ट्रीमिंग) | CoreML (ANE) | 120M | 25 यूरोपीय |
-| [Nemotron Streaming](https://soniqo.audio/hi/guides/nemotron) | भाषण → टेक्स्ट (स्ट्रीमिंग, विराम चिह्नों के साथ) | CoreML (ANE) | 0.6B | अंग्रेज़ी |
+| [Nemotron Streaming (बहुभाषी)](https://soniqo.audio/hi/guides/nemotron) | भाषण → टेक्स्ट (स्ट्रीमिंग, विराम चिह्नों के साथ) | CoreML (ANE), MLX | 0.6B | **40** |
+| [Nemotron Streaming (अंग्रेज़ी)](https://soniqo.audio/guides/nemotron) | भाषण → टेक्स्ट (स्ट्रीमिंग, विराम चिह्नों के साथ) | CoreML (ANE) | 0.6B | EN |
 | [Omnilingual ASR](https://soniqo.audio/hi/guides/omnilingual) | स्पीच → टेक्स्ट | CoreML (ANE), MLX | 300M / 1B / 3B / 7B | **[1,672](https://github.com/facebookresearch/omnilingual-asr/blob/main/src/omnilingual_asr/models/wav2vec2_llama/lang_ids.py)** |
 | [Qwen3-ForcedAligner](https://soniqo.audio/hi/guides/align) | ऑडियो + टेक्स्ट → टाइमस्टैम्प | MLX, CoreML | 0.6B | बहुभाषी |
 | [Qwen3-TTS](https://soniqo.audio/hi/guides/speak) | टेक्स्ट → स्पीच | MLX, CoreML | 0.6B, 1.7B | 10 |
@@ -126,14 +136,20 @@ struct DictateView: View {
 | [Kokoro-82M](https://soniqo.audio/hi/guides/kokoro) | टेक्स्ट → स्पीच | CoreML (ANE) | 82M | 10 |
 | [VibeVoice Realtime-0.5B](https://soniqo.audio/hi/guides/vibevoice) | टेक्स्ट → स्पीच (लंबे-रूप, बहु-वक्ता) | MLX | 0.5B | EN/ZH |
 | [VibeVoice 1.5B](https://soniqo.audio/hi/guides/vibevoice) | टेक्स्ट → स्पीच (90 मिनट तक पॉडकास्ट) | MLX | 1.5B | EN/ZH |
+| [Magpie-TTS Multilingual](https://soniqo.audio/hi/guides/magpie) | टेक्स्ट → वाक् (5 पूर्व-निर्धारित वक्ता, स्ट्रीमिंग) | MLX / CoreML | 357M (MLX INT4/INT8, CoreML INT8) | 9 (CoreML में JA नहीं) |
 | [Qwen3.5-Chat](https://soniqo.audio/hi/guides/chat) | टेक्स्ट → टेक्स्ट (LLM) | MLX, CoreML | 0.8B | बहुभाषी |
 | [MADLAD-400](https://soniqo.audio/hi/guides/translate) | टेक्स्ट → टेक्स्ट (अनुवाद) | MLX | 3B | **400+** |
+| [Hibiki Zero-3B](https://soniqo.audio/guides/audio-translate) | स्पीच → स्पीच (अनुवाद) | MLX | 3B | FR/ES/PT/DE → EN |
 | [PersonaPlex](https://soniqo.audio/hi/guides/respond) | स्पीच → स्पीच | MLX | 7B | EN |
 | [Silero VAD](https://soniqo.audio/hi/guides/vad) | वॉयस एक्टिविटी डिटेक्शन | MLX, CoreML | 309K | भाषा-तटस्थ |
 | [Pyannote](https://soniqo.audio/hi/guides/diarize) | VAD + Diarization | MLX | 1.5M | भाषा-तटस्थ |
 | [Sortformer](https://soniqo.audio/hi/guides/diarize) | Diarization (E2E) | CoreML (ANE) | — | भाषा-तटस्थ |
 | [DeepFilterNet3](https://soniqo.audio/hi/guides/denoise) | स्पीच एन्हांसमेंट | CoreML | 2.1M | भाषा-तटस्थ |
+| [Sidon](https://soniqo.audio/hi/guides/restore) | स्पीच रिस्टोरेशन (नॉइज़ हटाना + डीरीवर्ब, 48 kHz) | CoreML | w2v-BERT 2.0 + DAC (fp16/int8) | भाषा-तटस्थ |
+| [HTDemucs (Demucs v4)](https://soniqo.audio/hi/guides/separate) | सोर्स सेपरेशन | MLX | 168M | Agnostic |
 | [Open-Unmix](https://soniqo.audio/hi/guides/separate) | सोर्स सेपरेशन | MLX | 8.6M | Agnostic |
+| [MAGNeT](https://soniqo.audio/hi/guides/compose) | टेक्स्ट → संगीत (30 सेकंड @ 32 kHz) | MLX | 300M / 1.5B (int4/int8) | EN प्रॉम्प्ट्स |
+| [FlashSR](https://soniqo.audio/hi/guides/upsample) | ऑडियो सुपर-रेज़ोल्यूशन (48 kHz) | MLX | 363 MB / 720 MB (int4/int8) | भाषा-निरपेक्ष |
 | [WeSpeaker](https://soniqo.audio/hi/guides/embed-speaker) | स्पीकर एम्बेडिंग | MLX, CoreML | 6.6M | भाषा-तटस्थ |
 
 ## इंस्टॉलेशन
@@ -143,7 +159,7 @@ struct DictateView: View {
 नेटिव ARM Homebrew (`/opt/homebrew`) आवश्यक है। Rosetta/x86_64 Homebrew समर्थित नहीं है।
 
 ```bash
-brew install soniqo/tap/speech
+brew install speech
 ```
 
 फिर:
@@ -153,7 +169,7 @@ speech transcribe recording.wav
 speech speak "Hello world"
 speech translate "Hello, how are you?" --to es
 speech respond --input question.wav --transcript
-speech-server --port 8080            # स्थानीय HTTP / WebSocket सर्वर (OpenAI-compatible /v1/realtime)
+speech-server --port 8080            # स्थानीय HTTP / WebSocket सर्वर (OpenAI-compatible /v1/realtime + /v1/audio/transcriptions)
 ```
 
 **[पूर्ण CLI संदर्भ →](https://soniqo.audio/hi/cli)**
@@ -172,19 +188,25 @@ dependencies: [
 import Qwen3ASR             // स्पीच रिकग्निशन (MLX)
 import ParakeetASR          // स्पीच रिकग्निशन (CoreML, बैच)
 import ParakeetStreamingASR // पार्शियल्स + EOU के साथ स्ट्रीमिंग डिक्टेशन
-import NemotronStreamingASR // अंग्रेज़ी स्ट्रीमिंग ASR नेटिव विराम चिह्न के साथ (0.6B)
+import NemotronStreamingASR // बहुभाषी स्ट्रीमिंग ASR नेटिव विराम चिह्न के साथ (0.6B, 40 भाषाएँ)
 import OmnilingualASR       // 1,672 भाषाएँ (CoreML + MLX)
 import Qwen3TTS             // टेक्स्ट-टू-स्पीच
 import CosyVoiceTTS         // वॉयस क्लोनिंग के साथ TTS
 import VoxCPM2TTS           // 48 kHz TTS, वॉयस क्लोनिंग + वॉयस डिज़ाइन (2B)
 import KokoroTTS            // टेक्स्ट-टू-स्पीच (iOS-ready)
 import VibeVoiceTTS         // लंबे-रूप / बहु-वक्ता TTS (EN/ZH)
+import MagpieTTS            // बहुभाषी TTS (NVIDIA Magpie 357M, MLX, 9 भाषाएँ)
+import MagpieTTSCoreML      // Magpie CoreML बैकएंड (CoreML + MLX हाइब्रिड, 8 भाषाएँ)
 import Qwen3Chat            // ऑन-डिवाइस LLM चैट
 import MADLADTranslation    // 400+ भाषाओं में बहु-दिशात्मक अनुवाद
+import HibikiTranslate      // स्ट्रीमिंग स्पीच-टू-स्पीच अनुवाद (FR/ES/PT/DE → EN)
 import PersonaPlex          // फुल-डुप्लेक्स स्पीच-टू-स्पीच
 import SpeechVAD            // VAD + स्पीकर डायराइज़ेशन + एम्बेडिंग
 import SpeechEnhancement    // नॉइज़ सप्रेशन
+import SpeechRestoration    // स्पीच रिस्टोरेशन — नॉइज़ हटाना + डीरीवर्ब (Sidon, CoreML, 48 kHz)
 import SourceSeparation     // म्यूज़िक सोर्स सेपरेशन (Open-Unmix, 4 स्टेम)
+import MAGNeTMusicGen      // टेक्स्ट से संगीत निर्माण (30 सेकंड, 32 kHz)
+import FlashSR             // ऑडियो सुपर-रेज़ोल्यूशन (48 kHz, 1-स्टेप डिफ्यूज़न)
 import SpeechUI             // स्ट्रीमिंग ट्रांसक्रिप्ट के लिए SwiftUI कॉम्पोनेंट
 import AudioCommon          // शेयर्ड प्रोटोकॉल और यूटिलिटीज़
 ```
@@ -292,6 +314,20 @@ let es = try translator.translate("Hello, how are you?", to: "es")
 // → "Hola, ¿cómo estás?"
 ```
 
+### स्पीच अनुवाद — [पूरी गाइड →](https://soniqo.audio/guides/audio-translate)
+
+```swift
+import HibikiTranslate
+import AudioCommon
+
+let model = try await HibikiTranslateModel.fromPretrained()
+let pcm = try AudioFileLoader.load(url: input, targetSampleRate: 24000)
+let (englishAudio, textTokens) = model.translate(
+    sourceAudio: pcm, sourceLanguage: .fr
+)
+// Hibiki Zero-3B — FR/ES/PT/DE → EN, ऑन-डिवाइस, स्ट्रीमिंग Mimi कोडेक
+```
+
 ### वॉयस एक्टिविटी डिटेक्शन — [पूर्ण गाइड →](https://soniqo.audio/hi/guides/vad)
 
 ```swift
@@ -321,6 +357,27 @@ let denoiser = try await DeepFilterNet3Model.fromPretrained()
 let clean = try denoiser.enhance(audio: noisySamples, sampleRate: 48000)
 ```
 
+### स्पीच रिस्टोरेशन — [पूर्ण गाइड →](https://soniqo.audio/hi/guides/restore)
+
+[Sidon](https://arxiv.org/abs/2509.17052) (w2v-BERT 2.0 प्रेडिक्टर + DAC वोकोडर, Core ML) के साथ संयुक्त नॉइज़ हटाना **और** डीरीवर्ब। एक सामान्य नॉइज़ सप्रेसर के विपरीत, Sidon को स्पीकर की पहचान संरक्षित रखने के लिए ट्रेन किया गया है, इसलिए यह TTS से पहले किसी शोरयुक्त या रीवर्बरेंट वॉयस-क्लोनिंग रेफ़रेंस को साफ़ करने के लिए उपयुक्त है। इनपुट 16 kHz है; आउटपुट 48 kHz मोनो है।
+
+```swift
+import SpeechRestoration
+
+let restorer = try await SpeechRestorer.fromPretrained()          // .fp16 (default) or .int8
+let clean = try restorer.restore(audio: noisySamples, sampleRate: 16000)  // → 48 kHz
+```
+
+CLI से:
+
+```bash
+speech restore noisy.wav -o clean.wav            # denoise + dereverb, 48 kHz output
+speech restore noisy.wav --variant int8          # smaller, lower peak RAM
+
+# Clean a voice-cloning reference before TTS (opt-in; preserves speaker identity):
+speech speak "Hello" --engine voxcpm2 --voice-sample ref.wav --clean-reference
+```
+
 ### वॉयस पाइपलाइन (ASR → LLM → TTS) — [पूर्ण गाइड →](https://soniqo.audio/hi/voice-agents)
 
 ```swift
@@ -345,7 +402,7 @@ pipeline.pushAudio(micSamples)
 speech-server --port 8080
 ```
 
-सभी मॉडलों को HTTP REST + WebSocket endpoints के माध्यम से एक्सपोज़ करता है, जिसमें `/v1/realtime` पर OpenAI Realtime API-संगत WebSocket शामिल है। देखें [`Sources/AudioServer/`](Sources/AudioServer/)।
+सभी मॉडलों को HTTP REST + WebSocket endpoints के माध्यम से एक्सपोज़ करता है, जिसमें OpenAI-संगत APIs शामिल हैं: `/v1/realtime` पर Realtime WebSocket और `/v1/audio/transcriptions` पर ट्रांसक्रिप्शन REST endpoint। देखें [`Sources/AudioServer/`](Sources/AudioServer/)।
 
 ## आर्किटेक्चर
 
@@ -354,8 +411,8 @@ speech-swift प्रति मॉडल एक SPM टारगेट मे�
 **[बैकएंड, मेमोरी टेबल्स, और मॉड्यूल मैप के साथ पूर्ण आर्किटेक्चर डायग्राम → soniqo.audio/architecture](https://soniqo.audio/hi/architecture)** · **[API संदर्भ → soniqo.audio/api](https://soniqo.audio/hi/api)** · **[बेंचमार्क → soniqo.audio/benchmarks](https://soniqo.audio/hi/benchmarks)**
 
 स्थानीय डॉक्स (रिपॉज़िटरी):
-- **मॉडल:** [Qwen3-ASR](docs/models/asr-model.md) · [Qwen3-TTS](docs/models/tts-model.md) · [CosyVoice](docs/models/cosyvoice-tts.md) · [Kokoro](docs/models/kokoro-tts.md) · [VibeVoice](docs/models/vibevoice.md) · [Parakeet TDT](docs/models/parakeet-asr.md) · [Parakeet Streaming](docs/models/parakeet-streaming-asr.md) · [Nemotron Streaming](docs/models/nemotron-streaming.md) · [Omnilingual ASR](docs/models/omnilingual-asr.md) · [PersonaPlex](docs/models/personaplex.md) · [FireRedVAD](docs/models/fireredvad.md) · [Source Separation](docs/models/source-separation.md)
-- **इन्फ़रेंस:** [Qwen3-ASR](docs/inference/qwen3-asr-inference.md) · [Parakeet TDT](docs/inference/parakeet-asr-inference.md) · [Parakeet Streaming](docs/inference/parakeet-streaming-asr-inference.md) · [Nemotron Streaming](docs/inference/nemotron-streaming-inference.md) · [Omnilingual ASR](docs/inference/omnilingual-asr-inference.md) · [TTS](docs/inference/qwen3-tts-inference.md) · [VibeVoice](docs/inference/vibevoice-inference.md) · [Forced Aligner](docs/inference/forced-aligner.md) · [Silero VAD](docs/inference/silero-vad.md) · [स्पीकर डायराइज़ेशन](docs/inference/speaker-diarization.md) · [स्पीच एन्हांसमेंट](docs/inference/speech-enhancement.md)
+- **मॉडल:** [Qwen3-ASR](docs/models/asr-model.md) · [Qwen3-TTS](docs/models/tts-model.md) · [CosyVoice](docs/models/cosyvoice-tts.md) · [Kokoro](docs/models/kokoro-tts.md) · [VibeVoice](docs/models/vibevoice.md) · [Parakeet TDT](docs/models/parakeet-asr.md) · [Parakeet Streaming](docs/models/parakeet-streaming-asr.md) · [Nemotron Streaming](docs/models/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/models/omnilingual-asr.md) · [PersonaPlex](docs/models/personaplex.md) · [Hibiki](docs/models/hibiki.md) · [FireRedVAD](docs/models/fireredvad.md) · [Source Separation](docs/models/source-separation.md) · [HTDemucs](docs/models/htdemucs.md) · [MAGNeT](docs/models/magnet-music-gen.md) · [FlashSR](docs/models/flashsr.md)
+- **इन्फ़रेंस:** [Qwen3-ASR](docs/inference/qwen3-asr-inference.md) · [Parakeet TDT](docs/inference/parakeet-asr-inference.md) · [Parakeet Streaming](docs/inference/parakeet-streaming-asr-inference.md) · [Nemotron Streaming](docs/inference/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/inference/omnilingual-asr-inference.md) · [TTS](docs/inference/qwen3-tts-inference.md) · [VibeVoice](docs/inference/vibevoice-inference.md) · [Hibiki](docs/inference/hibiki-inference.md) · [Forced Aligner](docs/inference/forced-aligner.md) · [Silero VAD](docs/inference/silero-vad.md) · [स्पीकर डायराइज़ेशन](docs/inference/speaker-diarization.md) · [स्पीच एन्हांसमेंट](docs/inference/speech-enhancement.md) · [MAGNeT](docs/inference/magnet-music-gen.md) · [FlashSR](docs/inference/flashsr.md)
 - **संदर्भ:** [शेयर्ड प्रोटोकॉल](docs/shared-protocols.md)
 
 ## कैश कॉन्फ़िगरेशन

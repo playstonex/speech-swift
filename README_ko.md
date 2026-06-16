@@ -2,11 +2,15 @@
 
 MLX Swift와 CoreML 기반의 Apple Silicon용 AI 음성 모델.
 
-📖 Read in: [English](README.md) · [中文](README_zh.md) · [日本語](README_ja.md) · [한국어](README_ko.md) · [Español](README_es.md) · [Deutsch](README_de.md) · [Français](README_fr.md) · [हिन्दी](README_hi.md) · [Português](README_pt.md) · [Русский](README_ru.md)
+📖 Read in: [English](README.md) · [中文](README_zh.md) · [日本語](README_ja.md) · [한국어](README_ko.md) · [Español](README_es.md) · [Deutsch](README_de.md) · [Français](README_fr.md) · [हिन्दी](README_hi.md) · [Português](README_pt.md) · [Русский](README_ru.md) · [العربية](README_ar.md) · [Tiếng Việt](README_vi.md) · [Türkçe](README_tr.md) · [ไทย](README_th.md)
 
 Mac과 iOS를 위한 온디바이스 음성 인식, 합성 및 이해. Apple Silicon에서 완전히 로컬로 실행됩니다 — 클라우드 없이, API 키 없이, 데이터가 기기 밖으로 나가지 않습니다.
 
 **[📚 전체 문서 →](https://soniqo.audio/ko)** · **[🤗 HuggingFace 모델](https://huggingface.co/aufklarer)** · **[📝 블로그](https://blog.ivan.digital)**
+
+<p align="center">
+  <a href="https://www.producthunt.com/products/speech-swift?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-speech-swift" target="_blank" rel="noopener noreferrer"><img alt="speech-swift -  The whole speech stack, on your laptop. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1151422&amp;theme=light&amp;t=1779261593657"></a>
+</p>
 
 <p align="center">
   <a href="https://youtu.be/x9zgcaW0gUk">
@@ -21,24 +25,29 @@ Mac과 iOS를 위한 온디바이스 음성 인식, 합성 및 이해. Apple Sil
 - **[Parakeet TDT](https://soniqo.audio/ko/guides/parakeet)** — CoreML을 통한 음성-텍스트 변환 (Neural Engine, NVIDIA FastConformer + TDT 디코더, 25개 언어)
 - **[Omnilingual ASR](https://soniqo.audio/ko/guides/omnilingual)** — 음성-텍스트 변환 (Meta wav2vec2 + CTC, **1,672개 언어**, 32개 문자 체계, CoreML 300M + MLX 300M/1B/3B/7B)
 - **[스트리밍 받아쓰기](https://soniqo.audio/ko/guides/dictate)** — 부분 결과와 발화 종료 감지를 갖춘 실시간 받아쓰기 (Parakeet-EOU-120M)
-- **[Nemotron 스트리밍](https://soniqo.audio/ko/guides/nemotron)** — 네이티브 구두점 및 대소문자 처리를 제공하는 저지연 스트리밍 ASR (NVIDIA Nemotron-Speech-Streaming-0.6B, CoreML, 영어)
+- **[Nemotron 스트리밍 (다국어)](https://soniqo.audio/ko/guides/nemotron)** — 네이티브 구두점 및 대소문자 처리를 제공하는 저지연 스트리밍 ASR (NVIDIA Nemotron-3.5-ASR-Streaming-0.6B, CoreML + MLX, **40개 언어-로케일**)
+- **[Nemotron 스트리밍 (영어)](https://soniqo.audio/guides/nemotron)** — 네이티브 구두점 및 대소문자 처리를 제공하는 저지연 스트리밍 ASR (NVIDIA Nemotron-Speech-Streaming-0.6B, CoreML, 영어 전용, 다국어 버전보다 가볍고 빠름)
 - **[Qwen3-ForcedAligner](https://soniqo.audio/ko/guides/align)** — 단어 수준 타임스탬프 정렬 (오디오 + 텍스트 → 타임스탬프)
 - **[Qwen3-TTS](https://soniqo.audio/ko/guides/speak)** — 텍스트-음성 변환 (최고 품질, 스트리밍, 커스텀 화자, 10개 언어)
 - **[CosyVoice TTS](https://soniqo.audio/ko/guides/cosyvoice)** — 음성 복제, 다화자 대화, 감정 태그를 지원하는 스트리밍 TTS (9개 언어)
 - **[VoxCPM2](https://soniqo.audio/ko/speech-generation)** — 48 kHz 스튜디오 품질 TTS, 음성 복제 + 명령 기반 보이스 디자인 (2B, MLX bf16/int8/int4, 30개 언어)
 - **[Kokoro TTS](https://soniqo.audio/ko/guides/kokoro)** — 온디바이스 TTS (82M, CoreML/Neural Engine, 54개 음색, iOS 지원, 10개 언어)
 - **[VibeVoice TTS](https://soniqo.audio/ko/guides/vibevoice)** — 장문 / 멀티 스피커 TTS (Microsoft VibeVoice Realtime-0.5B + 1.5B, MLX, 최대 90분 팟캐스트 / 오디오북 합성, EN/ZH)
+- **[Magpie TTS](https://soniqo.audio/ko/guides/magpie)** — 다국어 TTS (NVIDIA Magpie-TTS Multilingual 357M, MLX INT4 247 MB / INT8 411 MB 또는 CoreML INT8 342 MB, 9개 언어, 5개 내장 스피커, MLX 스트리밍)
 - **[Qwen3.5-Chat](https://soniqo.audio/ko/guides/chat)** — 온디바이스 LLM 채팅 (0.8B, MLX INT4 + CoreML INT8, DeltaNet 하이브리드, 스트리밍 토큰)
 - **[MADLAD-400](https://soniqo.audio/ko/guides/translate)** — 400+ 언어 간 다대다 번역 (3B, MLX INT4 + INT8, T5 v1.1, Apache 2.0)
+- **[Hibiki Zero-3B](https://soniqo.audio/guides/audio-translate)** — 스트리밍 음성-음성 번역 (FR/ES/PT/DE → EN, MLX INT4 + INT8, Kyutai Moshi/Mimi 스택, CC-BY-4.0)
 - **[PersonaPlex](https://soniqo.audio/ko/guides/respond)** — 전이중 음성-음성 대화 (7B, 오디오 입력 → 오디오 출력, 18개 음색 프리셋)
-- **[DeepFilterNet3](https://soniqo.audio/ko/guides/denoise)** — 실시간 노이즈 억제 (2.1M 파라미터, 48 kHz)
-- **[소스 분리](https://soniqo.audio/ko/guides/separate)** — Open-Unmix 기반 음악 소스 분리 (UMX-HQ / UMX-L, 4개 스템: 보컬/드럼/베이스/기타, 44.1 kHz 스테레오)
+- **[DeepFilterNet3](https://soniqo.audio/ko/guides/denoise)** — 실시간 노이즈 억제 (2.1M 파라미터, 48 kHz). 60 s 단일 처리 한계를 초과하는 장시간 오디오는 crossfade로 자동 청크 처리 — `enhanceChunked(...)` API 참조
+- **[소스 분리](https://soniqo.audio/ko/guides/separate)** — HTDemucs (Demucs v4) + Open-Unmix 기반 음악 소스 분리 (UMX-HQ / UMX-L, 4개 스템: 보컬/드럼/베이스/기타, 44.1 kHz 스테레오)
+- **[MAGNeT](https://soniqo.audio/ko/guides/compose)** — 텍스트 → 음악 생성 (Meta MAGNeT Small 300M / Medium 1.5B, MLX INT4/INT8, 30초 클립 32 kHz 모노, 마스크 병렬 디코딩)
+- **[FlashSR](https://soniqo.audio/ko/guides/upsample)** — 오디오 초고해상도 (FlashSR ICASSP 2025, MLX, 48 kHz 모노, 1단계 증류 확산, INT4 363 MB / INT8 720 MB)
 - **[웨이크워드](https://soniqo.audio/ko/guides/wake-word)** — 온디바이스 키워드 감지 (KWS Zipformer 3M, CoreML, 실시간의 26배, 구성 가능한 키워드 목록)
 - **[VAD](https://soniqo.audio/ko/guides/vad)** — 음성 활동 감지 (Silero 스트리밍, Pyannote 오프라인, FireRedVAD 100+ 개 언어)
 - **[화자 분리](https://soniqo.audio/ko/guides/diarize)** — 누가 언제 말했는지 (Pyannote 파이프라인, Neural Engine 상의 엔드투엔드 Sortformer)
 - **[화자 임베딩](https://soniqo.audio/ko/guides/embed-speaker)** — WeSpeaker ResNet34 (256차원), CAM++ (192차원)
 
-논문: [Qwen3-ASR](https://arxiv.org/abs/2601.21337) (Alibaba) · [Qwen3-TTS](https://arxiv.org/abs/2601.15621) (Alibaba) · [Omnilingual ASR](https://arxiv.org/abs/2511.09690) (Meta) · [Parakeet TDT](https://arxiv.org/abs/2304.06795) (NVIDIA) · [CosyVoice 3](https://arxiv.org/abs/2505.17589) (Alibaba) · [Kokoro](https://arxiv.org/abs/2301.01695) (StyleTTS 2) · [PersonaPlex](https://arxiv.org/abs/2602.06053) (NVIDIA) · [Mimi](https://arxiv.org/abs/2410.00037) (Kyutai) · [Sortformer](https://arxiv.org/abs/2409.06656) (NVIDIA)
+논문: [Qwen3-ASR](https://arxiv.org/abs/2601.21337) (Alibaba) · [Qwen3-TTS](https://arxiv.org/abs/2601.15621) (Alibaba) · [Omnilingual ASR](https://arxiv.org/abs/2511.09690) (Meta) · [Parakeet TDT](https://arxiv.org/abs/2304.06795) (NVIDIA) · [CosyVoice 3](https://arxiv.org/abs/2505.17589) (Alibaba) · [Kokoro](https://arxiv.org/abs/2301.01695) (StyleTTS 2) · [PersonaPlex](https://arxiv.org/abs/2602.06053) (NVIDIA) · [Mimi](https://arxiv.org/abs/2410.00037) (Kyutai) · [Hibiki](https://arxiv.org/abs/2502.03382) (Kyutai) · [Sortformer](https://arxiv.org/abs/2409.06656) (NVIDIA)
 
 ## 소식
 
@@ -106,7 +115,7 @@ struct DictateView: View {
 
 `SpeechUI`에는 `TranscriptionView`(파이널 + 파셜)와 `TranscriptionStore`(스트리밍 ASR 어댑터)만 포함됩니다. 오디오 시각화와 재생에는 AVFoundation을 사용하세요.
 
-사용 가능한 SPM 프로덕트: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `PersonaPlex`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
+사용 가능한 SPM 프로덕트: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `MagpieTTS`, `MagpieTTSCoreML`, `MAGNeTMusicGen`, `FlashSR`, `PersonaPlex`, `HibikiTranslate`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
 
 ## 모델
 
@@ -117,7 +126,8 @@ struct DictateView: View {
 | [Qwen3-ASR](https://soniqo.audio/ko/guides/transcribe) | 음성 → 텍스트 | MLX, CoreML (하이브리드) | 0.6B, 1.7B | 52 |
 | [Parakeet TDT](https://soniqo.audio/ko/guides/parakeet) | 음성 → 텍스트 | CoreML (ANE) | 0.6B | 25개 유럽어 |
 | [Parakeet EOU](https://soniqo.audio/ko/guides/dictate) | 음성 → 텍스트 (스트리밍) | CoreML (ANE) | 120M | 25개 유럽어 |
-| [Nemotron Streaming](https://soniqo.audio/ko/guides/nemotron) | 음성 → 텍스트 (스트리밍, 구두점 포함) | CoreML (ANE) | 0.6B | 영어 |
+| [Nemotron Streaming (다국어)](https://soniqo.audio/ko/guides/nemotron) | 음성 → 텍스트 (스트리밍, 구두점 포함) | CoreML (ANE), MLX | 0.6B | **40** |
+| [Nemotron Streaming (영어)](https://soniqo.audio/guides/nemotron) | 음성 → 텍스트 (스트리밍, 구두점 포함) | CoreML (ANE) | 0.6B | EN |
 | [Omnilingual ASR](https://soniqo.audio/ko/guides/omnilingual) | 음성 → 텍스트 | CoreML (ANE), MLX | 300M / 1B / 3B / 7B | **[1,672](https://github.com/facebookresearch/omnilingual-asr/blob/main/src/omnilingual_asr/models/wav2vec2_llama/lang_ids.py)** |
 | [Qwen3-ForcedAligner](https://soniqo.audio/ko/guides/align) | 오디오 + 텍스트 → 타임스탬프 | MLX, CoreML | 0.6B | 다언어 |
 | [Qwen3-TTS](https://soniqo.audio/ko/guides/speak) | 텍스트 → 음성 | MLX, CoreML | 0.6B, 1.7B | 10 |
@@ -126,14 +136,20 @@ struct DictateView: View {
 | [Kokoro-82M](https://soniqo.audio/ko/guides/kokoro) | 텍스트 → 음성 | CoreML (ANE) | 82M | 10 |
 | [VibeVoice Realtime-0.5B](https://soniqo.audio/ko/guides/vibevoice) | 텍스트 → 음성 (장문, 멀티 스피커) | MLX | 0.5B | EN/ZH |
 | [VibeVoice 1.5B](https://soniqo.audio/ko/guides/vibevoice) | 텍스트 → 음성 (최대 90분 팟캐스트) | MLX | 1.5B | EN/ZH |
+| [Magpie-TTS Multilingual](https://soniqo.audio/ko/guides/magpie) | 텍스트 → 음성 (5개 내장 스피커, 스트리밍) | MLX / CoreML | 357M (MLX INT4/INT8, CoreML INT8) | 9 (CoreML은 일본어 제외) |
 | [Qwen3.5-Chat](https://soniqo.audio/ko/guides/chat) | 텍스트 → 텍스트 (LLM) | MLX, CoreML | 0.8B | 다언어 |
 | [MADLAD-400](https://soniqo.audio/ko/guides/translate) | 텍스트 → 텍스트 (번역) | MLX | 3B | **400+** |
+| [Hibiki Zero-3B](https://soniqo.audio/guides/audio-translate) | 음성 → 음성 (번역) | MLX | 3B | FR/ES/PT/DE → EN |
 | [PersonaPlex](https://soniqo.audio/ko/guides/respond) | 음성 → 음성 | MLX | 7B | EN |
 | [Silero VAD](https://soniqo.audio/ko/guides/vad) | 음성 활동 감지 | MLX, CoreML | 309K | 언어 무관 |
 | [Pyannote](https://soniqo.audio/ko/guides/diarize) | VAD + 화자 분리 | MLX | 1.5M | 언어 무관 |
 | [Sortformer](https://soniqo.audio/ko/guides/diarize) | 화자 분리 (E2E) | CoreML (ANE) | — | 언어 무관 |
 | [DeepFilterNet3](https://soniqo.audio/ko/guides/denoise) | 음성 향상 | CoreML | 2.1M | 언어 무관 |
+| [Sidon](https://soniqo.audio/ko/guides/restore) | 음성 복원 (노이즈 제거 + 잔향 제거, 48 kHz) | CoreML | w2v-BERT 2.0 + DAC (fp16/int8) | 언어 무관 |
+| [HTDemucs (Demucs v4)](https://soniqo.audio/ko/guides/separate) | 소스 분리 | MLX | 168M | Agnostic |
 | [Open-Unmix](https://soniqo.audio/ko/guides/separate) | 소스 분리 | MLX | 8.6M | Agnostic |
+| [MAGNeT](https://soniqo.audio/ko/guides/compose) | 텍스트 → 음악 (30초 @ 32 kHz) | MLX | 300M / 1.5B (int4/int8) | 영어 프롬프트 |
+| [FlashSR](https://soniqo.audio/ko/guides/upsample) | 오디오 초고해상도 (48 kHz) | MLX | 363 MB / 720 MB (int4/int8) | 언어 무관 |
 | [WeSpeaker](https://soniqo.audio/ko/guides/embed-speaker) | 화자 임베딩 | MLX, CoreML | 6.6M | 언어 무관 |
 
 ## 설치
@@ -143,7 +159,7 @@ struct DictateView: View {
 네이티브 ARM Homebrew(`/opt/homebrew`)가 필요합니다. Rosetta/x86_64 Homebrew는 지원되지 않습니다.
 
 ```bash
-brew install soniqo/tap/speech
+brew install speech
 ```
 
 그런 다음:
@@ -153,7 +169,7 @@ speech transcribe recording.wav
 speech speak "Hello world"
 speech translate "Hello, how are you?" --to es
 speech respond --input question.wav --transcript
-speech-server --port 8080            # 로컬 HTTP / WebSocket 서버 (OpenAI 호환 /v1/realtime)
+speech-server --port 8080            # 로컬 HTTP / WebSocket 서버 (OpenAI 호환 /v1/realtime + /v1/audio/transcriptions)
 ```
 
 **[전체 CLI 레퍼런스 →](https://soniqo.audio/ko/cli)**
@@ -172,19 +188,25 @@ dependencies: [
 import Qwen3ASR             // 음성 인식 (MLX)
 import ParakeetASR          // 음성 인식 (CoreML, 배치)
 import ParakeetStreamingASR // 부분 결과 + EOU 포함 스트리밍 받아쓰기
-import NemotronStreamingASR // 영어 스트리밍 ASR, 네이티브 구두점 (0.6B)
+import NemotronStreamingASR // 다국어 스트리밍 ASR, 네이티브 구두점 (0.6B, 40개 언어)
 import OmnilingualASR       // 1,672개 언어 (CoreML + MLX)
 import Qwen3TTS             // 텍스트-음성 변환
 import CosyVoiceTTS         // 음성 복제 포함 텍스트-음성 변환
 import VoxCPM2TTS           // 48 kHz TTS, 음성 복제 + 보이스 디자인 (2B)
 import KokoroTTS            // 텍스트-음성 변환 (iOS 지원)
 import VibeVoiceTTS         // 장문 / 멀티 스피커 TTS (EN/ZH)
+import MagpieTTS            // 다국어 TTS (NVIDIA Magpie 357M, MLX, 9개 언어)
+import MagpieTTSCoreML      // Magpie CoreML 백엔드 (CoreML + MLX 하이브리드, 8개 언어)
 import Qwen3Chat            // 온디바이스 LLM 채팅
 import MADLADTranslation    // 400+ 언어 간 다대다 번역
+import HibikiTranslate      // 스트리밍 음성-음성 번역 (FR/ES/PT/DE → EN)
 import PersonaPlex          // 전이중 음성-음성 변환
 import SpeechVAD            // VAD + 화자 분리 + 임베딩
 import SpeechEnhancement    // 노이즈 억제
+import SpeechRestoration    // 음성 복원 — 노이즈 제거 + 잔향 제거 (Sidon, CoreML, 48 kHz)
 import SourceSeparation     // 음악 소스 분리 (Open-Unmix, 4 스템)
+import MAGNeTMusicGen      // 텍스트 → 음악 생성 (30초, 32 kHz)
+import FlashSR             // 오디오 초고해상도 (48 kHz, 1단계 확산)
 import SpeechUI             // 스트리밍 전사를 위한 SwiftUI 컴포넌트
 import AudioCommon          // 공유 프로토콜 및 유틸리티
 ```
@@ -292,6 +314,20 @@ let es = try translator.translate("Hello, how are you?", to: "es")
 // → "Hola, ¿cómo estás?"
 ```
 
+### 음성 번역 — [전체 가이드 →](https://soniqo.audio/guides/audio-translate)
+
+```swift
+import HibikiTranslate
+import AudioCommon
+
+let model = try await HibikiTranslateModel.fromPretrained()
+let pcm = try AudioFileLoader.load(url: input, targetSampleRate: 24000)
+let (englishAudio, textTokens) = model.translate(
+    sourceAudio: pcm, sourceLanguage: .fr
+)
+// Hibiki Zero-3B — FR/ES/PT/DE → EN, 온디바이스, 스트리밍 Mimi 코덱
+```
+
 ### 음성 활동 감지 — [전체 가이드 →](https://soniqo.audio/ko/guides/vad)
 
 ```swift
@@ -321,6 +357,27 @@ let denoiser = try await DeepFilterNet3Model.fromPretrained()
 let clean = try denoiser.enhance(audio: noisySamples, sampleRate: 48000)
 ```
 
+### 음성 복원 — [전체 가이드 →](https://soniqo.audio/ko/guides/restore)
+
+[Sidon](https://arxiv.org/abs/2509.17052) (w2v-BERT 2.0 예측기 + DAC 보코더, Core ML)으로 노이즈 제거 **및** 잔향 제거를 동시에 수행합니다. 일반적인 노이즈 억제기와 달리 Sidon은 화자의 정체성을 보존하도록 학습되어, TTS 이전에 노이즈가 많거나 잔향이 있는 음성 복제 레퍼런스를 정리하는 데 적합합니다. 입력은 16 kHz이고 출력은 48 kHz 모노입니다.
+
+```swift
+import SpeechRestoration
+
+let restorer = try await SpeechRestorer.fromPretrained()          // .fp16 (기본값) 또는 .int8
+let clean = try restorer.restore(audio: noisySamples, sampleRate: 16000)  // → 48 kHz
+```
+
+CLI에서:
+
+```bash
+speech restore noisy.wav -o clean.wav            # 노이즈 제거 + 잔향 제거, 48 kHz 출력
+speech restore noisy.wav --variant int8          # 더 작은 크기, 낮은 최대 RAM
+
+# TTS 이전에 음성 복제 레퍼런스 정리 (옵트인; 화자 정체성 보존):
+speech speak "Hello" --engine voxcpm2 --voice-sample ref.wav --clean-reference
+```
+
 ### 음성 파이프라인 (ASR → LLM → TTS) — [전체 가이드 →](https://soniqo.audio/ko/voice-agents)
 
 ```swift
@@ -345,7 +402,7 @@ pipeline.pushAudio(micSamples)
 speech-server --port 8080
 ```
 
-HTTP REST + WebSocket 엔드포인트로 모든 모델을 공개합니다. OpenAI Realtime API 호환 WebSocket `/v1/realtime`도 포함됩니다. [`Sources/AudioServer/`](Sources/AudioServer/)를 참조하세요.
+HTTP REST + WebSocket 엔드포인트로 모든 모델을 공개합니다. OpenAI 호환 API로 `/v1/realtime`의 Realtime WebSocket과 `/v1/audio/transcriptions`의 음성 인식 REST 엔드포인트가 포함됩니다. [`Sources/AudioServer/`](Sources/AudioServer/)를 참조하세요.
 
 ## 아키텍처
 
@@ -354,8 +411,8 @@ speech-swift는 모델당 하나의 SPM 타겟으로 분리되어 있어 사용�
 **[백엔드, 메모리 테이블, 모듈 맵이 포함된 전체 아키텍처 다이어그램 → soniqo.audio/architecture](https://soniqo.audio/ko/architecture)** · **[API 레퍼런스 → soniqo.audio/api](https://soniqo.audio/ko/api)** · **[벤치마크 → soniqo.audio/benchmarks](https://soniqo.audio/ko/benchmarks)**
 
 로컬 문서 (리포지토리):
-- **모델:** [Qwen3-ASR](docs/models/asr-model.md) · [Qwen3-TTS](docs/models/tts-model.md) · [CosyVoice](docs/models/cosyvoice-tts.md) · [Kokoro](docs/models/kokoro-tts.md) · [VibeVoice](docs/models/vibevoice.md) · [Parakeet TDT](docs/models/parakeet-asr.md) · [Parakeet Streaming](docs/models/parakeet-streaming-asr.md) · [Nemotron Streaming](docs/models/nemotron-streaming.md) · [Omnilingual ASR](docs/models/omnilingual-asr.md) · [PersonaPlex](docs/models/personaplex.md) · [FireRedVAD](docs/models/fireredvad.md) · [Source Separation](docs/models/source-separation.md)
-- **추론:** [Qwen3-ASR](docs/inference/qwen3-asr-inference.md) · [Parakeet TDT](docs/inference/parakeet-asr-inference.md) · [Parakeet Streaming](docs/inference/parakeet-streaming-asr-inference.md) · [Nemotron Streaming](docs/inference/nemotron-streaming-inference.md) · [Omnilingual ASR](docs/inference/omnilingual-asr-inference.md) · [TTS](docs/inference/qwen3-tts-inference.md) · [VibeVoice](docs/inference/vibevoice-inference.md) · [Forced Aligner](docs/inference/forced-aligner.md) · [Silero VAD](docs/inference/silero-vad.md) · [화자 분리](docs/inference/speaker-diarization.md) · [음성 향상](docs/inference/speech-enhancement.md)
+- **모델:** [Qwen3-ASR](docs/models/asr-model.md) · [Qwen3-TTS](docs/models/tts-model.md) · [CosyVoice](docs/models/cosyvoice-tts.md) · [Kokoro](docs/models/kokoro-tts.md) · [VibeVoice](docs/models/vibevoice.md) · [Parakeet TDT](docs/models/parakeet-asr.md) · [Parakeet Streaming](docs/models/parakeet-streaming-asr.md) · [Nemotron Streaming](docs/models/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/models/omnilingual-asr.md) · [PersonaPlex](docs/models/personaplex.md) · [Hibiki](docs/models/hibiki.md) · [FireRedVAD](docs/models/fireredvad.md) · [Source Separation](docs/models/source-separation.md) · [HTDemucs](docs/models/htdemucs.md) · [MAGNeT](docs/models/magnet-music-gen.md) · [FlashSR](docs/models/flashsr.md)
+- **추론:** [Qwen3-ASR](docs/inference/qwen3-asr-inference.md) · [Parakeet TDT](docs/inference/parakeet-asr-inference.md) · [Parakeet Streaming](docs/inference/parakeet-streaming-asr-inference.md) · [Nemotron Streaming](docs/inference/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/inference/omnilingual-asr-inference.md) · [TTS](docs/inference/qwen3-tts-inference.md) · [VibeVoice](docs/inference/vibevoice-inference.md) · [Hibiki](docs/inference/hibiki-inference.md) · [Forced Aligner](docs/inference/forced-aligner.md) · [Silero VAD](docs/inference/silero-vad.md) · [화자 분리](docs/inference/speaker-diarization.md) · [음성 향상](docs/inference/speech-enhancement.md) · [MAGNeT](docs/inference/magnet-music-gen.md) · [FlashSR](docs/inference/flashsr.md)
 - **레퍼런스:** [공유 프로토콜](docs/shared-protocols.md)
 
 ## 캐시 설정

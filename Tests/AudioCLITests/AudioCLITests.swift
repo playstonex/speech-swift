@@ -347,7 +347,25 @@ final class SpeakCommandTests: XCTestCase {
     func testDefaultCosyVoiceModelId() throws {
         let cmd = try AudioCLI.parseAsRoot(["speak", "Hello"])
         let speak = try XCTUnwrap(cmd as? SpeakCommand)
-        XCTAssertEqual(speak.modelId, "aufklarer/CosyVoice3-0.5B-MLX-4bit")
+        // --model-id is now opt-in; the runtime resolves the default through
+        // --cosyvoice-variant (4bit by default → aufklarer/CosyVoice3-0.5B-MLX-4bit).
+        XCTAssertNil(speak.modelId)
+        XCTAssertEqual(speak.cosyvoiceVariant, "4bit")
+    }
+
+    func testCosyVoiceVariantBf16() throws {
+        let cmd = try AudioCLI.parseAsRoot(
+            ["speak", "--engine", "cosyvoice", "--cosyvoice-variant", "bf16", "Hello"])
+        let speak = try XCTUnwrap(cmd as? SpeakCommand)
+        XCTAssertEqual(speak.cosyvoiceVariant, "bf16")
+        XCTAssertNil(speak.modelId)
+    }
+
+    func testCosyVoiceModelIdOverridesVariant() throws {
+        let cmd = try AudioCLI.parseAsRoot(
+            ["speak", "--engine", "cosyvoice", "--model-id", "custom/Model", "Hello"])
+        let speak = try XCTUnwrap(cmd as? SpeakCommand)
+        XCTAssertEqual(speak.modelId, "custom/Model")
     }
 
     // MARK: Engine selection
@@ -491,6 +509,93 @@ final class SpeakCommandTests: XCTestCase {
         let cmd = try AudioCLI.parseAsRoot(["speak", "--batch-file", "f.txt", "--batch-size", "8"])
         let speak = try XCTUnwrap(cmd as? SpeakCommand)
         XCTAssertEqual(speak.batchSize, 8)
+    }
+
+    // MARK: Magpie engine — validate that voice-cloning / qwen3-specific
+    // flags are rejected with a helpful error instead of silently ignored.
+    // Magpie has 5 baked speakers and no zero-shot conditioning in the
+    // model, so passing `--voice-sample` / `--speaker` / `--instruct`
+    // would otherwise let the user think cloning had worked.
+
+    // `parseAsRoot` runs `validate()` during parsing, so the error
+    // surfaces from the parse call rather than from a separate validate().
+    private func expectMagpieReject(_ args: [String], contains needle: String,
+                                      file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertThrowsError(try AudioCLI.parseAsRoot(args), file: file, line: line) { err in
+            XCTAssertTrue("\(err)".contains(needle),
+                          "expected error containing '\(needle)', got: \(err)",
+                          file: file, line: line)
+        }
+    }
+
+    func testMagpieRejectsVoiceSample() {
+        expectMagpieReject(
+            ["speak", "hi", "--engine", "magpie", "--voice-sample", "ref.wav"],
+            contains: "--voice-sample")
+    }
+
+    func testMagpieRejectsQwen3SpeakerFlag() {
+        expectMagpieReject(
+            ["speak", "hi", "--engine", "magpie", "--speaker", "someone"],
+            contains: "--speaker")
+    }
+
+    func testMagpieRejectsInstruct() {
+        expectMagpieReject(
+            ["speak", "hi", "--engine", "magpie", "--instruct", "be friendly"],
+            contains: "--instruct")
+    }
+
+    func testMagpieAcceptsBakedSpeakers() throws {
+        for spk in ["sofia", "aria", "jason", "leo", "john"] {
+            XCTAssertNoThrow(try AudioCLI.parseAsRoot(
+                ["speak", "hi", "--engine", "magpie", "--magpie-speaker", spk]),
+                             "speaker \(spk) should validate")
+        }
+    }
+
+    func testMagpieRejectsUnknownSpeaker() {
+        expectMagpieReject(
+            ["speak", "hi", "--engine", "magpie", "--magpie-speaker", "elvis"],
+            contains: "--magpie-speaker")
+    }
+
+    // MARK: - Magpie CoreML engine
+
+    func testMagpieCoreMLAccepts() throws {
+        XCTAssertNoThrow(try AudioCLI.parseAsRoot(
+            ["speak", "hi", "--engine", "magpie-coreml", "--magpie-speaker", "aria"]))
+    }
+
+    func testMagpieCoreMLAcceptsStream() throws {
+        // Streaming is supported via the dedicated 8-frame nanocodec
+        // model. Validation must accept --stream now (used to be
+        // rejected when only the 64-frame batch codec shipped).
+        XCTAssertNoThrow(try AudioCLI.parseAsRoot(
+            ["speak", "hi", "--engine", "magpie-coreml", "--stream"]))
+    }
+
+    func testMagpieCoreMLRejectsVoiceCloningFlags() {
+        // Same five baked speakers as the MLX engine; reject the same set
+        // of cross-engine flags with the same actionable error.
+        for (flag, value) in [("--voice-sample", "ref.wav"),
+                              ("--speaker",      "someone"),
+                              ("--instruct",     "be friendly")] {
+            expectMagpieReject(
+                ["speak", "hi", "--engine", "magpie-coreml", flag, value],
+                contains: flag)
+        }
+    }
+
+    func testMagpieCoreMLAllSpeakers() throws {
+        // The CoreML bundle uses a different speaker index ordering than the
+        // MLX bundle (John=0 vs Sofia=0); the CLI name → enum lookup must
+        // work for all five identities.
+        for spk in ["sofia", "aria", "jason", "leo", "john"] {
+            XCTAssertNoThrow(try AudioCLI.parseAsRoot(
+                ["speak", "hi", "--engine", "magpie-coreml", "--magpie-speaker", spk]),
+                             "coreml speaker \(spk) should validate")
+        }
     }
 }
 
