@@ -84,14 +84,31 @@ if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
   trap cleanup EXIT
 
   AIR_FILES=()
+  # Pin the Metal language standard and minimum macOS so the produced
+  # mlx.metallib is loadable on the target OS. Without these, building on a
+  # newer host (e.g. macOS 26) defaults to that SDK's newest Metal/AIR format
+  # (Metal 4.x), which the macOS 15 Metal runtime cannot load -> MLX throws
+  # "Failed to load the default metallib" at first GPU op -> crash.
+  # MLX kernels require exactly Metal 3.2 (macOS 15):
+  #   - >= 3.1: the `bfloat` type (3.0 fails: "unknown type name 'bfloat'").
+  #   - == 3.2: system-scope atomics used by fence.metal (thread_scope,
+  #     coherent(system), atomic_thread_fence, memory_order_seq_cst) — 3.1 fails.
+  # 3.2 is also the newest standard macOS 15 can load, so it's the exact target.
+  # The local-ASR feature requires macOS 15+ anyway. Override via env:
+  # METAL_STD / METAL_MIN_MACOS.
+  METAL_STD="${METAL_STD:-metal3.2}"
+  METAL_MIN_MACOS="${METAL_MIN_MACOS:-15.0}"
   METAL_FLAGS=(
     -x metal
+    -std="$METAL_STD"
+    -mmacosx-version-min="$METAL_MIN_MACOS"
     -Wall
     -Wextra
     -fno-fast-math
     -Wno-c++17-extensions
     -Wno-c++20-extensions
   )
+  echo "Metal target: -std=$METAL_STD -mmacosx-version-min=$METAL_MIN_MACOS"
 
   echo "Compiling ${#METAL_SRCS[@]} Metal sources..."
   for SRC in "${METAL_SRCS[@]}"; do
