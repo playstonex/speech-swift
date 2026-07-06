@@ -2,18 +2,22 @@ import Foundation
 
 // MARK: - Float16 bit-pattern bridge
 //
-// `Float16` and its `BinaryFloatingPoint` conformance are only available on
-// macOS 11.0+ / iOS 14.0+. This package must build against an effective
-// deployment target below that (the Xcode-integrated build inherits a lower
-// `MACOSX_DEPLOYMENT_TARGET` than the `15.0` declared in `Package.swift`),
-// and under the Swift 6 language mode the availability gap is a hard error
-// rather than a warning.
+// `Float16` is only available on **arm64** (Apple Silicon). On **x86_64**
+// (Intel) the Swift standard库 marks `Float16` as unavailable — regardless
+// of deployment target. Confirmed empirically:
+//
+//   swiftc -target arm64-apple-macos15.0   → Float16 compiles ✅
+//   swiftc -target x86_64-apple-macos15.0  → error: 'Float16' is unavailable in macOS ❌
+//
+// The Petal app's Scenario target builds as a Universal macOS binary
+// (arm64 + x86_64), so any `Float16` reference here fails the x86_64 slice.
+// iOS builds are unaffected (arm64 only).
 //
 // CoreML `MLMultiArray` buffers with `.float16` dataType store IEEE-754
 // binary16 values as raw 16-bit words. We treat the buffer as `UInt16`
 // (the bit pattern) and convert to `Float32` manually, mirroring the
 // approach in `MagpieTTSCoreML/NpyReader.swift`. This keeps the code free
-// of the `Float16` type entirely so it compiles on macOS 10.15+.
+// of the `Float16` type entirely so it compiles for both architectures.
 
 /// Convert an IEEE-754 binary16 bit pattern to `Float`.
 @inline(__always)
