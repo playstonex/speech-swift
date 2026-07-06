@@ -292,14 +292,17 @@ public class StreamingSession {
 
     static func copyCastFP16ToFP32(_ src: MLMultiArray, into dst: MLMultiArray) {
         let count = src.count
-        let srcPtr = src.dataPointer.assumingMemoryBound(to: Float16.self)
+        // Treat the Float16 buffer as raw UInt16 bit patterns; see Float16Bridge.swift.
+        let srcPtr = src.dataPointer.assumingMemoryBound(to: UInt16.self)
         let dstPtr = dst.dataPointer.assumingMemoryBound(to: Float.self)
-        for i in 0..<count { dstPtr[i] = Float(srcPtr[i]) }
+        for i in 0..<count { dstPtr[i] = float16BitsToFloat(srcPtr[i]) }
     }
 
     private func truncateMel(_ mel: MLMultiArray, to targetFrames: Int) throws -> MLMultiArray {
         let numMelBins = config.numMelBins
-        let stride = mel.dataType == .float16 ? MemoryLayout<Float16>.stride : MemoryLayout<Float>.stride
+        // Float16 and UInt16 share the same stride (2 bytes); use UInt16 to avoid
+        // referencing the macOS-11+-only Float16 type. See Float16Bridge.swift.
+        let stride = mel.dataType == .float16 ? MemoryLayout<UInt16>.stride : MemoryLayout<Float>.stride
         let truncated = try MLMultiArray(
             shape: [1, numMelBins as NSNumber, targetFrames as NSNumber], dataType: mel.dataType)
         let actualFrames = mel.shape[2].intValue
@@ -315,7 +318,9 @@ public class StreamingSession {
 
     private func padMel(_ mel: MLMultiArray, actualLength: Int, targetLength: Int) throws -> MLMultiArray {
         let numMelBins = config.numMelBins
-        let stride = mel.dataType == .float16 ? MemoryLayout<Float16>.stride : MemoryLayout<Float>.stride
+        // Float16 and UInt16 share the same stride (2 bytes); use UInt16 to avoid
+        // referencing the macOS-11+-only Float16 type. See Float16Bridge.swift.
+        let stride = mel.dataType == .float16 ? MemoryLayout<UInt16>.stride : MemoryLayout<Float>.stride
         let padded = try MLMultiArray(
             shape: [1, numMelBins as NSNumber, targetLength as NSNumber], dataType: mel.dataType)
         for bin in 0..<numMelBins {
