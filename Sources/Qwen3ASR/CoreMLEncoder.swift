@@ -178,9 +178,11 @@ public class CoreMLASREncoder {
         switch array.dataType {
         #if !os(macOS)
         case .float16:
-            let src = array.dataPointer.assumingMemoryBound(to: Float16.self)
+            // Float16 is unavailable on x86_64; treat the buffer as raw UInt16
+            // bit patterns. See AudioCommon/Float16Bridge.swift.
+            let src = array.dataPointer.assumingMemoryBound(to: UInt16.self)
             var floats = [Float](repeating: 0, count: count)
-            for i in 0..<count { floats[i] = Float(src[i]) }
+            for i in 0..<count { floats[i] = float16BitsToFloat(src[i]) }
             return MLXArray(floats, shape)
         #endif
         case .float32:
