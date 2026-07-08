@@ -143,7 +143,15 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/ml-explore/mlx-swift", from: "0.30.0"),
+        // Upper-bound mlx-swift below 0.31.5: 0.31.5 added the CudaBuild
+        // build-tool plug-in (unconditionally attached to the Cmlx target for
+        // CUDA/Linux support). Xcode Cloud archives with automatic dependency
+        // resolution disabled abort non-interactively at
+        // 'Plugin CudaBuild must be enabled before it can be used' even though
+        // the plug-in is a no-op on Apple platforms. The 0.30.0..<0.31.5 range
+        // keeps 0.31.4 (the API surface in use) selectable while excluding the
+        // plug-in-bearing releases.
+        .package(url: "https://github.com/ml-explore/mlx-swift", "0.30.0"..<"0.31.5"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
         .package(url: "https://github.com/huggingface/swift-transformers", from: "1.1.6"),
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", "2.5.0"..<"2.17.0"),
