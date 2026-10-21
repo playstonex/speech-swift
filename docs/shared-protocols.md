@@ -8,12 +8,16 @@ The `AudioCommon` module defines shared protocols that provide model-agnostic in
 ┌─────────────────────────────────────────────────────────┐
 │                    AudioCommon                          │
 │                                                         │
-│  AudioChunk          SpeechGenerationModel (TTS)        │
+│  AudioChunk / CapturedAudioChunk                        │
+│                      SpeechGenerationModel (TTS)        │
 │  AlignedWord         SpeechRecognitionModel (STT)       │
+│                      StreamingRecognitionModel          │
+│                      StreamingRecognitionSession        │
 │  SpeechSegment       ForcedAlignmentModel                │
 │  TranscriptionResult SpeechToSpeechModel                 │
 │                      VoiceActivityDetectionModel (VAD)   │
 │                      StreamingVADProvider (pipeline)      │
+│                      TurnCompletionProvider (pipeline)    │
 │                      SpeakerEmbeddingModel               │
 │                      SpeakerDiarizationModel             │
 │                      SpeakerExtractionCapable            │
@@ -26,6 +30,9 @@ The `AudioCommon` module defines shared protocols that provide model-agnostic in
    │CosyVoice│        │ParakeetASR│       └───────────┘       └───────────┘
    │VoxCPM2  │        │ForcedAlign│
    │Kokoro   │
+   │IndexTTS2│
+   │F5TTS    │
+   │HiggsTTS │
    └─────────┘        └───────────┘
 ```
 
@@ -43,7 +50,18 @@ public protocol SpeechGenerationModel: AnyObject {
 }
 ```
 
-**Conforming types:** `Qwen3TTSModel`, `CosyVoiceTTSModel`, `VoxCPM2TTSModel`, `KokoroTTSModel`
+**Conforming types:** `Qwen3TTSModel`, `CosyVoiceTTSModel`, `VoxCPM2TTSModel`, `KokoroTTSModel`, `IndexTTS2TTSModel`, `F5TTSModel`, `HiggsTTSModel`, `MossTTSNanoModel`
+
+`IndexTTS2TTSModel` implements bundle loading, manifest validation, metadata access, and `ModelMemoryManageable`. It exposes a reference-audio `generate` overload for the expanded IndexTTS2 bundle and runs native reference conditioning, optional `IndexTTS2EmotionControl` preset/vector blending, `IndexTTS2SynthesisOptions` speaking-rate and internal-pause controls, semantic GPT beam sampling, S2Mel decoding, and BigVGAN vocoding. The protocol-only `generate(text:language:)` entry point throws a reference-required error because IndexTTS2 is a zero-shot voice-cloning model.
+
+`F5TTSModel` implements local bundle loading, config validation, `ModelMemoryManageable`, and a reference-audio `generate` overload for the exported F5-TTS bundle. The runtime prepares Vocos-style reference mels, samples target mels with the native DiT flow model, and decodes 24 kHz waveform audio with Vocos. The protocol-only `generate(text:language:)` entry point throws a reference-required error because F5-TTS requires reference audio plus a reference transcript.
+
+`HiggsTTSModel` implements bundle loading, `ModelMemoryManageable`, native reference encoding (`encodeReference`), and reference-audio `generate` overloads for the Higgs TTS 3 bundle. The runtime builds a `<|tts|>`-protocol prompt, samples delay-patterned 8-codebook frames with a Qwen3 backbone and fused codebook head, and decodes 24 kHz audio with the embedded Higgs codec. The protocol-only `generate(text:language:)` performs reference-free synthesis in a model-chosen voice; inline control tags ride inside the text.
+
+`MossTTSNanoModel` implements `SpeechGenerationModel` with mono downmix output and
+80 ms streaming chunks. Its `synthesize` / `synthesizeStream` methods preserve
+48 kHz stereo channels and accept reusable `MossTTSNanoReference` codes. Language
+is inferred from text (`language: nil`). See [MOSS-TTS-Nano inference](inference/moss-tts-nano.md).
 
 ### SpeechRecognitionModel (STT)
 
@@ -59,11 +77,49 @@ public protocol SpeechRecognitionModel: AnyObject {
 
 The `transcribeWithLanguage` method has a default implementation that delegates to `transcribe()` with no language detection. Models that detect language (e.g. ParakeetASR via `NLLanguageRecognizer`) override it to return `TranscriptionResult` with a detected language — used by the voice pipeline to forward language to TTS.
 
-**Conforming types:** `Qwen3ASRModel`, `ParakeetASRModel`, `ParakeetStreamingASRModel`, `NemotronStreamingASRModel`, `OmnilingualASRModel` (CoreML), `OmnilingualASRMLXModel` (MLX)
+**Conforming types:** `Qwen3ASRModel`, `ParakeetASRModel`, `ParakeetStreamingASRModel`, `NemotronStreamingASRModel`, `OmnilingualASRModel` (CoreML), `OmnilingualASRMLXModel` (MLX), `KyutaiSTTModel` (MLX)
 
 `ParakeetStreamingASRModel` additionally exposes streaming APIs — `createSession()` for long-lived streaming with cache state, `transcribeStream(audio:sampleRate:)` for chunked AsyncSequence output, and per-session `pushAudio` / `forceEndOfUtterance` / `finalize` for fine-grained VAD-driven pipelines. The batch `transcribe` entry point runs internal chunking and remains protocol-compatible.
 
 `NemotronStreamingASRModel` exposes the same shape of streaming APIs (`createSession()`, `transcribeStream`, `pushAudio`, `finalize`) minus `forceEndOfUtterance` — Nemotron has no explicit EOU head, so segmentation is driven by the caller (external VAD or punctuation-boundary heuristic) calling `finalize()` directly.
+
+`KyutaiSTTModel` implements this protocol for native MLX delayed-stream ASR.
+Its throwing `transcribe(audio:sampleRate:)` overload reports validation errors;
+`makeSession()` provides incremental 24 kHz PCM input. Language hints do not
+condition the model. `KyutaiSTTVariant` selects FP16, INT4, or the default INT8
+bundle. See [Kyutai STT inference](inference/kyutai-stt.md).
+
+### StreamingRecognitionModel and StreamingRecognitionSession
+
+Incremental recognizers expose one model-agnostic session contract. A session
+owns decoder/cache state, consumes ordered `CapturedAudioChunk` values, and
+returns a common partial/final result without reprocessing earlier chunks.
+
+```swift
+let session = try model.makeStreamingSession(language: nil)
+let source = AudioFileLoader.stream(
+    url: input,
+    options: AudioFileStreamOptions(targetSampleRate: session.inputSampleRate))
+
+for try await chunk in source {
+    for update in try session.push(chunk) {
+        print(update.text, update.isFinal)
+    }
+}
+for update in try session.finish() {
+    print(update.text, update.isFinal)
+}
+```
+
+`ParakeetStreamingASRModel`, `NemotronStreamingASRModel`,
+`NemotronStreamingASRMLXModel`, and `KyutaiSTTModel` conform. `StreamingRecognitionUpdate` preserves
+the shared text, final/EOU state, segment index, confidence, language, optional
+segment bounds, and word timings. Inputs must already use the session's
+`inputSampleRate`; capture and file sources can resample before delivery.
+
+Kyutai sessions consume 24 kHz audio and emit cumulative text for segment zero.
+Call `finish()` to flush delayed words and receive a final update; repeated calls
+return no updates. Kyutai has no end-of-utterance head and ignores language hints.
 
 ### ForcedAlignmentModel
 
@@ -119,6 +175,20 @@ public protocol StreamingVADProvider: AnyObject {
 
 **Conforming types:** `SileroVADModel`
 
+### TurnCompletionProvider (Pipeline)
+
+End-of-turn classifier consulted after the VAD reports a pause. A VAD only hears silence; a turn-completion model listens to the prosody of the whole utterance, so a mid-sentence pause keeps the agent waiting while a finished sentence gets an immediate reply. `StreamingVADProcessor` calls it on every confirmed pause and holds the segment open while the probability stays below `TurnCompletionConfig.threshold`. `VoicePipeline.setTurnCompletion(_:)` attaches it to the speech-core engine with the same semantics (`PipelineConfig.turnCompletionThreshold` / `turnCompletionMaxSilence`); it maps to speech-core's `sc_turn_completion_vtable_t`.
+
+```swift
+public protocol TurnCompletionProvider: AnyObject {
+    /// Probability in `[0, 1]` that the turn is complete, given the audio of the
+    /// turn so far. Implementations look at the most recent seconds (Smart Turn: 8 s).
+    func turnCompleteProbability(audio: [Float], sampleRate: Int) throws -> Float
+}
+```
+
+**Conforming types:** `SmartTurnModel` (Core ML, `SpeechVAD`) — see [Smart Turn model doc](models/smart-turn-v3.md).
+
 ### SpeakerEmbeddingModel
 
 Models that extract speaker embeddings from audio.
@@ -132,6 +202,13 @@ public protocol SpeakerEmbeddingModel: AnyObject {
 ```
 
 **Conforming types:** `WeSpeakerModel`
+
+`ReDimNet2SpeakerModel` is the separate persistent identity encoder. Its
+`embed` method throws so model or input failures remain explicit; it is used
+through its concrete API rather than this legacy non-throwing protocol. Its
+explicit `embedShortUtterance` method accepts clean 0.6-to-2-second retrieval
+probes, but those lower-evidence vectors must never enroll or update an
+identity.
 
 ### SpeakerDiarizationModel
 
@@ -242,6 +319,36 @@ config.warmupSTT = true             // warm up Neural Engine at pipeline start
 
 ## Shared Types
 
+### CapturedAudioChunk
+
+Timestamped mono PCM from live capture. `SystemAudioTap.startTimestamped` and
+`AudioIO.startMicrophoneTimestamped` both return this type, using the same Mach
+host clock so callers can keep independent source pipelines and merge only
+their derived events.
+
+```swift
+public struct CapturedAudioChunk: Sendable, Equatable {
+    public let samples: [Float]
+    public let sampleRate: Int
+    public let hostTime: UInt64?
+    public let frameIndex: Int64
+    public let isFinal: Bool
+}
+```
+
+`hostTime` identifies the first input frame before capture-side resampling. It
+is nil only when the underlying audio callback supplies no valid host time.
+For full-duplex capture, construct `AudioIO(enableAEC: true)` to apply Apple's
+echo-cancelled microphone input before timestamped chunks reach the caller.
+Listen-only clients can additionally pass `enablePlayback: false` to omit the
+streaming player from the engine graph.
+
+Finite sources also set `frameIndex` and mark their last chunk with `isFinal`.
+`AudioFileLoader.stream` is a pull-driven `AsyncSequence`, so a slow consumer
+does not create an unbounded producer queue. Multichannel input is averaged by
+default; pass `.first` or `.select([indices])` through
+`AudioFileStreamOptions.channelSelection` when channel routing is known.
+
 ### AudioChunk
 
 Unified audio chunk type returned by all streaming methods:
@@ -266,9 +373,20 @@ Result of speech recognition including detected language:
 ```swift
 public struct TranscriptionResult: Sendable {
     public let text: String
-    public let language: String?  // e.g. "english", "russian"
+    public let language: String?          // e.g. "english", "russian"
+    public let confidence: Float          // 0.0-1.0, 0.0 when the model does not provide it
+    public let words: [WordConfidence]?   // per-word detail, nil when the model does not provide it
+}
+
+public struct WordConfidence: Sendable {
+    public let word: String
+    public let confidence: Float          // 0.0-1.0
+    public let startTime: Double?         // seconds from the start of the audio, nil if unavailable
+    public let endTime: Double?
 }
 ```
+
+`startTime` and `endTime` are emission-aligned, not forced-aligned: they mark the encoder frame at which the decoder emitted the word's tokens, and an offline encoder can stamp a word before its onset. `ParakeetASRModel` fills them; other models leave them nil. Use `Qwen3ForcedAligner` when you need acoustic word boundaries.
 
 ### SpeechSegment
 
@@ -359,10 +477,11 @@ for model in ttsModels {
 ```
 Sources/
 ├── AudioCommon/               Shared types, protocols, utilities
-│   ├── Protocols.swift        AudioChunk, AlignedWord, SpeechSegment, DiarizedSegment, 9 protocols
+│   ├── Protocols.swift        AudioChunk, recognition updates, aligned/diarized segments, 13 protocols
 │   ├── AudioModelError.swift  Unified error type for all model operations
 │   ├── Logging.swift          Centralized os.Logger instances (AudioLog)
 │   ├── AudioFileLoader.swift  WAV/audio file loading
+│   ├── AudioFileStream.swift  Bounded pull decoding, resampling, channel routing
 │   ├── WAVWriter.swift        WAV file writing
 │   ├── HuggingFaceDownloader.swift  Safetensors / asset download from HF Hub
 │   ├── Tokenizer.swift        BPE tokenizer
@@ -380,6 +499,11 @@ Sources/
 │   ├── ForcedAligner.swift    Qwen3ForcedAligner: ForcedAlignmentModel
 │   ├── Qwen3ASR+Protocols.swift
 │   └── ForcedAligner+Protocols.swift
+│
+├── WhisperASR/                Speech-to-text (Whisper Large-v3 Turbo CoreML)
+│   ├── WhisperASR.swift       WhisperASRModel: SpeechRecognitionModel
+│   ├── WhisperCoreMLRuntime.swift  Native CoreML mel/encoder/decoder runtime
+│   └── WhisperByteLevelTokenizer.swift  Whisper byte-level BPE decoder
 │
 ├── OmnilingualASR/            Speech-to-text (Meta wav2vec2 + CTC, 1,672 languages)
 │   ├── OmnilingualASR.swift   OmnilingualASRModel: SpeechRecognitionModel (CoreML backend, 300M)
@@ -408,20 +532,26 @@ Sources/
 │   ├── AudioVAE.swift         AudioVAE V2 encode/decode
 │   └── Configuration.swift    ModelArgs / config decoding for VoxCPM2 snapshots
 │
+├── IndexTTS2TTS/              IndexTTS2 voice cloning (reference conditioning + synthesis)
+├── F5TTS/                     F5-TTS voice cloning (DiT flow + Vocos)
+├── HiggsTTS/                  Higgs TTS 3 conversational TTS + cloning (Qwen3 + fused codebooks + codec)
+│
 ├── PersonaPlex/               Speech-to-speech (Temporal + Depformer + Mimi)
 │   ├── PersonaPlex.swift      PersonaPlexModel: SpeechToSpeechModel
 │   └── PersonaPlex+Protocols.swift
 │
-├── SpeechVAD/                 VAD, diarization, speaker embedding
+├── SpeechVAD/                 VAD, end-of-turn detection, diarization, speaker embedding
 │   ├── SpeechVAD.swift        PyannoteVADModel: VoiceActivityDetectionModel
 │   ├── SpeechVAD+Protocols.swift  Protocol conformances
 │   ├── SileroVAD.swift        SileroVADModel: VoiceActivityDetectionModel, StreamingVADProvider
-│   ├── SileroModel.swift      Silero VAD v5 network (STFT + encoder + LSTM)
+│   ├── SileroModel.swift      Silero VAD streaming network (STFT + encoder + LSTM)
 │   ├── StreamingVADProcessor.swift  Event-driven streaming wrapper
+│   ├── SmartTurn.swift        SmartTurnModel: TurnCompletionProvider (Smart Turn v3.2 end-of-turn classifier, CoreML)
 │   ├── DiarizationPipeline.swift  PyannoteDiarizationPipeline: SpeakerDiarizationModel, SpeakerExtractionCapable
 │   ├── DiarizationHelpers.swift   Shared helpers (merge, compact IDs, resample)
 │   ├── SortformerDiarizer.swift   SortformerDiarizer: SpeakerDiarizationModel (CoreML)
 │   ├── WeSpeaker.swift        WeSpeakerModel: SpeakerEmbeddingModel
+│   ├── ReDimNet2Speaker.swift ReDimNet2SpeakerModel: persistent named voice identity (CoreML)
 │   └── PowersetDecoder.swift  7-class powerset → per-speaker probabilities
 │
 ├── SpeechCore/                Voice pipeline (wraps speech-core C++ engine)
@@ -435,9 +565,11 @@ Sources/
 
 ```
 AudioCommon  ← Qwen3ASR         ─┐
+             ← WhisperASR       │
              ← Qwen3TTS         │
              ← CosyVoiceTTS     │
              ← VoxCPM2TTS       │
+             ← IndexTTS2TTS     │
              ← KokoroTTS        ├── AudioCLILib ── AudioCLI (executable)
              ← ParakeetASR      │
              ← ParakeetStreamingASR │
@@ -461,6 +593,7 @@ All model classes are **not thread-safe** by design. ML inference is inherently 
 - `Qwen3TTSModel`
 - `CosyVoiceTTSModel`
 - `VoxCPM2TTSModel`
+- `IndexTTS2TTSModel`
 - `PersonaPlexModel`
 - `OmnilingualASRModel` (CoreML), `OmnilingualASRMLXModel` (MLX)
 - `ParakeetASRModel`, `ParakeetStreamingASRModel`, `NemotronStreamingASRModel`
@@ -473,7 +606,87 @@ All model classes are **not thread-safe** by design. ML inference is inherently 
 **Sendable config types** — The following value types conform to `Sendable` and can be safely passed across concurrency boundaries:
 `SegmentationConfig`, `VADConfig`, `DiarizationConfig`, `VADPipeline`, `Qwen3AudioEncoderConfig`, `Qwen3ASRTokens`, `SlottedText`, `TextChunker`
 
+## OpenAI-Compatible HTTP Audio
+
+The `speech-server` binary exposes the OpenAI audio request shapes alongside
+its native REST endpoints:
+
+- `POST /v1/audio/transcriptions` accepts multipart audio and returns an
+  OpenAI transcription response.
+- `POST /v1/audio/speech` accepts JSON with `model`, `input`, and `voice` and
+  returns synthesized audio.
+
+```bash
+curl http://localhost:8080/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","voice":"alloy","input":"Hello","response_format":"wav"}' \
+  -o output.wav
+```
+
+The OpenAI model aliases `tts-1`, `tts-1-hd`, `gpt-4o-mini-tts`, and
+`gpt-4o-mini-tts-2025-12-15` select Kokoro. Native registry aliases select
+their corresponding TTS engine. Generic OpenAI voice names use the selected
+engine's default voice, while native Kokoro and Qwen3-TTS voice names pass
+through. `speed` is supported by Kokoro; the optional `language` extension
+defaults to English.
+
+The endpoint defaults to WAV and also supports headerless 24 kHz mono PCM16
+little-endian output with `response_format: "pcm"`. Compressed OpenAI formats
+are rejected explicitly rather than returning PCM under an incorrect media
+type.
+
 ## Error Handling
+
+### Realtime WebSocket errors
+
+The `/v1/realtime` websocket returns OpenAI-style error events instead of
+closing the connection for recoverable request or model-processing failures:
+
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "server_error",
+    "message": "Realtime event 'response.create' failed: ...",
+    "event_type": "response.create"
+  }
+}
+```
+
+Client request errors use `invalid_request_error`. Failures thrown while
+processing a valid realtime event use `server_error` and include `event_type`
+so clients can associate the error with the message that failed.
+
+Long-running realtime model loads and generations emit lightweight
+`realtime.keepalive` events and websocket pong control frames periodically
+while no model output is ready. Clients can ignore these events or treat them
+as cold-start activity indicators.
+
+### Realtime server VAD
+
+Realtime sessions use explicit `input_audio_buffer.commit` by default. Enable
+automatic turn detection with a session update:
+
+```json
+{
+  "type": "session.update",
+  "session": {
+    "turn_detection": {
+      "type": "server_vad",
+      "threshold": 0.5,
+      "prefix_padding_ms": 300,
+      "silence_duration_ms": 500,
+      "max_turn_duration_ms": 120000
+    }
+  }
+}
+```
+
+The server then emits `input_audio_buffer.speech_started`,
+`input_audio_buffer.speech_stopped`, and `input_audio_buffer.committed` before
+the normal transcription events. Silence retains only the configured pre-roll
+and detection history, and ASR runs only after a speech turn closes. Set
+`turn_detection` to `null` or `{"type":"none"}` to restore manual commits.
 
 ### AudioModelError
 
@@ -525,3 +738,20 @@ Used in:
 6. **Separate `ForcedAlignmentModel`** — Distinct from `SpeechRecognitionModel` because input/output differ (audio+text → timestamps vs audio → text)
 7. **Document-only thread safety** — No locks or actors; document the single-threaded contract instead. This matches standard ML library practice (PyTorch, Core ML)
 8. **Sendable on value types** — Config structs with only primitive fields get `Sendable` so they can cross `Task` boundaries without warnings
+
+## Optional runtime ownership
+
+`SpeechRuntime` provides model descriptors, a bounded inference gate, shared
+lazy loading and an optional `ModelRuntime<Model>` owner. `Qwen3ASRRuntime`
+adapts MLX and full CoreML without changing existing protocol signatures.
+The default TTS stream now forwards consumer cancellation to its producer.
+See [ownership and error contracts](inference/model-runtime.md).
+
+## Pocket TTS
+
+`PocketTTSModel` conforms to `SpeechGenerationModel` with CPU-only CoreML defaults,
+24 kHz PCM, and incremental 80 ms frames. Its awaited streaming callback provides
+backpressure; completion emits one empty final marker. Cancellation, callback
+errors, and generation limits throw without successful completion. English and
+the Alba preset are supported by the initial bundle. See
+[Pocket TTS inference](inference/pocket-tts.md).

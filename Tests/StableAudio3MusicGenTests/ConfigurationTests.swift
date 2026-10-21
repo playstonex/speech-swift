@@ -14,21 +14,19 @@ final class ConfigurationTests: XCTestCase {
             XCTAssertTrue(v.bits == 4 || v.bits == 8)
         }
         XCTAssertEqual(StableAudio3Variant.mediumInt8.bits, 8)
-        XCTAssertEqual(StableAudio3Variant.mediumInt4.bits, 4)
+        XCTAssertEqual(StableAudio3Variant.smallMusicInt4.bits, 4)
     }
 
     func testVariantFamily() {
         XCTAssertEqual(StableAudio3Variant.mediumInt8.family, .medium)
         XCTAssertEqual(StableAudio3Variant.smallMusicInt4.family, .smallMusic)
-        XCTAssertEqual(StableAudio3Variant.smallSFXInt8.family, .smallSFX)
     }
 
     func testComponentRouting() {
         XCTAssertEqual(SA3Components.dit(for: .mediumInt8), SA3Components.ditMedium)
-        XCTAssertEqual(SA3Components.dit(for: .smallMusicInt8), SA3Components.ditSmallMusic)
-        XCTAssertEqual(SA3Components.dit(for: .smallSFXInt8), SA3Components.ditSmallSFX)
+        XCTAssertEqual(SA3Components.dit(for: .smallMusicInt4), SA3Components.ditSmallMusic)
         XCTAssertEqual(SA3Components.sameEncoder(for: .mediumInt8), SA3Components.sameLEncoder)
-        XCTAssertEqual(SA3Components.sameDecoder(for: .smallMusicInt8), SA3Components.sameSDecoder)
+        XCTAssertEqual(SA3Components.sameDecoder(for: .smallMusicInt4), SA3Components.sameSDecoder)
     }
 
     func testComputeTLat() {

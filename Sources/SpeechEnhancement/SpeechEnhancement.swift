@@ -3,29 +3,46 @@ import MLXCommon
 import CoreML
 import AudioCommon
 
-/// Speech enhancement using DeepFilterNet3 on Core ML (FP16, Neural Engine).
+/// Inference engine for DeepFilterNet3 speech enhancement.
+public enum SpeechEnhancerEngine: String, Sendable {
+    /// CoreML backend — 8-bit palettized weights on the Neural Engine.
+    case coreml
+    /// MLX backend — fp32 weights on the GPU via Metal.
+    case mlx
+}
+
+/// Speech enhancement using DeepFilterNet3.
 ///
 /// Removes background noise from speech audio. The neural network runs on
-/// Apple's Neural Engine via Core ML, while signal processing (STFT, ERB
-/// filterbank, deep filtering) runs on CPU via Accelerate/vDSP.
+/// Apple's Neural Engine via Core ML (default) or on the GPU via MLX, while
+/// signal processing (STFT, ERB filterbank, deep filtering) runs on CPU via
+/// Accelerate/vDSP either way.
 ///
 /// ```swift
-/// let enhancer = try await SpeechEnhancer.fromPretrained()
+/// let enhancer = try await SpeechEnhancer.fromPretrained()             // CoreML
+/// let enhancer = try await SpeechEnhancer.fromPretrained(engine: .mlx) // MLX
 /// let cleanAudio = try enhancer.enhance(audio: noisyAudio, sampleRate: 48000)
 /// ```
 public final class SpeechEnhancer {
 
-    /// Default HuggingFace model ID
+    /// Default HuggingFace model ID (CoreML weights)
     public static let defaultModelId = "aufklarer/DeepFilterNet3-CoreML"
+
+    /// Default HuggingFace model ID (MLX weights)
+    public static let defaultMLXModelId = "aufklarer/DeepFilterNet3-MLX"
 
     /// Native sample rate (48kHz)
     public static let sampleRate = 48000
+
+    /// The inference engine in use.
+    public let engine: SpeechEnhancerEngine
 
     /// Whether the model is loaded and ready for inference.
     var _isLoaded = true
 
     let config: DeepFilterNet3Config
     var network: DeepFilterNet3Network?
+    var mlxNetwork: MLXDeepFilterNet3Network?
     let stft: STFTProcessor
 
     // ERB filterbank matrices
@@ -47,7 +64,36 @@ public final class SpeechEnhancer {
         config: DeepFilterNet3Config,
         auxData: DeepFilterNet3WeightLoader.AuxiliaryData
     ) {
+        self.engine = .coreml
         self.network = network
+        self.mlxNetwork = nil
+        self.config = config
+
+        self.stft = STFTProcessor(
+            fftSize: config.fftSize,
+            hopSize: config.hopSize,
+            window: auxData.window)
+
+        self.erbFb = auxData.erbFb
+        self.erbInvFb = auxData.erbInvFb
+
+        self.meanNormState = auxData.meanNormState
+        self.unitNormState = auxData.unitNormState
+        self.meanNormStateInit = auxData.meanNormState
+        self.unitNormStateInit = auxData.unitNormState
+
+        self.analysisMem = [Float](repeating: 0, count: config.fftSize - config.hopSize)
+        self.synthesisMem = [Float](repeating: 0, count: config.fftSize - config.hopSize)
+    }
+
+    init(
+        mlxNetwork: MLXDeepFilterNet3Network,
+        config: DeepFilterNet3Config,
+        auxData: DeepFilterNet3WeightLoader.AuxiliaryData
+    ) {
+        self.engine = .mlx
+        self.network = nil
+        self.mlxNetwork = mlxNetwork
         self.config = config
 
         self.stft = STFTProcessor(
@@ -74,7 +120,8 @@ public final class SpeechEnhancer {
     ///
     /// **Length limit**: the CoreML model is exported with a `RangeDim(1, 6000)`
     /// on the time axis (~60 s at 48 kHz / 10 ms hop). Inputs exceeding this
-    /// throw a CoreML prediction error. For longer audio use `enhanceChunked`,
+    /// throw a CoreML prediction error. The MLX engine has no hard cap, but
+    /// memory grows with input length. For longer audio use `enhanceChunked`,
     /// which slices into windows that fit the cap and stitches with a
     /// crossfade.
     ///
@@ -100,8 +147,9 @@ public final class SpeechEnhancer {
         let hop = config.hopSize
         let freqBins = config.freqBins  // 481 (960/2 + 1)
 
-        // Pad audio so inverse STFT captures the full signal
-        let paddedSamples = samples + [Float](repeating: 0, count: hop)
+        // libdf appends a full FFT window so the real-time STFT/iSTFT delay
+        // can be removed without truncating non-hop-aligned input lengths.
+        let paddedSamples = samples + [Float](repeating: 0, count: config.fftSize)
 
         // STFT — 960-point DFT producing 481 frequency bins
         let (specReal, specImag) = stft.forward(audio: paddedSamples, analysisMem: &analysisMem)
@@ -137,43 +185,57 @@ public final class SpeechEnhancer {
             alpha: config.normAlpha,
             dfBins: config.dfBins, numFrames: numFrames)
 
-        // No lookahead padding here — the Core ML model applies it internally
+        // No lookahead padding here — both backends apply it internally
 
-        // Create Core ML input arrays
-        // ERB: [1, 1, T, 32] (NCHW)
-        let erbInput = try MLMultiArray(shape: [1, 1, numFrames as NSNumber, config.erbBands as NSNumber], dataType: .float32)
-        let erbPtr = erbInput.dataPointer.assumingMemoryBound(to: Float.self)
-        erbFeats.withUnsafeBufferPointer { src in
-            erbPtr.update(from: src.baseAddress!, count: numFrames * config.erbBands)
-        }
-
-        // Spec: [1, 2, T, 96] (NCHW: channel 0=real, channel 1=imag)
-        let specInput = try MLMultiArray(shape: [1, 2, numFrames as NSNumber, config.dfBins as NSNumber], dataType: .float32)
-        let specPtr = specInput.dataPointer.assumingMemoryBound(to: Float.self)
-        let specChannelStride = numFrames * config.dfBins
-        specFeatReal.withUnsafeBufferPointer { src in
-            specPtr.update(from: src.baseAddress!, count: specChannelStride)
-        }
-        specFeatImag.withUnsafeBufferPointer { src in
-            (specPtr + specChannelStride).update(from: src.baseAddress!, count: specChannelStride)
-        }
-
-        // Run neural network (single pass — GRU state is sequential, can't be chunked)
-        guard let network else { throw DeepFilterNet3Network.DeepFilterNet3Error.predictionFailed }
-        let (erbMaskArray, coefsArray) = try network.predict(featErb: erbInput, featSpec: specInput)
-
-        // Extract ERB mask [1, 1, T, 32] — handle float16 output from Core ML
+        // Run neural network (single pass — GRU state is sequential, can't be
+        // chunked). Both branches produce the same flat layouts:
+        // erbMaskFlat [T, 32] and coefsRaw [O, T, F, 2].
         let erbMaskCount = numFrames * config.erbBands
-        var erbMaskFlat = [Float](repeating: 0, count: erbMaskCount)
-        extractMLMultiArrayFlat(erbMaskArray, into: &erbMaskFlat, count: erbMaskCount)
-
-        // Extract DF coefficients [1, 5, T, 96, 2] → [T, F, O, C=2]
         let dfOrder = config.dfOrder
         let coefsCount = dfOrder * numFrames * config.dfBins * 2
-        var coefsRaw = [Float](repeating: 0, count: coefsCount)
-        extractMLMultiArrayFlat(coefsArray, into: &coefsRaw, count: coefsCount)
+        let erbMaskFlat: [Float]
+        let coefsRaw: [Float]
 
-        // Reshape from Core ML layout [O, T, F, 2] to [T, F, O, 2]
+        if let mlxNetwork {
+            (erbMaskFlat, coefsRaw) = mlxNetwork.predict(
+                erbFeats: erbFeats,
+                specReal: specFeatReal, specImag: specFeatImag,
+                numFrames: numFrames)
+        } else {
+            // Create Core ML input arrays
+            // ERB: [1, 1, T, 32] (NCHW)
+            let erbInput = try MLMultiArray(shape: [1, 1, numFrames as NSNumber, config.erbBands as NSNumber], dataType: .float32)
+            let erbPtr = erbInput.dataPointer.assumingMemoryBound(to: Float.self)
+            erbFeats.withUnsafeBufferPointer { src in
+                erbPtr.update(from: src.baseAddress!, count: numFrames * config.erbBands)
+            }
+
+            // Spec: [1, 2, T, 96] (NCHW: channel 0=real, channel 1=imag)
+            let specInput = try MLMultiArray(shape: [1, 2, numFrames as NSNumber, config.dfBins as NSNumber], dataType: .float32)
+            let specPtr = specInput.dataPointer.assumingMemoryBound(to: Float.self)
+            let specChannelStride = numFrames * config.dfBins
+            specFeatReal.withUnsafeBufferPointer { src in
+                specPtr.update(from: src.baseAddress!, count: specChannelStride)
+            }
+            specFeatImag.withUnsafeBufferPointer { src in
+                (specPtr + specChannelStride).update(from: src.baseAddress!, count: specChannelStride)
+            }
+
+            guard let network else { throw DeepFilterNet3Network.DeepFilterNet3Error.predictionFailed }
+            let (erbMaskArray, coefsArray) = try network.predict(featErb: erbInput, featSpec: specInput)
+
+            // Extract ERB mask [1, 1, T, 32] — handle float16 output from Core ML
+            var maskBuffer = [Float](repeating: 0, count: erbMaskCount)
+            extractMLMultiArrayFlat(erbMaskArray, into: &maskBuffer, count: erbMaskCount)
+            erbMaskFlat = maskBuffer
+
+            // Extract DF coefficients [1, 5, T, 96, 2]
+            var coefsBuffer = [Float](repeating: 0, count: coefsCount)
+            extractMLMultiArrayFlat(coefsArray, into: &coefsBuffer, count: coefsCount)
+            coefsRaw = coefsBuffer
+        }
+
+        // Reshape from network layout [O, T, F, 2] to [T, F, O, 2]
         var coefsFlat = [Float](repeating: 0, count: coefsCount)
         for t in 0..<numFrames {
             for f in 0..<config.dfBins {
@@ -214,8 +276,8 @@ public final class SpeechEnhancer {
         // Inverse STFT
         let rawOutput = stft.inverse(real: enhancedReal, imag: enhancedImag, synthesisMem: &synthesisMem)
 
-        // Trim the hop-size latency from prepended analysis memory
-        let trimStart = hop
+        // Compensate the algorithmic delay introduced by the streaming STFT.
+        let trimStart = config.fftSize - hop
         let trimEnd = min(trimStart + samples.count, rawOutput.count)
         guard trimEnd > trimStart else { return [] }
         return Array(rawOutput[trimStart..<trimEnd])
@@ -358,26 +420,37 @@ public final class SpeechEnhancer {
 
     /// Load a pretrained DeepFilterNet3 model.
     ///
-    /// Downloads Core ML model and auxiliary data on first use, then caches locally.
+    /// Downloads the model and auxiliary data on first use, then caches locally.
     ///
     /// - Parameters:
-    ///   - modelId: HuggingFace model ID
+    ///   - modelId: HuggingFace model ID (auto-selected by engine if not specified)
+    ///   - engine: inference backend. When `nil`, inferred from the model ID
+    ///     (IDs containing "MLX" load the MLX backend), defaulting to CoreML.
     ///   - progressHandler: Callback for download progress
     /// - Returns: Ready-to-use speech enhancer
     public static func fromPretrained(
-        modelId: String = defaultModelId,
+        modelId: String? = nil,
+        engine: SpeechEnhancerEngine? = nil,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> SpeechEnhancer {
+        let resolvedEngine = engine
+            ?? ((modelId?.uppercased().contains("MLX") ?? false) ? .mlx : .coreml)
+        let resolvedModelId = modelId
+            ?? (resolvedEngine == .mlx ? defaultMLXModelId : defaultModelId)
+
         progressHandler?(0.0, "Downloading model...")
 
-        let cacheDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
+        let cacheDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: resolvedModelId)
 
-        try await HuggingFaceDownloader.downloadWeights(
-            modelId: modelId,
-            to: cacheDir,
-            additionalFiles: [
+        let additionalFiles: [String]
+        switch resolvedEngine {
+        case .mlx:
+            // Default globs already fetch model.safetensors + config.json.
+            additionalFiles = ["auxiliary.npz"]
+        case .coreml:
+            additionalFiles = [
                 "no_weights.safetensors",  // suppress default *.safetensors glob
                 // Pre-compiled CoreML — shipped by aufklarer/DeepFilterNet3-CoreML
                 // alongside the legacy .mlpackage. On-device compileModel() is
@@ -385,7 +458,13 @@ public final class SpeechEnhancer {
                 // the goal is to never reach that code path for new installs.
                 "DeepFilterNet3.mlmodelc/**",
                 "auxiliary.npz",
-            ],
+            ]
+        }
+
+        try await HuggingFaceDownloader.downloadWeights(
+            modelId: resolvedModelId,
+            to: cacheDir,
+            additionalFiles: additionalFiles,
             offlineMode: offlineMode,
             progressHandler: { progress in
                 progressHandler?(progress * 0.8, "Downloading model...")
@@ -395,11 +474,18 @@ public final class SpeechEnhancer {
         progressHandler?(0.8, "Loading model...")
 
         let config = DeepFilterNet3Config.default
-        let (network, auxData) = try DeepFilterNet3WeightLoader.load(from: cacheDir)
 
-        progressHandler?(1.0, "Ready")
-
-        return SpeechEnhancer(network: network, config: config, auxData: auxData)
+        switch resolvedEngine {
+        case .mlx:
+            let (network, auxData) = try DeepFilterNet3WeightLoader.loadMLX(
+                from: cacheDir, config: config)
+            progressHandler?(1.0, "Ready")
+            return SpeechEnhancer(mlxNetwork: network, config: config, auxData: auxData)
+        case .coreml:
+            let (network, auxData) = try DeepFilterNet3WeightLoader.load(from: cacheDir)
+            progressHandler?(1.0, "Ready")
+            return SpeechEnhancer(network: network, config: config, auxData: auxData)
+        }
     }
 
     /// Extract float32 data from an MLMultiArray, handling float16 output from Core ML.

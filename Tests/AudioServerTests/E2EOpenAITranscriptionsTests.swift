@@ -4,24 +4,18 @@ import XCTest
 /// End-to-end tests for POST /v1/audio/transcriptions.
 ///
 /// Requires Qwen3-ASR weights to be downloadable from HuggingFace. Skipped in
-/// CI via the `--skip E2E` test filter; runs locally as part of `make test`.
+/// CI via the `--skip E2E` test filter; runs locally with the isolated E2E runner.
 final class E2EOpenAITranscriptionsTests: XCTestCase {
-    static var serverTask: Task<Void, Error>?
     static let port = 19385
 
-    override class func setUp() {
-        super.setUp()
-        serverTask = Task {
-            let server = AudioServer(host: "127.0.0.1", port: port)
+    override func setUp() async throws {
+        try await super.setUp()
+        let fixture = TestAudioServer(port: Self.port) {
+            let server = AudioServer(host: "127.0.0.1", port: Self.port)
             try await server.run()
         }
-        Thread.sleep(forTimeInterval: 1.5)
-    }
-
-    override class func tearDown() {
-        serverTask?.cancel()
-        Thread.sleep(forTimeInterval: 0.5)
-        super.tearDown()
+        addTeardownBlock { await fixture.stop() }
+        try await fixture.start()
     }
 
     // MARK: - Helpers
@@ -79,6 +73,19 @@ final class E2EOpenAITranscriptionsTests: XCTestCase {
     }
 
     // MARK: - Tests
+
+    func testQwen3RuntimeTranscribesThroughHTTP() async throws {
+        let boundary = "----TestBoundary\(UUID().uuidString)"
+        let body = multipartBody(boundary: boundary, file: try testAudioData(),
+                                 fields: ["model": "qwen3", "language": "english"])
+        let (status, data, _) = try await post(path: "/v1/audio/transcriptions", body: body,
+                                             contentType: "multipart/form-data; boundary=\(boundary)")
+        XCTAssertEqual(status, 200, String(decoding: data, as: UTF8.self))
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let transcript = try XCTUnwrap(json?["text"] as? String).lowercased()
+        XCTAssertTrue(transcript.contains("replacement"), transcript)
+        XCTAssertTrue(transcript.contains("tomorrow"), transcript)
+    }
 
     func testMultipartJSON() async throws {
         let audio = try testAudioData()

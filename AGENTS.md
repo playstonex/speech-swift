@@ -2,15 +2,49 @@
 
 AI speech models for Apple Silicon (MLX Swift). ASR, TTS, speech-to-speech, VAD, diarization, speech enhancement.
 
+## Communication Style
+
+- Communicate at the conceptual level first: what changed, why it matters, risk, tests, and recommendation.
+- Keep status updates short and understandable. Do not dump command logs, low-level mechanics, or long implementation detail unless directly asked.
+- For PRs and fixes, default to this summary shape: what changed, architecture fit, regression risk, tests run or needed, and recommendation.
+- If there are bugs, blockers, or regression risks, lead with them clearly and briefly.
+- When the user asks a direct question, answer it directly before adding supporting detail.
+
 ## Workflow
 
 - **Always work in a separate git worktree** so concurrent agents don't fight over the same working directory. Create one with `git worktree add ../speech-swift-<task> <branch>`, do all edits there, push from there. Multiple agents may be running against this repo at the same time — checking out branches in the shared working copy clobbers their state and silently loses WIP files. Delete the worktree (`git worktree remove`) when the task is done.
 - **Never commit, push, or comment on GitHub without explicit user confirmation.** Draft first, ask to confirm, then execute.
-- **Every README.md change must update all 10 translations** (`README_zh.md`, `README_ja.md`, `README_ko.md`, `README_es.md`, `README_de.md`, `README_fr.md`, `README_hi.md`, `README_pt.md`, `README_ru.md`, `README_ar.md`). No exceptions.
+- **Every README.md change must update all 13 translations** (`README_zh.md`, `README_ja.md`, `README_ko.md`, `README_es.md`, `README_de.md`, `README_fr.md`, `README_hi.md`, `README_pt.md`, `README_ru.md`, `README_ar.md`, `README_th.md`, `README_tr.md`, `README_vi.md`). No exceptions.
+- **Keep docs and comments scoped to this package.** Model docs, code comments, and PR descriptions describe this package's models, APIs, and formats only — never downstream consumer apps or their integration rules.
+
+## Running Tests and Benchmarks — Sequential and Memory-Aware
+
+Heavy operations in this repo load multi-gigabyte CoreML/MLX models. Run
+them strictly one at a time — overlapping them has exhausted memory and
+rebooted development machines.
+
+- Never run the full `swift test` concurrently with anything else: not with
+  another build, not with a benchmark, not with a model-loading app, not
+  with another agent's test run in a different worktree. Each worktree has
+  its own `.build`, so the SwiftPM lock does **not** protect you across
+  worktrees — check for other `swift`/bench processes before starting.
+- For the full suite, bound memory by disabling test parallelization:
+  `swift test --no-parallel`. Model-gated suites otherwise load their
+  models simultaneously.
+- While iterating, prefer targeted runs: `swift test --filter <Suite>`.
+- Benchmarks (`diarization-bench`, ASR benches) also load models — run them
+  after tests finish, never alongside, and one benchmark process at a time.
+- If a second SwiftPM command queues on the same `.build` lock, don't leave
+  it queued — it will pile its model loads on top of the first the moment
+  the lock frees. Cancel it and rerun after the first completes.
+- Never commit raw benchmark run data (per-run JSON, logs, profiler output).
+  Commit one summary report, `docs/benchmarks/<model>.md`; keep raw results
+  in a scratch directory. Test fixtures belong under `scripts/tests/fixtures/`
+  or the test target.
 
 ## Git Conventions
 
-- Never mention Claude, AI, or any AI tool in commit messages, PR descriptions, or co-author tags
+- Never mention Claude, Codex, AI, or any AI tool in commit messages, PR titles, PR descriptions, comments, docs, or co-author tags. Do not add tool-name prefixes such as `[codex]`; use neutral project wording.
 - No `Co-Authored-By` lines in commits
 - **Never amend commits or force push** unless the user explicitly asks for it
 - Always use branches and PRs — commit history must be preserved
@@ -44,6 +78,8 @@ The metallib step compiles MLX Metal shaders — without it, inference runs ~5x 
 
 Project skills in `.claude/skills/`:
 
+The same skills are exposed to agents that scan `.codex/skills/` through relative symlinks; keep both paths in sync when adding or renaming a project skill.
+
 | Command | Description |
 |---------|-------------|
 | `/build` or `/build release` | Release build with metallib |
@@ -51,6 +87,7 @@ Project skills in `.claude/skills/`:
 | `/test` or `/test unit` | Run unit tests (skip E2E) |
 | `/test e2e` | Full test suite with model downloads |
 | `/test FilterName` | Run specific test filter |
+| `/review-pr <PR>` | Review PR architecture fit, regression risk, tests, and merge readiness |
 | `/benchmark asr` | Benchmark ASR speed |
 | `/benchmark tts` | Benchmark TTS speed |
 | `/benchmark vad` | VAD benchmark on VoxConverse |
@@ -58,23 +95,70 @@ Project skills in `.claude/skills/`:
 
 ## Project Structure
 
-- `Sources/Qwen3ASR/` — Speech-to-text (Qwen3-ASR)
+**ASR**
+- `Sources/Qwen3ASR/` — Speech-to-text (Qwen3-ASR, MLX)
 - `Sources/ParakeetASR/` — Speech-to-text (Parakeet TDT, CoreML)
 - `Sources/ParakeetStreamingASR/` — Streaming speech-to-text (Parakeet EOU 120M, CoreML)
+- `Sources/NemotronStreamingASR/` — Streaming speech-to-text (Nemotron, CoreML)
 - `Sources/OmnilingualASR/` — Speech-to-text (Meta wav2vec2 CTC, 1,672 languages, CoreML 300M + MLX 300M/1B/3B/7B)
-- `Sources/Qwen3TTS/` — Text-to-speech (Qwen3-TTS)
-- `Sources/CosyVoiceTTS/` — Text-to-speech (CosyVoice3, streaming)
-- `Sources/VoxCPM2TTS/` — Text-to-speech (VoxCPM2, MLX, 48 kHz, voice cloning + voice design)
-- `Sources/KokoroTTS/` — Text-to-speech (Kokoro-82M, CoreML, iOS-ready)
+- `Sources/WhisperASR/` — Speech-to-text (Whisper Large-v3 Turbo, native CoreML runtime)
+
+**TTS**
+- `Sources/Qwen3TTS/` — Text-to-speech (Qwen3-TTS, MLX)
 - `Sources/Qwen3TTSCoreML/` — Text-to-speech (Qwen3-TTS 0.6B, CoreML, 6-model pipeline)
-- `Sources/PersonaPlex/` — Speech-to-speech (PersonaPlex 7B, full-duplex)
-- `Sources/SpeechVAD/` — VAD (Silero + Pyannote), speaker diarization, speaker embedding (WeSpeaker)
+- `Sources/CosyVoiceTTS/` — Text-to-speech (CosyVoice3, streaming, MLX)
+- `Sources/VoxCPM2TTS/` — Text-to-speech (VoxCPM2, MLX, 48 kHz, voice cloning + voice design)
+- `Sources/IndexTTS2TTS/` — Text-to-speech (IndexTTS2, zero-shot voice cloning, MLX, speaker/emotion/pause controls)
+- `Sources/F5TTS/` — Text-to-speech (F5-TTS v1 Base, zero-shot voice cloning, DiT flow matching + Vocos, MLX, 24 kHz; non-commercial license)
+- `Sources/HiggsTTS/` — Text-to-speech (Higgs TTS 3 4B, conversational + zero-shot voice cloning, Qwen3 backbone + fused codebooks, MLX, 24 kHz; non-commercial license)
+- `Sources/KokoroTTS/` — Text-to-speech (Kokoro-82M, CoreML, iOS-ready)
+- `Sources/MagpieTTS/` — Multilingual TTS (MLX, 8 codebooks, NanoCodec)
+- `Sources/MagpieTTSCoreML/` — Magpie TTS CoreML variant
+- `Sources/ChatterboxTTS/` — Text-to-speech (MLX)
+- `Sources/OmniVoiceTTS/` — Text-to-speech (MLX)
+- `Sources/VibeVoiceTTS/` — Text-to-speech (MLX)
+- `Sources/SupertonicTTS/` — Text-to-speech (CoreML)
+- `Sources/FishAudioTTS/` — Text-to-speech (Fish Audio S2 Pro, MLX, 44.1 kHz, voice cloning; research/non-commercial license)
+- `Sources/IndicMioTTS/` — Text-to-speech (Indic-Mio, Hindi/Indic with inline emotion markers, MLX, 24 kHz, voice cloning)
+
+**Speech-to-Speech & Translation**
+- `Sources/PersonaPlex/` — Speech-to-speech (PersonaPlex 7B, full-duplex, MLX)
+- `Sources/HibikiTranslate/` — Speech-to-speech translation (depends on PersonaPlex + MLX)
+- `Sources/MADLADTranslation/` — Text translation (MLX)
+
+**Audio Processing**
+- `Sources/SpeechVAD/` — VAD (Silero + Pyannote), end-of-turn detection (Smart Turn v3.2, CoreML), speaker diarization, speaker embedding (WeSpeaker)
 - `Sources/SpeechEnhancement/` — Noise suppression (DeepFilterNet3, CoreML)
-- `Sources/Qwen3Chat/` — On-device LLM chat (Qwen3.5-0.8B, MLX + CoreML, INT4/INT8)
+- `Sources/SpeechRestoration/` — Audio restoration (CoreML)
+- `Sources/SourceSeparation/` — Source separation (MLX)
+- `Sources/SpeechWakeWord/` — Wake-word detection
+
+**Music Generation**
+- `Sources/MAGNeTMusicGen/` — Text-to-music (MAGNeT, 30 s, 32 kHz, MLX)
+- `Sources/StableAudio3MusicGen/` — Music generation (Stable Audio 3, MLX)
+- `Sources/FlashSR/` — Audio super-resolution (MLX)
+
+**Avatar**
+- `Sources/Audio2Face3D/` — Speech-driven avatar motion (NVIDIA Audio2Face-3D, timestamped coefficient frames, MLX; `speech avatar-motion` CLI command)
+
+**On-Device LLM**
+- `Sources/Qwen3Chat/` — On-device LLM chat (Qwen3.5-0.8B, MLX INT5/INT8 + CoreML INT8)
+- `Sources/FunctionGemma/` — On-device Gemma function-calling (swift-transformers)
+- `Sources/GLiNER/` - Schema-conditioned text classification and entity spans (GLiNER2.5-Decide, DeBERTa encoder, MLX; `speech gliner` CLI command, `gliner-bench` binary)
+
+**Infrastructure**
 - `Sources/MLXCommon/` — Shared MLX utilities (weight loading, quantized layers, memory estimation, `SDPA` multi-head attention helper)
 - `Sources/AudioCommon/` — Audio I/O, protocols, HuggingFace downloader, shared `SentencePieceModel` protobuf reader
-- `Sources/AudioCLILib/` — CLI commands
+- `Sources/SpeechCore/` — Swift wrapper around `CSpeechCore` XCFramework (pre-built binary from `soniqo/speech-core` — cannot be modified in this repo)
+- `Sources/SpeechUI/` — SwiftUI components for speech apps
+- `Sources/AudioServer/` — Hummingbird HTTP + WebSocket server (backs `speech-server` binary)
+- `Sources/AudioCLILib/` — CLI command implementations
 - `Sources/AudioCLI/` — CLI entry point (`speech` binary; `audio` is a deprecated alias)
+- `Sources/AudioServerCLI/` — Server entry point (`speech-server` binary)
+- `Sources/AsrBenchmark/` — Multi-engine WER/RTF benchmark tool, includes WhisperKit comparison (backs `asr-bench` binary)
+- `Sources/BenchmarkSupport/` — Shared benchmark utilities (dataset handling, metrics) for the benchmark binaries
+- `Sources/VadBenchmark/` — VAD benchmark (backs `vad-bench` binary)
+- `Sources/DiarizationBenchmark/` — Diarization DER benchmark (backs `diarization-bench` binary)
 - `Tests/` — Unit and integration tests
 - `scripts/` — Model conversion (PyTorch → MLX/CoreML), benchmarking
 - `Examples/` — Demo apps (PersonaPlexDemo, SpeechDemo, iOSEchoDemo)
@@ -87,18 +171,43 @@ Project skills in `.claude/skills/`:
 - All audio processing uses Float32 PCM, resampled to model-specific rates internally
 - `DiarizedSegment`, `SpeechSegment`, protocol types defined in `Sources/AudioCommon/Protocols.swift`
 - Tests that use MLX arrays require the compiled metallib; config/logic-only tests work without it
+- `CSpeechCore` is a pre-built XCFramework downloaded from `soniqo/speech-core` releases — `Sources/SpeechCore/` is only a thin Swift wrapper. Changes to core behavior require a new release of that separate repo.
 
 ## Testing
 
-Safe tests (no GPU/model download required):
+Curated local smoke/regression suite. This builds debug + metallib first and
+runs a focused no-download filter, not the full CI matrix:
 ```bash
 make test
 ```
 
-Full test suite (requires metallib + model downloads):
+CI builds tests, builds the debug metallib, then runs `swift test --skip-build`
+with explicit skips for E2E and model-heavy suites. Treat
+`.github/workflows/tests.yml` as the source of truth for the exact hosted
+runner command.
+
+Run a single test:
 ```bash
-make test
+swift test --filter TestClassName/testMethodName --disable-sandbox
 ```
+
+Full local suite including E2E — **never run it as a single `swift test`
+invocation**. All suites share one xctest process, each E2E suite loads
+multi-GB model weights, and nothing is released between suites, so a
+single-process run accumulates every model in RSS and can exhaust system
+memory (observed: hard machine reboot mid-suite). Use the isolated runner,
+which runs the unit phase once (CI semantics) and then each E2E class in
+its own process, bounding peak memory to the largest single suite:
+```bash
+swift build --build-tests --disable-sandbox
+./scripts/build_mlx_metallib.sh debug
+scripts/test_e2e_isolated.sh
+```
+Per-suite logs and a pass/fail summary land in `.e2e-logs/`. Knobs:
+`E2E_ONLY_FILTER=<substring>` runs matching E2E classes only,
+`E2E_SKIP_FILE=<file of Module.Class lines>` resumes an interrupted run,
+`E2E_SKIP_UNIT=1` skips the unit phase. Tests may download models and
+require Apple Silicon GPU/ANE support.
 
 ### Testing requirements for new code
 
@@ -110,7 +219,7 @@ make test
 
 **Test organization**: Place tests in `Tests/<ModuleName>Tests/`. Follow existing patterns (e.g., `Qwen3ASRTests/`, `SpeechVADTests/`).
 
-**E2E test naming**: Prefix E2E test classes with `E2E` (e.g., `E2ETranscriptionTests`, `E2EDiarizationTests`). CI uses `--skip E2E` regex to filter out all E2E tests that require model downloads — only unit tests run in the pipeline. E2E tests run locally with `make test` (full suite). **CRITICAL**: Any test class that downloads models or requires GPU inference MUST be prefixed with `E2E`. Unit test classes must NOT contain `E2E` in their name.
+**E2E test naming**: Prefix E2E test classes with `E2E` (e.g., `E2ETranscriptionTests`, `E2EDiarizationTests`). CI uses `--skip E2E` regex to filter out all E2E tests that require model downloads — only unit tests run in the pipeline. E2E tests run locally with the full-suite command above, not `make test`. **CRITICAL**: Any test class that downloads models or requires GPU inference MUST be prefixed with `E2E`. Unit test classes must NOT contain `E2E` in their name.
 
 **What to test per category:**
 | Change | Required tests |
@@ -139,6 +248,19 @@ The `speech` binary is the main entry point (`audio` is a deprecated alias that 
 .build/release/speech compose "happy rock" -o music.wav # MAGNeT text-to-music (30s, 32 kHz)
 .build/release/speech kokoro "Hello" --voice af_heart   # Kokoro TTS (iOS)
 .build/release/speech qwen3-tts-coreml "Hello"          # Qwen3-TTS CoreML (6-model pipeline)
+.build/release/speech gliner classify "Remind me at 6" --labels create_reminder,other --variant int8  # GLiNER decision
+```
+
+The `speech-server` binary exposes an HTTP + WebSocket API (Hummingbird):
+
+```bash
+.build/release/speech-server --port 8080
+```
+
+The `asr-bench` binary benchmarks multiple ASR engines (WER, RTF, peak RSS) including WhisperKit comparison:
+
+```bash
+.build/release/asr-bench --help
 ```
 
 ## Documentation
@@ -160,21 +282,24 @@ docs/
     parakeet-asr.md             Parakeet TDT architecture
     personaplex.md              PersonaPlex architecture
     fireredvad.md               FireRedVAD (DFSMN) architecture
+    smart-turn-v3.md            Smart Turn v3.2 end-of-turn classifier (CoreML)
   inference/                    Pipelines, usage, configs
     qwen3-asr-inference.md      Qwen3-ASR inference pipeline
     parakeet-asr-inference.md   Parakeet TDT inference (CoreML)
     qwen3-tts-inference.md      TTS inference pipeline
-    voxcpm2-inference.md        VoxCPM2 inference (48 kHz, --voxcpm2-variant bf16/int8/int4)
+    voxcpm2-inference.md        VoxCPM2 inference (48 kHz, --voxcpm2-variant bf16/int8)
     magpie-tts.md               Magpie-TTS Multilingual inference (CLI flags, languages, performance)
     magnet-music-gen.md         MAGNeT music generation CLI + tuning
     forced-aligner.md           Forced alignment pipeline
     silero-vad.md               Silero VAD streaming
+    smart-turn.md               Smart Turn end-of-turn confirmation, tuning, CLI
     fireredvad.md               FireRedVAD inference + tuning results
     speaker-diarization.md      Speaker diarization pipeline
     speech-enhancement.md       DeepFilterNet3 pipeline
   audio/                        Audio I/O, playback, voice pipeline
     playback.md                 Streaming playback, pre-buffer, Apple audio architecture
     voice-pipeline.md           VoicePipeline state machine, events, config
+    system-audio-tap.md         System-output capture via Core Audio process taps
   benchmarks/                   WER, DER, RTF results
   shared-protocols.md       Protocol reference (cross-cutting)
 ```
@@ -223,7 +348,7 @@ soniqo-web/public/
 
 ### README translations
 
-Translated READMEs live in the repo root: `README_zh.md`, `README_ja.md`, `README_ko.md`, `README_es.md`, `README_de.md`, `README_fr.md`, `README_hi.md`, `README_pt.md`, `README_ru.md`, `README_ar.md`. **Whenever README.md is updated, all translations must be updated to match.** Each translation links back to the main README and lists all available languages at the top.
+Translated READMEs live in the repo root: `README_zh.md`, `README_ja.md`, `README_ko.md`, `README_es.md`, `README_de.md`, `README_fr.md`, `README_hi.md`, `README_pt.md`, `README_ru.md`, `README_ar.md`, `README_th.md`, `README_tr.md`, `README_vi.md`. **Whenever README.md is updated, all translations must be updated to match.** Each translation links back to the main README and lists all available languages at the top.
 
 ### Mapping: code changes → docs pages
 

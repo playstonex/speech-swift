@@ -4,6 +4,11 @@ import Foundation
 public struct Timings: Sendable {
     public var elapsed: Double       // synthesis time in seconds
     public var audioDuration: Double // input audio duration in seconds
+    public var firstTokenSeconds: Double? = nil
+    public var firstTokenAudioSeconds: Double? = nil
+    public var frameLatencyP50Seconds: Double? = nil
+    public var frameLatencyP95Seconds: Double? = nil
+    public var flushSeconds: Double? = nil
 
     public var rtf: Double { elapsed / max(audioDuration, 1e-6) }
 }
@@ -33,39 +38,77 @@ public protocol BenchEngine: AnyObject, Sendable {
 }
 
 public enum EngineID: String, CaseIterable, Sendable {
+    case kyutaiMLXFP16 = "kyutai-stt-mlx-fp16"
+    case kyutaiMLXInt4 = "kyutai-stt-mlx-int4"
+    case kyutaiMLXInt8 = "kyutai-stt-mlx-int8"
+    case cohereMLXFP16 = "cohere-transcribe-mlx-fp16"
+    case cohereMLXInt5 = "cohere-transcribe-mlx-int5"
+    case cohereMLXInt8 = "cohere-transcribe-mlx-int8"
     case qwen3CoreML = "qwen3-coreml"
     case qwen3MLX06b4bit = "qwen3-mlx-0.6b-4bit"
+    case qwen3MLX06b5bit = "qwen3-mlx-0.6b-5bit"
     case qwen3MLX06b8bit = "qwen3-mlx-0.6b-8bit"
     case qwen3MLX17b4bit = "qwen3-mlx-1.7b-4bit"
+    case qwen3MLX17b5bit = "qwen3-mlx-1.7b-5bit"
     case qwen3MLX17b8bit = "qwen3-mlx-1.7b-8bit"
     case parakeet = "parakeet"
     case nemotron = "nemotron"
+    case nemotronMLXInt5 = "nemotron-mlx-int5"
+    case nemotronMLXInt8 = "nemotron-mlx-int8"
     case omnilingual = "omnilingual"
     case omnilingualMLX300m4bit = "omnilingual-mlx-300m-4bit"
     case omnilingualMLX1b4bit = "omnilingual-mlx-1b-4bit"
     case omnilingualMLX3b4bit = "omnilingual-mlx-3b-4bit"
     case omnilingualMLX7b4bit = "omnilingual-mlx-7b-4bit"
+    case whisperASRTurbo = "whisper-asr-turbo"
+    case mossCoreMLInt8 = "moss-coreml-int8"
+    case mossCoreMLFP16 = "moss-coreml-fp16"
+    case mossMLXInt5 = "moss-mlx-int5"
+    case mossMLXInt8 = "moss-mlx-int8"
     case whisperKitLargeV3Turbo = "whisperkit-large-v3-turbo"
     case whisperKitLargeV3 = "whisperkit-large-v3"
     case whisperKitDistilLargeV3 = "whisperkit-distil-large-v3"
+    case voxtralMLXFP16 = "voxtral-mini-mlx-fp16"
+    case voxtralMLXInt5 = "voxtral-mini-mlx-int5"
+    case voxtralMLXInt8 = "voxtral-mini-mlx-int8"
 
     public func make() -> BenchEngine {
         switch self {
+        case .kyutaiMLXFP16: return KyutaiSTTEngine(variant: .fp16)
+        case .kyutaiMLXInt4: return KyutaiSTTEngine(variant: .int4)
+        case .kyutaiMLXInt8: return KyutaiSTTEngine(variant: .int8)
+        case .cohereMLXFP16: return CohereTranscribeMLXEngine(variant: .fp16)
+        case .cohereMLXInt5: return CohereTranscribeMLXEngine(variant: .int5)
+        case .cohereMLXInt8: return CohereTranscribeMLXEngine(variant: .int8)
         case .qwen3CoreML: return Qwen3CoreMLEngine()
         case .qwen3MLX06b4bit: return Qwen3MLXEngine(size: "0.6B", bits: 4)
+        case .qwen3MLX06b5bit: return Qwen3MLXEngine(size: "0.6B", bits: 5)
         case .qwen3MLX06b8bit: return Qwen3MLXEngine(size: "0.6B", bits: 8)
         case .qwen3MLX17b4bit: return Qwen3MLXEngine(size: "1.7B", bits: 4)
+        case .qwen3MLX17b5bit: return Qwen3MLXEngine(size: "1.7B", bits: 5)
         case .qwen3MLX17b8bit: return Qwen3MLXEngine(size: "1.7B", bits: 8)
         case .parakeet: return ParakeetEngine()
         case .nemotron: return NemotronEngine()
+        case .nemotronMLXInt5:
+            return NemotronMLXEngine(variant: .int5)
+        case .nemotronMLXInt8:
+            return NemotronMLXEngine(variant: .int8)
         case .omnilingual: return OmnilingualEngine()
         case .omnilingualMLX300m4bit: return OmnilingualMLXEngine(variant: .m300, bits: 4)
         case .omnilingualMLX1b4bit: return OmnilingualMLXEngine(variant: .b1, bits: 4)
         case .omnilingualMLX3b4bit: return OmnilingualMLXEngine(variant: .b3, bits: 4)
         case .omnilingualMLX7b4bit: return OmnilingualMLXEngine(variant: .b7, bits: 4)
+        case .whisperASRTurbo: return WhisperASREngine()
+        case .mossCoreMLInt8: return MossCoreMLEngine(variant: .int8)
+        case .mossCoreMLFP16: return MossCoreMLEngine(variant: .fp16)
+        case .mossMLXInt5: return MossMLXEngine(variant: .int5)
+        case .mossMLXInt8: return MossMLXEngine(variant: .int8)
         case .whisperKitLargeV3Turbo: return WhisperKitEngine(model: "openai_whisper-large-v3-v20240930_turbo")
         case .whisperKitLargeV3: return WhisperKitEngine(model: "openai_whisper-large-v3")
         case .whisperKitDistilLargeV3: return WhisperKitEngine(model: "distil-whisper_distil-large-v3")
+        case .voxtralMLXFP16: return VoxtralMLXEngine(variant: .fp16)
+        case .voxtralMLXInt5: return VoxtralMLXEngine(variant: .int5)
+        case .voxtralMLXInt8: return VoxtralMLXEngine(variant: .int8)
         }
     }
 }

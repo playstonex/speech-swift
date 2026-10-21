@@ -107,7 +107,13 @@ final class E2EMAGNeTPipelineTests: XCTestCase {
     /// Output won't be musically meaningful with only 4 steps but should be a
     /// well-formed 30 s PCM array.
     func testMinimumBudgetGenerationSmoke() async throws {
-        let model = try await MAGNeTMusicGen.fromPretrained(variant: .smallInt4)
+        let initializationState = MLXRandom.RandomState(seed: 42)
+        let originalKey = initializationState.innerState()[0]
+        let model = try await withRandomState(initializationState) {
+            try await MAGNeTMusicGen.fromPretrained(variant: .smallInt4)
+        }
+        XCTAssertTrue(initializationState.innerState()[0] === originalKey,
+                      "Every component must isolate its discarded initialization draws")
         let params = MAGNeTGenerationParams(
             decodingSteps: [1, 1, 1, 1],   // minimum: 4 forwards
             maxCfgCoef: 3.0, minCfgCoef: 1.0,

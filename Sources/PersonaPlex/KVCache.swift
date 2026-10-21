@@ -232,7 +232,7 @@ public func applyLinear(_ module: Module, _ x: MLXArray) -> MLXArray {
 
 public func makeLinear(_ inputDims: Int, _ outputDims: Int, bias: Bool, groupSize: Int? = nil, bits: Int? = nil) -> Module {
     if let gs = groupSize, let b = bits, b < 16 {
-        return QuantizedLinear(inputDims, outputDims, bias: bias, groupSize: gs, bits: b)
+        return QuantizedLinear.preQuantized(inputDims, outputDims, bias: bias, groupSize: gs, bits: b)
     }
     return Linear(inputDims, outputDims, bias: bias)
 }

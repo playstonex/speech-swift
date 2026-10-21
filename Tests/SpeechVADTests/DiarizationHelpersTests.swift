@@ -109,6 +109,38 @@ final class DiarizationHelpersTests: XCTestCase {
         XCTAssertEqual(result[0].speakerId, 0)
     }
 
+    func testCompactSpeakerIdsKeepsCentroidsAlignedAcrossGaps() {
+        let segs = [
+            DiarizedSegment(startTime: 0, endTime: 1, speakerId: 2),
+            DiarizedSegment(startTime: 1, endTime: 2, speakerId: 5),
+            DiarizedSegment(startTime: 2, endTime: 3, speakerId: 2),
+        ]
+        let embeddings: [[Float]] = (0...5).map { speakerId in
+            [Float(speakerId), Float(speakerId) + 0.5]
+        }
+
+        let result = DiarizationHelpers.compactSpeakerIdsAndEmbeddings(
+            segs, speakerEmbeddings: embeddings)
+
+        XCTAssertEqual(result.segments.map(\.speakerId), [0, 1, 0])
+        XCTAssertEqual(result.speakerEmbeddings, [embeddings[2], embeddings[5]])
+    }
+
+    func testCompactSpeakerIdsPadsOnlyMissingActiveCentroid() {
+        let segs = [
+            DiarizedSegment(startTime: 0, endTime: 1, speakerId: 1),
+            DiarizedSegment(startTime: 1, endTime: 2, speakerId: 4),
+        ]
+
+        let result = DiarizationHelpers.compactSpeakerIdsAndEmbeddings(
+            segs,
+            speakerEmbeddings: [[0, 0], [1, 1]],
+            missingEmbeddingDimension: 2)
+
+        XCTAssertEqual(result.segments.map(\.speakerId), [0, 1])
+        XCTAssertEqual(result.speakerEmbeddings, [[1, 1], [0, 0]])
+    }
+
     // MARK: - resample
 
     func testResampleSameRate() {
@@ -295,6 +327,29 @@ final class DiarizationHelpersTests: XCTestCase {
         XCTAssertEqual(assignment[0], assignment[1], "A and B should be in same cluster")
         // C cannot merge with {A,B} — both have window 0
         XCTAssertNotEqual(assignment[0], assignment[2], "C should not merge with {A,B}")
+        XCTAssertEqual(centroids.count, 2)
+    }
+
+    func testClusteringUsesUpdatedCentroidDistances() {
+        // Unit vectors at 0°, 20°, 50°. d(A,B)=0.060 merges first; the merged
+        // centroid points at 10°, so d({A,B},C)=1-cos40°≈0.234 exceeds the
+        // 0.2 threshold and C must stay out — even though d(B,C)=1-cos30°≈0.134
+        // was below it. Centroid linkage requires the post-merge distance;
+        // reusing B's pre-merge distance would degrade to single linkage.
+        let items = [
+            DiarizationHelpers.ClusterItem(windowIndex: 0, localSpeakerId: 0,
+                                           embedding: [1, 0]),                  // A: 0°
+            DiarizationHelpers.ClusterItem(windowIndex: 1, localSpeakerId: 0,
+                                           embedding: [0.9397, 0.3420]),        // B: 20°
+            DiarizationHelpers.ClusterItem(windowIndex: 2, localSpeakerId: 0,
+                                           embedding: [0.6428, 0.7660]),        // C: 50°
+        ]
+        let (assignment, centroids) = DiarizationHelpers.constrainedAgglomerativeClustering(
+            items: items, threshold: 0.2)
+
+        XCTAssertEqual(assignment[0], assignment[1], "A and B should merge")
+        XCTAssertNotEqual(assignment[2], assignment[0],
+                          "C must be measured against the merged centroid, not its nearest member")
         XCTAssertEqual(centroids.count, 2)
     }
 

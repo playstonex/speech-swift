@@ -85,6 +85,58 @@ final class StreamingAudioPlayerTests: XCTestCase {
         // Without engine, can't truly test — but should not crash
     }
 
+    func testPreservesLeadingQuietSamplesWhenWarmupSkippingIsDisabled() {
+        let quiet = [Float](repeating: 0.001, count: 1000)
+        let defaultPlayer = StreamingAudioPlayer()
+        defaultPlayer.scheduleChunk(quiet)
+        XCTAssertEqual(defaultPlayer.totalWrittenSamples, 0)
+
+        let player = StreamingAudioPlayer()
+        player.skipInitialSilence = false
+        player.scheduleChunk(quiet)
+        player.scheduleChunk([Float](repeating: 0.2, count: 200))
+        XCTAssertEqual(player.totalWrittenSamples, 1200)
+        player.markGenerationComplete()
+    }
+
+    func testStartupDeclickDefaultDoesNotAddLatency() {
+        let input = [Float](repeating: 1, count: 100)
+        let output = StreamingAudioPlayer.startupDeclick(input, sampleRate: 1000)
+
+        XCTAssertEqual(output.count, input.count)
+        XCTAssertEqual(output.first ?? -1, 0, accuracy: 0.0001)
+        XCTAssertEqual(output[4], 1, accuracy: 0.0001)
+        XCTAssertEqual(output.last ?? 0, 1, accuracy: 0.0001)
+    }
+
+    func testStartupDeclickPrependsSilenceAndFadesFirstChunk() {
+        let input = [Float](repeating: 1, count: 100)
+        let output = StreamingAudioPlayer.startupDeclick(
+            input,
+            sampleRate: 1000,
+            prerollDuration: 0.010,
+            fadeInDuration: 0.020)
+
+        XCTAssertEqual(output.count, 110)
+        XCTAssertTrue(output.prefix(10).allSatisfy { $0 == 0 })
+        XCTAssertEqual(output[10], 0, accuracy: 0.0001)
+        XCTAssertGreaterThan(output[29], 0.99)
+        XCTAssertEqual(output.last ?? 0, 1, accuracy: 0.0001)
+    }
+
+    func testStartupDeclickCanDisablePreroll() {
+        let input = [Float](repeating: 1, count: 10)
+        let output = StreamingAudioPlayer.startupDeclick(
+            input,
+            sampleRate: 1000,
+            prerollDuration: 0,
+            fadeInDuration: 0.004)
+
+        XCTAssertEqual(output.count, input.count)
+        XCTAssertEqual(output.first ?? -1, 0, accuracy: 0.0001)
+        XCTAssertEqual(output.last ?? 0, 1, accuracy: 0.0001)
+    }
+
     func testEmptyChunkIgnored() {
         let player = StreamingAudioPlayer()
         player.scheduleChunk([])

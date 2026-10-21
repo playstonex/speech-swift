@@ -1630,7 +1630,7 @@ public final class PersonaPlexModel: Module {
             cfg.depformer.bits = 16
             cfg.depformer.groupSize = 1
         }
-        let model = PersonaPlexModel(cfg: cfg)
+        let model = withThrowawayRandomState { PersonaPlexModel(cfg: cfg) }
         model.modelId = modelId
 
         // Load weights

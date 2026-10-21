@@ -36,6 +36,11 @@ public struct DiarizationConfig: Sendable {
     }
 
     public static let `default` = DiarizationConfig()
+
+    /// Sortformer default: NeMo binarizes with a symmetric 0.5/0.5
+    /// onset/offset, and the 0.3 hysteresis offset tuned for the pyannote
+    /// pipeline measurably inflates false alarms on Sortformer activity.
+    public static let sortformer = DiarizationConfig(offset: 0.5)
 }
 
 // MARK: - Result
@@ -309,7 +314,9 @@ public final class PyannoteDiarizationPipeline {
         let windowSamples = Int(windowDuration * Float(sampleRate))
         let framesPerChunk = 589
         let frameDuration = windowDuration / Float(framesPerChunk)
-        let stepSamples = windowSamples / 2  // 50% overlap
+        // Match the segmentation model's reference inference recipe: a 10%
+        // step gives 90% overlap between consecutive 10-second windows.
+        let stepSamples = windowSamples / 10
 
         let numSamples = samples.count
         guard numSamples > 0 else {
@@ -339,27 +346,43 @@ public final class PyannoteDiarizationPipeline {
 
         let emptyResult = DiarizationResult(segments: [], numSpeakers: 0, speakerEmbeddings: [])
 
-        for (posIdx, (start, end)) in positions.enumerated() {
-            completedUnits += 1
-            if progressHandler?(Float(completedUnits) / Float(totalUnits), "Segmenting \(posIdx + 1)/\(positions.count)") == false {
+        // Windows are batched through the segmentation model: the BiLSTM runs
+        // ~600 sequential timesteps of tiny ops per window, so per-op dispatch
+        // overhead dominates a batch-of-1 forward pass. Stacking windows on the
+        // batch axis amortizes it (measured ~5x on the segmentation stage).
+        let segmentationBatch = 8
+        var batchStart = 0
+        while batchStart < positions.count {
+            let batchEnd = min(batchStart + segmentationBatch, positions.count)
+            if progressHandler?(Float(completedUnits) / Float(totalUnits), "Segmenting \(batchStart + 1)/\(positions.count)") == false {
                 return emptyResult
             }
 
-            var window = Array(samples[start..<end])
-            if window.count < windowSamples {
-                window.append(contentsOf: [Float](repeating: 0, count: windowSamples - window.count))
+            var flat = [Float]()
+            flat.reserveCapacity((batchEnd - batchStart) * windowSamples)
+            for p in batchStart..<batchEnd {
+                let (start, end) = positions[p]
+                flat.append(contentsOf: samples[start..<end])
+                if end - start < windowSamples {
+                    flat.append(contentsOf: [Float](repeating: 0, count: windowSamples - (end - start)))
+                }
             }
 
-            let input = MLXArray(window).reshaped(1, 1, windowSamples)
+            let input = MLXArray(flat).reshaped(batchEnd - batchStart, 1, windowSamples)
             let posteriors = segmentationModel(input)
-            let speakerProbs = PowersetDecoder.speakerProbabilities(from: posteriors)
+            let speakerProbs = PowersetDecoder.hardSpeakerActivity(from: posteriors)
             eval(speakerProbs)
 
-            var tracks = [[Float]]()
-            for spk in 0..<3 {
-                tracks.append(speakerProbs[0, 0..., spk].asArray(Float.self))
+            for (bi, p) in (batchStart..<batchEnd).enumerated() {
+                var tracks = [[Float]]()
+                for spk in 0..<3 {
+                    tracks.append(speakerProbs[bi, 0..., spk].asArray(Float.self))
+                }
+                windowProbs.append(WindowProbs(startSample: positions[p].start,
+                                               endSample: positions[p].end, tracks: tracks))
             }
-            windowProbs.append(WindowProbs(startSample: start, endSample: end, tracks: tracks))
+            completedUnits += batchEnd - batchStart
+            batchStart = batchEnd
         }
 
         guard !windowProbs.isEmpty else {
@@ -440,7 +463,7 @@ public final class PyannoteDiarizationPipeline {
                 embedding: $0.embedding)
         }
 
-        let (clusterAssignment, centroids) = DiarizationHelpers.constrainedAgglomerativeClustering(
+        let (clusterAssignment, centroids) = DiarizationHelpers.agglomerativeClustering(
             items: clusterItems, threshold: config.clusteringThreshold)
 
         // Build mapping: (windowIndex, localSpeakerId) → global cluster ID
@@ -510,29 +533,20 @@ public final class PyannoteDiarizationPipeline {
 
         diarizedSegments.sort { $0.startTime < $1.startTime }
 
-        // Compact speaker IDs and merge
-        diarizedSegments = DiarizationHelpers.compactSpeakerIds(diarizedSegments)
+        // Compact speaker IDs and their centroids through the same mapping.
+        // Some clusters can lose every segment during center-zone clipping or
+        // minimum-duration filtering, leaving gaps in the active IDs.
+        let compacted = DiarizationHelpers.compactSpeakerIdsAndEmbeddings(
+            diarizedSegments, speakerEmbeddings: centroids)
+        diarizedSegments = compacted.segments
         let merged = DiarizationHelpers.mergeSegments(
             diarizedSegments, minSilence: config.minSilenceDuration)
-        let numSpeakers = Set(merged.map(\.speakerId)).count
-
-        // Re-compact centroids to match compacted speaker IDs
-        let finalCentroids: [[Float]]
-        if numSpeakers <= centroids.count {
-            finalCentroids = Array(centroids.prefix(numSpeakers))
-        } else {
-            // Pad with zero embeddings for speakers that had no embedding
-            var padded = centroids
-            while padded.count < numSpeakers {
-                padded.append([Float](repeating: 0, count: 256))
-            }
-            finalCentroids = padded
-        }
+        let numSpeakers = compacted.speakerEmbeddings.count
 
         return DiarizationResult(
             segments: merged,
             numSpeakers: numSpeakers,
-            speakerEmbeddings: finalCentroids
+            speakerEmbeddings: compacted.speakerEmbeddings
         )
     }
 

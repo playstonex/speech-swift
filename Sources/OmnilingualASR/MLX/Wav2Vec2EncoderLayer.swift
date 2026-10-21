@@ -53,10 +53,10 @@ public class Wav2Vec2SelfAttention: Module {
         let g = config.groupSize
         let b = config.bits
 
-        self._qProj.wrappedValue = QuantizedLinear(dim, dim, bias: true, groupSize: g, bits: b)
-        self._kProj.wrappedValue = QuantizedLinear(dim, dim, bias: true, groupSize: g, bits: b)
-        self._vProj.wrappedValue = QuantizedLinear(dim, dim, bias: true, groupSize: g, bits: b)
-        self._outputProj.wrappedValue = QuantizedLinear(dim, dim, bias: true, groupSize: g, bits: b)
+        self._qProj.wrappedValue = QuantizedLinear.preQuantized(dim, dim, bias: true, groupSize: g, bits: b)
+        self._kProj.wrappedValue = QuantizedLinear.preQuantized(dim, dim, bias: true, groupSize: g, bits: b)
+        self._vProj.wrappedValue = QuantizedLinear.preQuantized(dim, dim, bias: true, groupSize: g, bits: b)
+        self._outputProj.wrappedValue = QuantizedLinear.preQuantized(dim, dim, bias: true, groupSize: g, bits: b)
         super.init()
     }
 
@@ -81,9 +81,9 @@ public class Wav2Vec2FFN: Module {
     public init(config: OmnilingualMLXConfig) {
         let g = config.groupSize
         let b = config.bits
-        self._innerProj.wrappedValue = QuantizedLinear(
+        self._innerProj.wrappedValue = QuantizedLinear.preQuantized(
             config.modelDim, config.ffnDim, bias: true, groupSize: g, bits: b)
-        self._outputProj.wrappedValue = QuantizedLinear(
+        self._outputProj.wrappedValue = QuantizedLinear.preQuantized(
             config.ffnDim, config.modelDim, bias: true, groupSize: g, bits: b)
         super.init()
     }

@@ -30,16 +30,16 @@ public class QuantizedTextAttention: Module {
         let hiddenSize = config.hiddenSize
 
         // Create quantized linear layers
-        self._qProj.wrappedValue = QuantizedLinear(
+        self._qProj.wrappedValue = QuantizedLinear.preQuantized(
             hiddenSize, numHeads * headDim, bias: false,
             groupSize: config.groupSize, bits: config.bits)
-        self._kProj.wrappedValue = QuantizedLinear(
+        self._kProj.wrappedValue = QuantizedLinear.preQuantized(
             hiddenSize, numKVHeads * headDim, bias: false,
             groupSize: config.groupSize, bits: config.bits)
-        self._vProj.wrappedValue = QuantizedLinear(
+        self._vProj.wrappedValue = QuantizedLinear.preQuantized(
             hiddenSize, numKVHeads * headDim, bias: false,
             groupSize: config.groupSize, bits: config.bits)
-        self._oProj.wrappedValue = QuantizedLinear(
+        self._oProj.wrappedValue = QuantizedLinear.preQuantized(
             numHeads * headDim, hiddenSize, bias: false,
             groupSize: config.groupSize, bits: config.bits)
 
@@ -116,13 +116,13 @@ public class QuantizedTextMLP: Module {
         let hiddenSize = config.hiddenSize
         let intermediateSize = config.intermediateSize
 
-        self._gateProj.wrappedValue = QuantizedLinear(
+        self._gateProj.wrappedValue = QuantizedLinear.preQuantized(
             hiddenSize, intermediateSize, bias: false,
             groupSize: config.groupSize, bits: config.bits)
-        self._upProj.wrappedValue = QuantizedLinear(
+        self._upProj.wrappedValue = QuantizedLinear.preQuantized(
             hiddenSize, intermediateSize, bias: false,
             groupSize: config.groupSize, bits: config.bits)
-        self._downProj.wrappedValue = QuantizedLinear(
+        self._downProj.wrappedValue = QuantizedLinear.preQuantized(
             intermediateSize, hiddenSize, bias: false,
             groupSize: config.groupSize, bits: config.bits)
 

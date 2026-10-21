@@ -17,7 +17,12 @@
 </div>
 
 <p align="center">
-  <a href="https://www.producthunt.com/products/speech-swift?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-speech-swift" target="_blank" rel="noopener noreferrer"><img alt="speech-swift -  The whole speech stack, on your laptop. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1151422&amp;theme=light&amp;t=1779261593657"></a>
+  <a href="https://formulae.brew.sh/formula/speech"><img src="https://img.shields.io/homebrew/installs/dm/speech.svg?logo=homebrew&amp;label=Homebrew%20installs&amp;color=FBB040" alt="Homebrew installs"></a>
+  <a href="https://github.com/soniqo/speech-swift#built-with-speech-swift"><img src="https://img.shields.io/badge/verified%20public%20repositories-16-2ea44f?logo=github" alt="Verified public repositories: 15"></a>
+</p>
+
+<p align="center">
+  <a href="https://trendshift.io/repositories/24196?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-24196" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/24196/daily?language=Swift" alt="soniqo%2Fspeech-swift | Trendshift" width="250" height="55"/></a>
 </p>
 
 <p align="center">
@@ -31,31 +36,81 @@
 
 **حالات الاستخدام:** [وكلاء الصوت](https://soniqo.audio/ar/voice-agents) · [النسخ النصي](https://soniqo.audio/ar/transcription) · [توليد الكلام](https://soniqo.audio/ar/speech-generation)
 
+## مشاريع مبنية باستخدام Speech Swift
+
+16 مستودعاً عاماً يتضمن مرجعاً يمكن التحقق منه لحزمة Speech Swift.
+
+[AnythingLLM](https://github.com/Mintplex-Labs/anything-llm) · [Palmier Pro](https://github.com/palmier-io/palmier-pro) · [Anarlog](https://github.com/fastrepl/anarlog) · [ClawdHome](https://github.com/ThinkInAIXYZ/clawdhome) · [Jabber](https://github.com/rselbach/jabber) · [Ora](https://github.com/wuwangzhang1216/ora) · [VoxFlow](https://github.com/xingbofeng/VoxFlow) · [LokalBot](https://github.com/stevyhacker/lokalbot) · [Voicey](https://github.com/jonathanKingston/voicey) · [HushType](https://github.com/felixfu824/HushType) · [DexDictate macOS](https://github.com/westkitty/DexDictate_MacOS) · [Watchtower](https://github.com/aiwatchtowers/watchtower) · [Wishper App](https://github.com/irangareddy/wishper-app) · [FriSpeak](https://github.com/KSubedi/FriSpeak) · [Scribe](https://github.com/itchat/Scribe) · [VoicePen](https://github.com/dot-sk/VoicePen)
+
+**مجموعات القدرات:** STT / ASR · المحاذاة · TTS · نماذج LLM والترجمة · الكلام إلى كلام · التحسين / الاستعادة · فصل المصادر · توليد الموسيقى / الصوت · كلمة التنبيه، VAD، diarization وهوية المتحدث
+
+**STT / ASR**
+
 - **[Qwen3-ASR](https://soniqo.audio/ar/guides/transcribe)** — تحويل الكلام إلى نص (تعرف تلقائي على الكلام، 52 لغة، MLX + CoreML)
+- **[WhisperASR](docs/models/whisper-asr.md)** — Whisper Large-v3 Turbo speech-to-text via native CoreML runtime (ANE, multilingual)
+- **[MOSS Transcribe Diarize](https://soniqo.audio/ar/guides/moss)** — نسخ أصلي دون اتصال عبر CoreML/MLX مع تسميات المتحدثين والطوابع الزمنية التي يولدها النموذج (سياق MLX بحجم 128K؛ INT5/INT8)
 - **[Parakeet TDT](https://soniqo.audio/ar/guides/parakeet)** — تحويل الكلام إلى نص عبر CoreML (Neural Engine، NVIDIA FastConformer + مفكك ترميز TDT، 25 لغة)
 - **[Omnilingual ASR](https://soniqo.audio/ar/guides/omnilingual)** — تحويل الكلام إلى نص (Meta wav2vec2 + CTC، **1,672 لغة** عبر 32 نظام كتابة، CoreML 300M + MLX 300M/1B/3B/7B)
+- **[Cohere Transcribe 2B](https://soniqo.audio/ar/guides/cohere-transcribe)** — تحويل الكلام إلى نص محليًا عبر MLX (14 لغة، FP16/INT5/INT8)
+- **[Kyutai STT](https://soniqo.audio/ar/guides/kyutai-stt)** — تعرّف متدفق على الكلام عبر MLX الأصلي (1B للإنجليزية/الفرنسية؛ إعداد 2.6B للإنجليزية؛ Mimi بتردد 24 kHz؛ تصدير FP16/INT4/INT8) · [INT8](https://huggingface.co/aufklarer/Kyutai-STT-1B-MLX-8bit) (الافتراضي) · [INT4](https://huggingface.co/aufklarer/Kyutai-STT-1B-MLX-4bit) · [FP16](https://huggingface.co/aufklarer/Kyutai-STT-1B-MLX-FP16)
+- **[Voxtral Mini 3B](https://soniqo.audio/ar/guides/voxtral)** — تحويل الكلام إلى نص محليًا عبر MLX (8 لغات، FP16/INT5/INT8) — ‏RTF 0.074 على M5 Pro
 - **[الإملاء التدفقي](https://soniqo.audio/ar/guides/dictate)** — إملاء فوري بنتائج جزئية واكتشاف نهاية النطق (Parakeet-EOU-120M)
 - **[Nemotron Streaming (متعدد اللغات)](https://soniqo.audio/ar/guides/nemotron)** — تعرف تدفقي على الكلام بزمن استجابة منخفض مع علامات ترقيم وأحرف كبيرة أصلية (NVIDIA Nemotron-3.5-ASR-Streaming-0.6B، CoreML + MLX، **40 لغة-منطقة**)
 - **[Nemotron Streaming (إنجليزي)](https://soniqo.audio/guides/nemotron)** — تعرف تدفقي على الكلام بزمن استجابة منخفض مع علامات ترقيم وأحرف كبيرة أصلية (NVIDIA Nemotron-Speech-Streaming-0.6B، CoreML، الإنجليزية فقط، أصغر وأسرع من المتغير متعدد اللغات)
+
+**المحاذاة**
+
 - **[Qwen3-ForcedAligner](https://soniqo.audio/ar/guides/align)** — محاذاة الطوابع الزمنية على مستوى الكلمة (صوت + نص → طوابع زمنية)
+
+**TTS / توليد الكلام**
+
 - **[Qwen3-TTS](https://soniqo.audio/ar/guides/speak)** — تحويل النص إلى كلام (أعلى جودة، تدفق، متحدثون مخصصون، 10 لغات)
 - **[CosyVoice TTS](https://soniqo.audio/ar/guides/cosyvoice)** — تحويل تدفقي للنص إلى كلام مع استنساخ الصوت وحوار متعدد المتحدثين ووسوم المشاعر (9 لغات)
-- **[VoxCPM2](https://soniqo.audio/ar/speech-generation)** — تحويل النص إلى كلام بجودة استوديو 48 كيلوهرتز مع استنساخ الصوت وتصميم الصوت بالأوامر (2B، MLX bf16/int8/int4، 30 لغة)
+- **[VoxCPM2](https://soniqo.audio/ar/speech-generation)** — تحويل النص إلى كلام بجودة استوديو 48 كيلوهرتز مع استنساخ الصوت وتصميم الصوت بالأوامر (2B، MLX bf16/int8، 30 لغة)
+- **[IndexTTS2](docs/models/indextts2.md)** — Native MLX voice cloning from a reference voice (IndexTeam IndexTTS-2, 1.5B-class fp16 bundle, speaker/emotion/pause controls)
+- **[F5-TTS](docs/models/f5-tts.md)** — Zero-shot voice cloning from a short reference clip + transcript (SWivid F5-TTS v1 Base, DiT flow matching + Vocos, MLX fp16, 24 kHz, English + Mandarin; non-commercial license)
+- **[Higgs TTS 3](docs/models/higgs-tts.md)** — Conversational TTS with zero-shot voice cloning and inline emotion/style/SFX/prosody tags (Boson Higgs TTS 3, Qwen3-4B backbone, MLX bf16, 24 kHz, 100+ languages; research/non-commercial license)
 - **[Kokoro TTS](https://soniqo.audio/ar/guides/kokoro)** — تحويل النص إلى كلام على الجهاز (82M، CoreML/Neural Engine، 54 صوتاً، جاهز لـ iOS، 10 لغات)
 - **[VibeVoice TTS](https://soniqo.audio/ar/guides/vibevoice)** — تحويل النص إلى كلام للنصوص الطويلة / متعدد المتحدثين (Microsoft VibeVoice Realtime-0.5B + 1.5B، MLX، توليد بودكاست/كتب صوتية حتى 90 دقيقة، EN/ZH)
-- **[Magpie TTS](https://soniqo.audio/ar/guides/magpie)** — تحويل النص إلى كلام متعدد اللغات (NVIDIA Magpie-TTS Multilingual 357M، MLX INT4 247 ميغابايت / INT8 411 ميغابايت أو CoreML INT8 342 ميغابايت، 9 لغات، 5 متحدثين جاهزين، تدفق على MLX)
-- **[Qwen3.5-Chat](https://soniqo.audio/ar/guides/chat)** — محادثة LLM على الجهاز (0.8B، MLX INT4 + CoreML INT8، DeltaNet هجين، رموز تدفقية)
+- **[Magpie TTS](https://soniqo.audio/ar/guides/magpie)** — تحويل النص إلى كلام متعدد اللغات (NVIDIA Magpie-TTS Multilingual 357M، MLX INT8 411 ميغابايت أو CoreML INT8 342 ميغابايت، 9 لغات، 5 متحدثين جاهزين، تدفق على MLX)
+- **[MOSS-TTS-Nano](https://soniqo.audio/guides/moss-tts-nano)** — توليد كلام متدفق واستنساخ الصوت دون نص مرجعي (CoreML، ستيريو 48 kHz، مقاطع 80 ms، نماذج مجمعة بحجم 367.6 MB؛ macOS 15+ / iOS 18+)
+- **[Supertonic TTS](https://soniqo.audio/guides/supertonic)** — تحويل النص إلى كلام على الجهاز بمطابقة التدفق (Supertone Supertonic-3 99M، CoreML/Neural Engine، 31 لغة، 10 أصوات، بدون G2P، 44.1 كيلوهرتز)
+- **[Chatterbox TTS](https://huggingface.co/aufklarer/Chatterbox-Multilingual-MLX-fp16)** — تحويل النص إلى كلام متعدد اللغات مع استنساخ الصوت بدون تدريب مسبق (Resemble AI Chatterbox Multilingual، MLX fp16 ~1.3 غيغابايت، 23 لغة وقت تشغيل؛ العبرية تتطلب النِّقُود، MIT)
+- **[OmniVoice TTS](https://huggingface.co/aufklarer/OmniVoice-MLX-fp16)** — تحويل النص إلى كلام بالانتشار غير الانحداري التلقائي مع استنساخ الصوت بدون تدريب مسبق (k2-fsa OmniVoice، عمود Qwen3 الفقري، MLX fp16 افتراضي / int8 متاح، أكثر من 600 لغة، Apache-2.0)
+- **[Indic-Mio](docs/models/indic-mio-tts.md)** — Hindi/Indic TTS with inline emotion markers and optional reference-voice cloning (MLX, 24 kHz)
+- **[CSM (Conversational Speech Model)](docs/models/csm.md)** — تحويل النص إلى كلام محادثاتي مع استنساخ الصوت بدون تدريب مسبق من مقطع مرجعي + نص (Sesame CSM-1B، عمود Llama-1B الفقري + مرمّز Mimi، MLX int8/fp16، 24 kHz، الإنجليزية؛ Apache-2.0)
+
+**نماذج LLM والترجمة**
+
+- **[Qwen3Chat](https://soniqo.audio/ar/guides/chat)** — محادثة LLM على الجهاز (Qwen3.5-0.8B عبر MLX/CoreML، إضافة إلى خلفيات MLX لـ Qwen3 dense بحجم 4B و Gemma 4 E2B/E4B، رموز تدفقية)
+- **[FunctionGemma](https://soniqo.audio/ar/guides/function-calls)** — نموذج لغوي على الجهاز للاستدعاءات المنظمة للدوال / الأدوات (Gemma 3 270M، CoreML بترميز 8-بت، Neural Engine، حوالي 252 tok/s)
 - **[MADLAD-400](https://soniqo.audio/ar/guides/translate)** — ترجمة متعددة الاتجاهات عبر أكثر من 400 لغة (3B، MLX INT4 + INT8، T5 v1.1، Apache 2.0)
+- **[GLiNER2.5-Decide](https://soniqo.audio/ar/guides/gliner)** - تصنيف النص وفق تسميات محددة واستخراج الكيانات محليًا (مُرمِّز DeBERTa-v3-large، MLX، INT8/FP16/FP32؛ معاينة للتطوير، Apache 2.0)
+- **[Clef-flash](docs/models/clef.md)** — قرارات محلية من النص والإجابات المسموح بها (9B، ‏MLX بدقة 4 بت؛ معاينة للتطوير، Apache 2.0)
+
+**الكلام إلى كلام ووكلاء الصوت**
+
 - **[Hibiki Zero-3B](https://soniqo.audio/guides/audio-translate)** — ترجمة تدفقية من كلام إلى كلام (FR/ES/PT/DE → EN، MLX INT4 + INT8، حزمة Kyutai Moshi/Mimi، CC-BY-4.0)
 - **[PersonaPlex](https://soniqo.audio/ar/guides/respond)** — تحويل صوت إلى صوت ثنائي الاتجاه الكامل (7B، صوت داخل → صوت خارج، 18 إعداداً صوتياً مسبقاً)
+- **[VoiceChat 11B](docs/models/voicechat.md)** — نموذج speech-to-speech ثنائي الاتجاه أصلي عبر MLX بمدخل كلام مستمر وقناتي نص/وظيفة وإخراج كلام مباشر عبر EAR-TTS والترميز العصبي (INT5/INT8)
+- **[Audio2Face-3D](docs/models/audio2face3d.md)** — تحريك وجه الأفاتار انطلاقًا من الكلام (NVIDIA Audio2Face-3D v2.3 Mark, 301 معامل وجه, MLX)
+
+**التحسين والفصل وتوليد الصوت**
+
 - **[DeepFilterNet3](https://soniqo.audio/ar/guides/denoise)** — قمع الضوضاء في الزمن الحقيقي (2.1M معامل، 48 كيلوهرتز) الصوت الطويل الذي يتجاوز حد اللقطة الواحدة البالغ 60 s يُقسَّم تلقائيًا إلى أجزاء مع crossfade — راجع `enhanceChunked(...)`
+- **[LocalVQE v1.4-AEC](https://soniqo.audio/ar/guides/echo-cancellation)** — إلغاء صدى صوتي متدفق من تدفقي الميكروفون ومرجع التشغيل المنفصلين والمتزامنين (Core ML + مرشح تكيفي أصلي، 16 kHz، زمن خوارزمي 16 ms)
 - **[فصل المصادر](https://soniqo.audio/ar/guides/separate)** — فصل المصادر الموسيقية عبر HTDemucs (Demucs v4) + Open-Unmix (UMX-HQ / UMX-L، 4 طبقات: غناء/طبول/باس/أخرى، 44.1 كيلوهرتز ستيريو)
-- **[MAGNeT](https://soniqo.audio/ar/guides/compose)** — توليد الموسيقى من النص (Meta MAGNeT Small 300M / Medium 1.5B، MLX INT4/INT8، مقاطع 30 ثانية بجودة 32 كيلوهرتز مونو، فك ترميز متوازي مقنع)
+- **[MAGNeT](https://soniqo.audio/ar/guides/compose)** — توليد الموسيقى من النص (Meta MAGNeT Small 300M / Medium 1.5B، MLX INT8، مقاطع 30 ثانية بجودة 32 كيلوهرتز مونو، فك ترميز متوازي مقنع)
+- **[Stable Audio 3](docs/models/stable-audio-3.md)** — Text-to-audio/music generation (Stable Audio 3 Medium, MLX INT8/INT4, 44.1 kHz stereo, variable length)
 - **[FlashSR](https://soniqo.audio/ar/guides/upsample)** — رفع دقة الصوت (FlashSR ICASSP 2025، MLX، 48 كيلوهرتز مونو، انتشار مقطر بخطوة واحدة، INT4 363 ميغابايت / INT8 720 ميغابايت)
+
+**اكتشاف الدور، diarization وهوية المتحدث**
+
 - **[كلمة التنبيه](https://soniqo.audio/ar/guides/wake-word)** — اكتشاف الكلمات المفتاحية على الجهاز (KWS Zipformer 3M، CoreML، 26× الزمن الحقيقي، قائمة كلمات مفتاحية قابلة للتهيئة)
 - **[VAD](https://soniqo.audio/ar/guides/vad)** — اكتشاف النشاط الصوتي (Silero تدفقي، Pyannote دون اتصال، FireRedVAD أكثر من 100 لغة)
-- **[تمييز المتحدثين](https://soniqo.audio/ar/guides/diarize)** — من تحدث متى (خط أنابيب Pyannote، Sortformer من طرف إلى طرف على Neural Engine)
-- **[تضمينات المتحدث](https://soniqo.audio/ar/guides/embed-speaker)** — WeSpeaker ResNet34 (256 بُعداً)، CAM++ (192 بُعداً)
+- **[Smart Turn](docs/models/smart-turn-v3.md)** — اكتشاف نهاية الدور من الصوت (Pipecat Smart Turn v3.2، CoreML، 8M، 23 لغة؛ يؤكد توقفات Silero VAD حتى لا ينهي التوقف في منتصف الجملة الدور)
+- **[تمييز المتحدثين](https://soniqo.audio/ar/guides/diarize)** — من تحدث متى (خط أنابيب Pyannote، Sortformer من طرف إلى طرف على Neural Engine) — الآن مع جلسة بث تزايدي (معرّفات متحدثين ثابتة وتحديث كل 480 مللي ثانية)
+- **[تضمينات المتحدث](https://soniqo.audio/ar/guides/embed-speaker)** — WeSpeaker ResNet34 (256 بُعداً)، ReDimNet2-B6 للهوية الصوتية المسماة (192 بُعداً)، CAM++ (192 بُعداً)
 
 </div>
 
@@ -65,6 +120,7 @@
 
 <div dir="rtl">
 
+- **10 سبتمبر 2026** — [NVIDIA Nemotron VoiceChat على Apple Silicon — كلام ثنائي الاتجاه الكامل مع الأدوات](https://blog.ivan.digital/nvidia-nemotron-voicechat-on-apple-silicon-full-duplex-speech-with-tools-6165625d55c4)
 - **19 أبريل 2026** — [MLX مقابل CoreML على Apple Silicon — دليل عملي لاختيار الواجهة الخلفية المناسبة](https://blog.ivan.digital/mlx-vs-coreml-on-apple-silicon-a-practical-guide-to-picking-the-right-backend-and-why-you-should-f77ddea7b27a)
 - **20 مارس 2026** — [تفوقنا على Whisper Large v3 بنموذج 600M يعمل بالكامل على جهاز Mac الخاص بك](https://blog.ivan.digital/we-beat-whisper-large-v3-with-a-600m-model-running-entirely-on-your-mac-20e6ce191174)
 - **26 فبراير 2026** — [تمييز المتحدثين واكتشاف النشاط الصوتي على Apple Silicon — Swift أصلي مع MLX](https://blog.ivan.digital/speaker-diarization-and-voice-activity-detection-on-apple-silicon-native-swift-with-mlx-92ea0c9aca0f)
@@ -153,7 +209,7 @@ struct DictateView: View {
 
 تشحن `SpeechUI` فقط `TranscriptionView` (النهائيات + الجزئيات) و `TranscriptionStore` (محول ASR تدفقي). استخدم AVFoundation لتصور الصوت وتشغيله.
 
-منتجات SPM المتاحة: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `MagpieTTS`, `MagpieTTSCoreML`, `MAGNeTMusicGen`, `FlashSR`, `PersonaPlex`, `HibikiTranslate`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
+منتجات SPM المتاحة: `Qwen3ASR`, `WhisperASR`, `MossTranscribe`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `CohereTranscribeASR`, `KyutaiSTT`, `VoxtralASR`, `KokoroTTS`, `SupertonicTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `IndexTTS2TTS`, `F5TTS`, `HiggsTTS`, `ChatterboxTTS`, `OmniVoiceTTS`, `IndicMioTTS`, `FishAudioTTS`, `MagpieTTS`, `MagpieTTSCoreML`, `MAGNeTMusicGen`, `StableAudio3MusicGen`, `FlashSR`, `PersonaPlex`, `VoiceChat`, `CSM`, `Audio2Face3D`, `HibikiTranslate`, `MADLADTranslation`, `GLiNER`, `Clef`, `SpeechVAD`, `SpeechLanguageID`, `SpeechWakeWord`, `SpeechEnhancement`, `SpeechRestoration`, `SourceSeparation`, `Qwen3Chat`, `FunctionGemma`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
 
 </div>
 
@@ -168,33 +224,62 @@ struct DictateView: View {
 | النموذج | المهمة | الواجهات الخلفية | الأحجام | اللغات |
 |-------|------|----------|-------|-----------|
 | [Qwen3-ASR](https://soniqo.audio/ar/guides/transcribe) | كلام → نص | MLX, CoreML (هجين) | 0.6B, 1.7B | 52 |
+| [WhisperASR](docs/models/whisper-asr.md) | Speech → Text | CoreML (ANE) | Large-v3 Turbo | Multi |
+| [MOSS Transcribe Diarize](https://soniqo.audio/ar/guides/moss) | الصوت → النص + طوابع زمنية للمتحدثين | CoreML / MLX | 0.9B (MLX INT5/INT8؛ CoreML INT8/FP16) | متعدد اللغات |
 | [Parakeet TDT](https://soniqo.audio/ar/guides/parakeet) | كلام → نص | CoreML (ANE) | 0.6B | 25 أوروبية |
 | [Parakeet EOU](https://soniqo.audio/ar/guides/dictate) | كلام → نص (تدفقي) | CoreML (ANE) | 120M | 25 أوروبية |
 | [Nemotron Streaming (متعدد اللغات)](https://soniqo.audio/ar/guides/nemotron) | كلام → نص (تدفقي، مع علامات ترقيم) | CoreML (ANE), MLX | 0.6B | **40** |
 | [Nemotron Streaming (إنجليزي)](https://soniqo.audio/guides/nemotron) | كلام → نص (تدفقي، مع علامات ترقيم) | CoreML (ANE) | 0.6B | EN |
 | [Omnilingual ASR](https://soniqo.audio/ar/guides/omnilingual) | كلام → نص | CoreML (ANE), MLX | 300M / 1B / 3B / 7B | **[1,672](https://github.com/facebookresearch/omnilingual-asr/blob/main/src/omnilingual_asr/models/wav2vec2_llama/lang_ids.py)** |
+| [Cohere Transcribe 2B](https://soniqo.audio/ar/guides/cohere-transcribe) | كلام → نص | MLX | 2B (FP16 / INT5 / INT8) | 14 |
+| [Kyutai STT](docs/models/kyutai-stt.md) | كلام → نص (تدفقي) | MLX | 1B (FP16 / INT4 / INT8) | EN/FR |
+| [Voxtral Mini 3B](https://soniqo.audio/ar/guides/voxtral) | كلام → نص | MLX | 3B (FP16 / INT5 / INT8) | 8 |
 | [Qwen3-ForcedAligner](https://soniqo.audio/ar/guides/align) | صوت + نص → طوابع زمنية | MLX, CoreML | 0.6B | متعدد |
 | [Qwen3-TTS](https://soniqo.audio/ar/guides/speak) | نص → كلام | MLX, CoreML | 0.6B, 1.7B | 10 |
 | [CosyVoice3](https://soniqo.audio/ar/guides/cosyvoice) | نص → كلام | MLX | 0.5B | 9 |
-| [VoxCPM2](https://soniqo.audio/ar/speech-generation) | نص → كلام (48 كيلوهرتز، تصميم + استنساخ صوت) | MLX | 2B (bf16/int8/int4) | 30 |
+| [VoxCPM2](https://soniqo.audio/ar/speech-generation) | نص → كلام (48 كيلوهرتز، تصميم + استنساخ صوت) | MLX | 2B (bf16/int8) | 30 |
+| [IndexTTS2](docs/models/indextts2.md) | Text → Speech (zero-shot voice cloning) | MLX | 1.5B-class (fp16) | EN/ZH |
+| [F5-TTS](docs/models/f5-tts.md) | Text → Speech (zero-shot voice cloning) | MLX | 336M (fp16) | EN/ZH |
+| [Higgs TTS 3](docs/models/higgs-tts.md) | Text → Speech (conversational, zero-shot voice cloning) | MLX | 4B (bf16) | 100+ |
+| [Chatterbox Multilingual](https://huggingface.co/aufklarer/Chatterbox-Multilingual-MLX-fp16) | نص → كلام (استنساخ صوت بدون تدريب) | MLX | 0.8B (fp16) | 23 (HE تتطلب النِّقُود) |
+| [OmniVoice](https://huggingface.co/aufklarer/OmniVoice-MLX-fp16) | نص → كلام (انتشار NAR، استنساخ بدون تدريب) | MLX | 0.8B (fp16 افتراضي / int8) | 600+ |
+| [Indic-Mio](docs/models/indic-mio-tts.md) | Text → Speech (Hindi/Indic, emotion tags, voice cloning) | MLX | fp16 | Hindi / Indic |
+| [Fish Audio S2 Pro](docs/models/fish-audio-s2-pro.md) | نص → كلام (استنساخ صوت بدون تدريب، علامات نمط صريحة) | MLX | 0.5B-class (fp16) | متعدد اللغات |
+| [CSM](docs/models/csm.md) | نص → كلام (محادثاتي، استنساخ صوت بدون تدريب) | MLX | 1B (int8 / fp16) | EN |
 | [Kokoro-82M](https://soniqo.audio/ar/guides/kokoro) | نص → كلام | CoreML (ANE) | 82M | 10 |
+| [Supertonic-3](https://soniqo.audio/guides/supertonic) | نص → كلام (44.1 كيلوهرتز، مطابقة التدفق، بدون G2P) | CoreML (ANE) | 99M | 31 |
 | [VibeVoice Realtime-0.5B](https://soniqo.audio/ar/guides/vibevoice) | نص → كلام (نص طويل، متعدد المتحدثين) | MLX | 0.5B | EN/ZH |
 | [VibeVoice 1.5B](https://soniqo.audio/ar/guides/vibevoice) | نص → كلام (بودكاست حتى 90 دقيقة) | MLX | 1.5B | EN/ZH |
-| [Magpie-TTS Multilingual](https://soniqo.audio/ar/guides/magpie) | نص → كلام (5 متحدثين جاهزين، تدفق) | MLX / CoreML | 357M (MLX INT4/INT8, CoreML INT8) | 9 (CoreML يستثني JA) |
-| [Qwen3.5-Chat](https://soniqo.audio/ar/guides/chat) | نص → نص (LLM) | MLX, CoreML | 0.8B | متعدد |
+| [Magpie-TTS Multilingual](https://soniqo.audio/ar/guides/magpie) | نص → كلام (5 متحدثين جاهزين، تدفق) | MLX / CoreML | 357M (MLX INT8, CoreML INT8) | 9 (CoreML يستثني JA) |
+| [Qwen3.5 Chat](docs/models/qwen35-chat.md) | Text → Text (LLM) | MLX, CoreML | 0.8B | Multi |
+| [Qwen3 Dense Chat](docs/models/qwen3-dense-chat.md) | Text → Text (LLM) | MLX | 4B | Multi |
+| [Gemma 4 Chat](docs/models/gemma4-chat.md) | Text → Text (LLM) | MLX | E2B / E4B (4-bit) | Multi |
+| [FunctionGemma](https://soniqo.audio/ar/guides/function-calls) | نص → استدعاءات الأدوات (LLM) | CoreML | 270M | EN |
 | [MADLAD-400](https://soniqo.audio/ar/guides/translate) | نص → نص (ترجمة) | MLX | 3B | **أكثر من 400** |
+| [GLiNER2.5-Decide](docs/models/gliner.md) | نص → تسميات + مقاطع (تصنيف، استخراج كيانات) | MLX | 340M | EN |
+| [Clef-flash](docs/models/clef.md) | نص → احتمالات الإجابات المسموح بها | MLX | 9B (4-bit) | تم الاختبار بالإنجليزية |
 | [Hibiki Zero-3B](https://soniqo.audio/guides/audio-translate) | كلام → كلام (ترجمة) | MLX | 3B | FR/ES/PT/DE → EN |
 | [PersonaPlex](https://soniqo.audio/ar/guides/respond) | كلام → كلام | MLX | 7B | EN |
+| [VoiceChat 11B](docs/models/voicechat.md) | كلام → كلام + نص | MLX | 11B (INT5 / INT8) | EN |
+| [Audio2Face-3D](docs/models/audio2face3d.md) | كلام → تحريك الوجه | MLX | v2.3 Mark | محايد للغة |
 | [Silero VAD](https://soniqo.audio/ar/guides/vad) | اكتشاف النشاط الصوتي | MLX, CoreML | 309K | محايد للغة |
+| [Smart Turn v3.2](https://huggingface.co/aufklarer/Smart-Turn-v3.2-CoreML) | اكتشاف نهاية الدور | CoreML | 8M | 23 لغة |
+| [KWS Zipformer](docs/models/kws-zipformer.md) | Audio → Wake word | CoreML (ANE) | 3M | EN/custom keywords |
 | [Pyannote](https://soniqo.audio/ar/guides/diarize) | VAD + تمييز | MLX | 1.5M | محايد للغة |
-| [Sortformer](https://soniqo.audio/ar/guides/diarize) | تمييز (E2E) | CoreML (ANE) | — | محايد للغة |
+| [Pyannote Community-1](https://huggingface.co/aufklarer/Pyannote-Community-1-CoreML) | فرز المتحدثين + تضمينات المتحدث | CoreML (ANE) + Swift VBx | 8.35M | محايد للغة |
+| [Sortformer](https://huggingface.co/aufklarer/Sortformer-Diarization-CoreML) | [تمييز (E2E), بث تزايدي](https://soniqo.audio/ar/guides/diarize) | CoreML (ANE) | 117M | محايد للغة |
+| [Nemotron 3](docs/models/nemotron3-diarization.md) | تمييز المتحدثين (حتى 8 متحدثين) | CoreML / MLX (INT8) | 100M | محايد للغة |
 | [DeepFilterNet3](https://soniqo.audio/ar/guides/denoise) | تحسين الكلام | CoreML | 2.1M | محايد للغة |
+| [LocalVQE v1.4-AEC](https://soniqo.audio/ar/guides/echo-cancellation) | إلغاء الصدى الصوتي | CoreML + C++ | 200K + 2,742 | محايد للغة |
 | [Sidon](https://soniqo.audio/ar/guides/restore) | استعادة الكلام (إزالة الضوضاء + إزالة الصدى، 48 kHz) | CoreML | w2v-BERT 2.0 + DAC (fp16/int8) | محايد للغة |
 | [HTDemucs (Demucs v4)](https://soniqo.audio/ar/guides/separate) | فصل المصادر | MLX | 168M | محايد للغة |
 | [Open-Unmix](https://soniqo.audio/ar/guides/separate) | فصل المصادر | MLX | 8.6M | محايد للغة |
 | [MAGNeT](https://soniqo.audio/ar/guides/compose) | نص → موسيقى (30 ث @ 32 كيلوهرتز) | MLX | 300M / 1.5B (int4/int8) | أوامر بالإنجليزية |
+| [Stable Audio 3](docs/models/stable-audio-3.md) | Text → Music/audio (44.1 kHz stereo) | MLX | Medium 1.4B (int4/int8) | EN prompts |
 | [FlashSR](https://soniqo.audio/ar/guides/upsample) | رفع دقة الصوت (48 كيلوهرتز) | MLX | 363 ميغابايت / 720 ميغابايت (int4/int8) | محايد للغة |
 | [WeSpeaker](https://soniqo.audio/ar/guides/embed-speaker) | تضمين المتحدث | MLX, CoreML | 6.6M | محايد للغة |
+| [SpeechBrain ECAPA VoxLingua107](https://soniqo.audio/ar/guides/language-id) | تحديد اللغة | MLX, CoreML | 21.25M | 107 لغة |
+| [ReDimNet2-B6](https://huggingface.co/aufklarer/ReDimNet2-B6-CoreML) | هوية صوتية مسماة | CoreML | 12.3M | محايد للغة |
 
 ## التثبيت
 
@@ -218,9 +303,17 @@ brew install speech
 
 ```bash
 speech transcribe recording.wav
+speech transcribe recording.wav --engine cohere
+speech transcribe recording.wav --engine voxtral
+speech transcribe recording.wav --engine moss
+speech transcribe meeting.wav --engine moss --backend mlx
 speech speak "Hello world"
+speech csm "Nice to meet you" --ref-audio voice.wav --ref-text "reference transcript"
 speech translate "Hello, how are you?" --to es
+speech gliner classify "Remind me to call Dad at six PM." --labels create_reminder,send_message,other
+speech clef decide request.json
 speech respond --input question.wav --transcript
+speech voice-chat
 speech-server --port 8080            # خادم HTTP / WebSocket محلي (متوافق مع OpenAI /v1/realtime + /v1/audio/transcriptions)
 ```
 
@@ -246,18 +339,29 @@ dependencies: [
 
 ```swift
 import Qwen3ASR             // التعرف على الكلام (MLX)
+import WhisperASR           // Whisper Large-v3 Turbo (CoreML)
+import MossTranscribe       // MOSS transcription with timestamps + speaker labels (CoreML + MLX)
 import ParakeetASR          // التعرف على الكلام (CoreML، دفعة)
 import ParakeetStreamingASR // إملاء تدفقي مع جزئيات + EOU
 import NemotronStreamingASR // ASR تدفقي متعدد اللغات مع علامات ترقيم أصلية (0.6B، 40 لغة)
 import OmnilingualASR       // 1,672 لغة (CoreML + MLX)
+import CohereTranscribeASR  // Cohere Transcribe 2B (MLX، 14 لغة)
+import VoxtralASR           // Voxtral Mini 3B (MLX، 8 لغات)
 import Qwen3TTS             // تحويل النص إلى كلام
 import CosyVoiceTTS         // تحويل النص إلى كلام مع استنساخ الصوت
 import VoxCPM2TTS           // TTS بـ 48 كيلوهرتز، استنساخ + تصميم صوت (2B)
+import IndexTTS2TTS         // Native MLX voice cloning from reference audio
+import F5TTS                // Zero-shot voice cloning (DiT flow matching + Vocos)
+import HiggsTTS             // Conversational TTS + cloning (Qwen3 backbone, control tags)
+import CSM                  // Conversational Speech Model — text→audio + voice cloning (Sesame CSM-1B, MLX)
 import KokoroTTS            // تحويل النص إلى كلام (جاهز لـ iOS)
 import VibeVoiceTTS         // TTS للنصوص الطويلة / متعدد المتحدثين (EN/ZH)
 import MagpieTTS            // TTS متعدد اللغات (NVIDIA Magpie 357M، MLX، 9 لغات)
 import MagpieTTSCoreML      // واجهة CoreML الخلفية لـ Magpie (هجين CoreML + MLX، 8 لغات)
+import FishAudioTTS         // وقت تشغيل تجريبي لـ Fish Audio S2 Pro مع استنساخ الصوت
 import Qwen3Chat            // محادثة LLM على الجهاز
+import FunctionGemma    // نموذج لغوي على الجهاز لاستدعاءات الأدوات
+import Clef                // قرارات محلية من النص
 import MADLADTranslation    // ترجمة متعددة الاتجاهات عبر أكثر من 400 لغة
 import HibikiTranslate      // ترجمة تدفقية من كلام إلى كلام (FR/ES/PT/DE → EN)
 import PersonaPlex          // تحويل صوت إلى صوت ثنائي الاتجاه
@@ -303,9 +407,18 @@ make build
 - **[DictateDemo](Examples/DictateDemo/)** ([الوثائق](https://soniqo.audio/ar/guides/dictate)) — إملاء تدفقي على شريط قائمة macOS مع جزئيات حية، اكتشاف نهاية النطق المعتمد على VAD، ونسخ بنقرة واحدة. يعمل كوكيل في الخلفية (Parakeet-EOU-120M + Silero VAD).
 - **[iOSEchoDemo](Examples/iOSEchoDemo/)** — عرض صدى iOS (Parakeet ASR + Kokoro TTS). للجهاز والمحاكي.
 - **[PersonaPlexDemo](Examples/PersonaPlexDemo/)** — مساعد صوتي محادثاتي مع إدخال ميكروفون، VAD، وسياق متعدد الأدوار. macOS. RTF ~0.94 على M2 Max (أسرع من الزمن الحقيقي).
+- **[Soniqo VoiceChat CLI](docs/inference/voicechat.md)** ([الدليل](https://soniqo.audio/ar/guides/speech-to-speech)) — مساعد طرفية Nemotron 11B مزدوج بالكامل مع نصوص RNN-T مباشرة، وإدارة أدوار يقودها النموذج، وتفاصيل EAR-TTS تكيفية، وأدوات MCP اختيارية. لا يتيح إعداد Apple Reminders المرفق سوى الإنشاء والعرض والتحديث.
 - **[SpeechDemo](Examples/SpeechDemo/)** — إملاء وتوليد TTS في واجهة بعلامات تبويب. macOS.
 
-يحتوي README كل عرض على تعليمات البناء.
+شغّل عرض تذكيرات VoiceChat بعد بناء إصدار release:
+
+```bash
+./.build/release/speech voice-chat \
+  --model /path/to/voicechat-mlx-int5 \
+  --mcp-config Examples/VoiceChatMCP/apple-reminders.json
+```
+
+أضف `--debug-timeline` لعرض توقيت العبارات ونهاية النطق المولّد ودورة حياة الأدوات التي فكّها النموذج. قد يكشف معاملات الأدوات، لذلك لا تستخدمه في السجلات المشتركة. راجع README لكل تطبيق أو الدليل المرتبط لتفاصيل البناء والتشغيل.
 
 </div>
 
@@ -328,7 +441,7 @@ let text = model.transcribe(audio: audioSamples, sampleRate: 16000)
 
 <div dir="rtl">
 
-واجهات خلفية بديلة: [Parakeet TDT](https://soniqo.audio/ar/guides/parakeet) (CoreML، 32× الزمن الحقيقي)، [Omnilingual ASR](https://soniqo.audio/ar/guides/omnilingual) (1,672 لغة، CoreML أو MLX)، [الإملاء التدفقي](https://soniqo.audio/ar/guides/dictate) (جزئيات حية).
+واجهات خلفية بديلة: [WhisperASR](docs/inference/whisper-asr-inference.md) (Whisper Large-v3 Turbo, native CoreML)، [Parakeet TDT](https://soniqo.audio/ar/guides/parakeet) (CoreML، 32× الزمن الحقيقي)، [Omnilingual ASR](https://soniqo.audio/ar/guides/omnilingual) (1,672 لغة، CoreML أو MLX)، [الإملاء التدفقي](https://soniqo.audio/ar/guides/dictate) (جزئيات حية).
 
 </div>
 
@@ -361,7 +474,7 @@ try WAVWriter.write(samples: audio, sampleRate: 24000, to: outputURL)
 
 <div dir="rtl">
 
-محركات TTS بديلة: [CosyVoice3](https://soniqo.audio/ar/guides/cosyvoice) (تدفق + استنساخ + وسوم مشاعر)، [Kokoro-82M](https://soniqo.audio/ar/guides/kokoro) (جاهز لـ iOS، 54 صوتاً)، [VibeVoice](https://soniqo.audio/ar/guides/vibevoice) (بودكاست/متعدد متحدثين، EN/ZH)، [استنساخ الصوت](https://soniqo.audio/ar/guides/voice-cloning).
+محركات TTS بديلة: [CosyVoice3](https://soniqo.audio/ar/guides/cosyvoice) (تدفق + استنساخ + وسوم مشاعر)، [Kokoro-82M](https://soniqo.audio/ar/guides/kokoro) (جاهز لـ iOS، 54 صوتاً)، [VibeVoice](https://soniqo.audio/ar/guides/vibevoice) (بودكاست/متعدد متحدثين، EN/ZH)، [Fish Audio S2 Pro](docs/inference/fish-audio-s2-pro.md) (استنساخ zero-shot تجريبي + علامات نمط بين أقواس)، [استنساخ الصوت](https://soniqo.audio/ar/guides/voice-cloning).
 
 </div>
 
@@ -379,12 +492,35 @@ let responseAudio = model.respond(userAudio: userSamples)
 
 ```swift
 import Qwen3Chat
+import FunctionGemma
 
 let chat = try await Qwen35MLXChat.fromPretrained()
 chat.chat(messages: [(.user, "Explain MLX in one sentence")]) { token, isFinal in
     print(token, terminator: "")
 }
 ```
+
+### قرارات محلية باستخدام Clef-flash
+
+أعطِ Clef نصًا وقائمة إجابات. يمنح كل إجابة درجة ليتمكن تطبيقك من اختيار الخطوة التالية. يدعم الاختيارات وأسئلة الصواب والخطأ والدرجات المرتبة. أضف منتج SPM ‏`Clef` لاستخدام المكتبة.
+
+```swift
+import Clef
+
+let model = try await Clef.fromPretrained()
+let result = try model.decide(
+    state: "Please turn the kitchen lights on.",
+    questions: [
+        ClefQuestion(id: "action", instructions: "Which action was requested?",
+            kind: .choice(["on": "Turn lights on", "off": "Turn lights off", "other": "Other request"]))
+    ])
+print(result.decisions[0].selectedOption)
+print(result.decisions[0].probabilities)
+```
+
+يتطلب Apple Silicon وmacOS 15+. ينزّل التحميل الأول نحو 5.3 GB، ويحتاج التشغيل إلى ذاكرة إضافية. احتفظ بنسخة واحدة محمّلة واستدعها بالتتابع.
+
+[النموذج](https://huggingface.co/aufklarer/Clef-flash-9B-MLX-4bit) · [الاستخدام](docs/inference/clef.md) · [قياسات زمن الاستجابة والذاكرة](docs/benchmarks/clef.md)
 
 ### الترجمة — [الدليل الكامل →](https://soniqo.audio/ar/guides/translate)
 
@@ -437,6 +573,18 @@ import SpeechEnhancement
 
 let denoiser = try await DeepFilterNet3Model.fromPretrained()
 let clean = try denoiser.enhance(audio: noisySamples, sampleRate: 48000)
+```
+
+### إلغاء الصدى الصوتي — [الدليل الكامل →](https://soniqo.audio/ar/guides/echo-cancellation)
+
+```swift
+import SpeechEnhancement
+
+let aec = try await LocalVQEEchoCanceller.fromPretrained()
+let cleanMicrophone = try aec.processFrame(
+    microphone: microphoneFrame,
+    reference: playbackReferenceFrame
+)
 ```
 
 ### استعادة الكلام — [الدليل الكامل →](https://soniqo.audio/ar/guides/restore)
@@ -494,6 +642,10 @@ speech-server --port 8080
 
 </div>
 
+## الأوراق البحثية
+
+- [SALM-Duplex: Efficient and Direct Duplex Modeling for Speech-to-Speech Language Model](https://arxiv.org/abs/2505.15670) — المرجع المعماري لـ VoiceChat 11B ‏(Interspeech 2025).
+
 ## الهيكلة
 
 <div dir="rtl">
@@ -503,8 +655,9 @@ speech-swift مقسم إلى هدف SPM واحد لكل نموذج بحيث يد
 **[مخطط الهيكلة الكامل مع الواجهات الخلفية وجداول الذاكرة وخريطة الوحدات → soniqo.audio/architecture](https://soniqo.audio/ar/architecture)** · **[مرجع API → soniqo.audio/api](https://soniqo.audio/ar/api)** · **[الاختبارات → soniqo.audio/benchmarks](https://soniqo.audio/ar/benchmarks)**
 
 الوثائق المحلية (المستودع):
-- **النماذج:** [Qwen3-ASR](docs/models/asr-model.md) · [Qwen3-TTS](docs/models/tts-model.md) · [CosyVoice](docs/models/cosyvoice-tts.md) · [Kokoro](docs/models/kokoro-tts.md) · [VibeVoice](docs/models/vibevoice.md) · [Parakeet TDT](docs/models/parakeet-asr.md) · [Parakeet Streaming](docs/models/parakeet-streaming-asr.md) · [Nemotron Streaming](docs/models/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/models/omnilingual-asr.md) · [PersonaPlex](docs/models/personaplex.md) · [Hibiki](docs/models/hibiki.md) · [FireRedVAD](docs/models/fireredvad.md) · [Source Separation](docs/models/source-separation.md) · [HTDemucs](docs/models/htdemucs.md) · [MAGNeT](docs/models/magnet-music-gen.md) · [FlashSR](docs/models/flashsr.md)
-- **الاستدلال:** [Qwen3-ASR](docs/inference/qwen3-asr-inference.md) · [Parakeet TDT](docs/inference/parakeet-asr-inference.md) · [Parakeet Streaming](docs/inference/parakeet-streaming-asr-inference.md) · [Nemotron Streaming](docs/inference/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/inference/omnilingual-asr-inference.md) · [TTS](docs/inference/qwen3-tts-inference.md) · [VibeVoice](docs/inference/vibevoice-inference.md) · [Hibiki](docs/inference/hibiki-inference.md) · [MAGNeT](docs/inference/magnet-music-gen.md) · [FlashSR](docs/inference/flashsr.md) · [Forced Aligner](docs/inference/forced-aligner.md) · [Silero VAD](docs/inference/silero-vad.md) · [تمييز المتحدثين](docs/inference/speaker-diarization.md) · [تحسين الكلام](docs/inference/speech-enhancement.md)
+- **النماذج:** [Qwen3-ASR](docs/models/asr-model.md) · [WhisperASR](docs/models/whisper-asr.md) · [MOSS Transcribe Diarize](docs/models/moss-transcribe-diarize.md) · [Qwen3-TTS](docs/models/tts-model.md) · [CosyVoice](docs/models/cosyvoice-tts.md) · [Kokoro](docs/models/kokoro-tts.md) · [VoxCPM2](docs/models/voxcpm2-tts.md) · [IndexTTS2](docs/models/indextts2.md) · [F5-TTS](docs/models/f5-tts.md) · [Higgs TTS 3](docs/models/higgs-tts.md) · [VibeVoice](docs/models/vibevoice.md) · [Supertonic](docs/models/supertonic-tts.md) · [Chatterbox](docs/models/chatterbox-tts.md) · [Indic-Mio](docs/models/indic-mio-tts.md) · [Fish Audio S2 Pro](docs/models/fish-audio-s2-pro.md) · [Magpie TTS](docs/models/magpie-tts.md) · [Parakeet TDT](docs/models/parakeet-asr.md) · [Parakeet Streaming](docs/models/parakeet-streaming-asr.md) · [Nemotron Streaming](docs/models/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/models/omnilingual-asr.md) · [PersonaPlex](docs/models/personaplex.md) · [VoiceChat](docs/models/voicechat.md) · [CSM](docs/models/csm.md) · [Hibiki](docs/models/hibiki.md) · [MADLAD-400](docs/models/madlad-translation.md) · [GLiNER](docs/models/gliner.md) · [Clef-flash](docs/models/clef.md) · [FunctionGemma](docs/models/function-gemma.md) · [Qwen3.5 Chat](docs/models/qwen35-chat.md) · [Gemma 4 Chat](docs/models/gemma4-chat.md) · [Qwen3 Dense Chat](docs/models/qwen3-dense-chat.md) · [FireRedVAD](docs/models/fireredvad.md) · [Smart Turn v3.2](docs/models/smart-turn-v3.md) · [KWS Zipformer](docs/models/kws-zipformer.md) · [Sidon](docs/models/sidon.md) · [Source Separation](docs/models/source-separation.md) · [HTDemucs](docs/models/htdemucs.md) · [MAGNeT](docs/models/magnet-music-gen.md) · [Stable Audio 3](docs/models/stable-audio-3.md) · [FlashSR](docs/models/flashsr.md) · [Audio2Face-3D](docs/models/audio2face3d.md)
+- **الاستدلال:** [Qwen3-ASR](docs/inference/qwen3-asr-inference.md) · [WhisperASR](docs/inference/whisper-asr-inference.md) · [MOSS Transcribe Diarize](docs/inference/moss-transcribe-diarize.md) · [Parakeet TDT](docs/inference/parakeet-asr-inference.md) · [Parakeet Streaming](docs/inference/parakeet-streaming-asr-inference.md) · [Nemotron Streaming](docs/inference/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/inference/omnilingual-asr-inference.md) · [TTS](docs/inference/qwen3-tts-inference.md) · [VoxCPM2](docs/inference/voxcpm2-inference.md) · [IndexTTS2](docs/inference/indextts2.md) · [F5-TTS](docs/inference/f5-tts.md) · [Higgs TTS 3](docs/inference/higgs-tts.md) · [VibeVoice](docs/inference/vibevoice-inference.md) · [Fish Audio S2 Pro](docs/inference/fish-audio-s2-pro.md) · [Magpie TTS](docs/inference/magpie-tts.md) · [CSM](docs/inference/csm.md) · [Hibiki](docs/inference/hibiki-inference.md) · [MADLAD-400](docs/inference/madlad-translation.md) · [MAGNeT](docs/inference/magnet-music-gen.md) · [Stable Audio 3](docs/inference/stable-audio-3.md) · [FlashSR](docs/inference/flashsr.md) · [Forced Aligner](docs/inference/forced-aligner.md) · [Silero VAD](docs/inference/silero-vad.md) · [Smart Turn](docs/inference/smart-turn.md) · [FireRedVAD](docs/inference/fireredvad.md) · [Wake-word](docs/inference/wake-word.md) · [Speaker Diarization](docs/inference/speaker-diarization.md) · [Speech Enhancement](docs/inference/speech-enhancement.md) · [Sidon](docs/inference/sidon.md) · [Cache/offline](docs/inference/cache-and-offline.md)
+- **إلغاء الصدى:** [LocalVQE AEC](docs/inference/echo-cancellation.md)
 - **المرجع:** [البروتوكولات المشتركة](docs/shared-protocols.md)
 
 </div>
@@ -514,6 +667,8 @@ speech-swift مقسم إلى هدف SPM واحد لكل نموذج بحيث يد
 <div dir="rtl">
 
 تُنزَّل أوزان النموذج من HuggingFace عند الاستخدام الأول وتُخزَّن في `~/Library/Caches/qwen3-speech/`. يمكن استبدالها بـ `QWEN3_CACHE_DIR` (CLI) أو `cacheDir:` (Swift API). تقبل جميع نقاط دخول `fromPretrained()` أيضاً `offlineMode: true` لتخطي الشبكة عندما تكون الأوزان مخزنة مؤقتاً بالفعل.
+
+يمكن للمستخدمين في الصين القارية (أو في أي مكان يكون فيه `huggingface.co` بطيئاً أو محجوباً) التنزيل من مرآة عبر ضبط `HF_ENDPOINT`، مثل `export HF_ENDPOINT=https://hf-mirror.com`.
 
 انظر [`docs/inference/cache-and-offline.md`](docs/inference/cache-and-offline.md) للتفاصيل الكاملة بما في ذلك مسارات حاوية iOS المعزولة.
 

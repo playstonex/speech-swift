@@ -120,8 +120,7 @@ public final class MADLADTranslator: @unchecked Sendable {
             padTokenId: config.padTokenId)
 
         progressHandler?(0.4, "Creating model...")
-        let model = MADLADTranslationModel(config: config, groupSize: 64, bits: bits)
-
+        let model = withThrowawayRandomState { MADLADTranslationModel(config: config, groupSize: 64, bits: bits) }
         progressHandler?(0.5, "Loading weights...")
         try MADLADWeightLoader.loadWeights(
             into: model, from: directory,

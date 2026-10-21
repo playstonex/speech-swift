@@ -31,6 +31,16 @@ public class NemotronStreamingASRModel {
     private let wordBoostingTokenizer: NemotronSentencePieceUnigramTokenizer?
     public let wordBoostingTokenizerStatus: WordBoostingTokenizerStatus
 
+    /// Exact available experimental-guide locales. Availability is not a
+    /// transcription-quality guarantee or a claim of native mixture support.
+    public var supportedLanguageGuideLanguages: [String] {
+        LanguageGuideContext.supportedLanguages(
+            vocabulary: vocabulary,
+            languages: languages,
+            promptCount: config.numPrompts,
+            hasLanguageMask: encoder?.modelDescription.inputDescriptionsByName.keys.contains("language_mask") ?? false)
+    }
+
     private init(
         config: NemotronStreamingConfig,
         languages: NemotronLanguages,
@@ -59,29 +69,51 @@ public class NemotronStreamingASRModel {
         public let confidence: Float
         public let segmentIndex: Int
         public let wordBoostingChangedDecisions: Int
+        /// Cumulative emission-aligned word timings for the whole session so
+        /// far, in seconds of session audio (one encoder frame ≈ 80 ms;
+        /// see `TimedWord` for the emission-lag caveat).
+        public let words: [TimedWord]
     }
 
     /// Create a streaming session. `language` is a BCP-47 tag (e.g. `"en-US"`,
     /// `"ja-JP"`); `nil` or unknown falls back to the model's `"auto"` slot.
     /// `wordBoosting` biases RNN-T decoding toward the provided phrases.
+    /// `languageGuide` is experimental fractional prompt conditioning in auto
+    /// mode, retaining at least 90% auto. It does not directly bias joint logits
+    /// or filter the decoding vocabulary.
+    ///
+    /// Sessions own independent encoder, decoder, and token state. A caller may
+    /// interleave multiple sessions on one loaded model to avoid duplicating
+    /// weights, provided every call remains serialized; the model and sessions
+    /// are not safe for concurrent inference.
     public func createSession(
         language: String? = nil,
-        wordBoosting: WordBoostingConfig? = nil
+        wordBoosting: WordBoostingConfig? = nil,
+        languageGuide: LanguageGuideConfig? = nil
     ) throws -> StreamingSession {
         guard _isLoaded, let encoder, let decoder, let joint else {
             throw AudioModelError.inferenceFailed(operation: "createSession", reason: "Model not loaded")
         }
+        let languageGuideMask = try LanguageGuideContext.makeMask(
+            config: languageGuide,
+            vocabulary: vocabulary,
+            languages: languages,
+            language: language,
+            hasLanguageMask: encoder.modelDescription.inputDescriptionsByName.keys.contains("language_mask"),
+            promptCount: config.numPrompts)
         let slot = languages.slot(for: language)
         return try StreamingSession(
             config: config,
             languageSlot: slot,
+            language: language,
             encoder: encoder,
             decoder: decoder,
             joint: joint,
             vocabulary: vocabulary,
             melPreprocessor: melPreprocessor,
             wordBoosting: wordBoosting,
-            wordBoostingTokenizer: wordBoostingTokenizer
+            wordBoostingTokenizer: wordBoostingTokenizer,
+            languageGuideMask: languageGuideMask
         )
     }
 
@@ -101,7 +133,8 @@ public class NemotronStreamingASRModel {
         sampleRate: Int,
         language: String? = nil,
         chunkDuration: Float? = nil,
-        wordBoosting: WordBoostingConfig? = nil
+        wordBoosting: WordBoostingConfig? = nil,
+        languageGuide: LanguageGuideConfig? = nil
     ) -> AsyncStream<PartialTranscript> {
         let chunkMs = chunkDuration.map { Int($0 * 1000) } ?? config.streaming.chunkMs
 
@@ -115,7 +148,8 @@ public class NemotronStreamingASRModel {
                         samples = audio
                     }
                     let actualSamplesPerChunk = chunkMs * self.config.sampleRate / 1000
-                    let session = try self.createSession(language: language, wordBoosting: wordBoosting)
+                    let session = try self.createSession(
+                        language: language, wordBoosting: wordBoosting, languageGuide: languageGuide)
                     var offset = 0
                     while offset < samples.count {
                         let end = min(offset + actualSamplesPerChunk, samples.count)
@@ -150,7 +184,8 @@ public class NemotronStreamingASRModel {
         sampleRate: Int,
         language: String? = nil,
         padSilence: Bool = true,
-        wordBoosting: WordBoostingConfig? = nil
+        wordBoosting: WordBoostingConfig? = nil,
+        languageGuide: LanguageGuideConfig? = nil
     ) throws -> String {
         var samples: [Float]
         if sampleRate != config.sampleRate {
@@ -163,7 +198,8 @@ public class NemotronStreamingASRModel {
             samples = [Float](repeating: 0, count: padSamples) + samples + [Float](repeating: 0, count: padSamples)
         }
 
-        let session = try createSession(language: language, wordBoosting: wordBoosting)
+        let session = try createSession(
+            language: language, wordBoosting: wordBoosting, languageGuide: languageGuide)
         var allPartials = try session.pushAudio(samples)
         allPartials.append(contentsOf: try session.finalize())
         if let lastFinal = allPartials.last(where: { $0.isFinal }) {
@@ -182,6 +218,7 @@ public class NemotronStreamingASRModel {
 
     public static func fromPretrained(
         modelId: String? = nil,
+        computeUnits: MLComputeUnits = .all,
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> NemotronStreamingASRModel {
         let effectiveModelId = modelId ?? defaultModelId
@@ -220,7 +257,12 @@ public class NemotronStreamingASRModel {
                 modelId: effectiveModelId, reason: "Download failed", underlying: error)
         }
 
-        return try await load(from: cacheDir, source: effectiveModelId, progressHandler: progressHandler)
+        return try await load(
+            from: cacheDir,
+            source: effectiveModelId,
+            computeUnits: computeUnits,
+            progressHandler: progressHandler
+        )
     }
 
     /// Load a model from a local directory (no download). The directory must
@@ -228,15 +270,22 @@ public class NemotronStreamingASRModel {
     /// `vocab.json`, `languages.json`, and optionally `config.json`.
     public static func fromLocal(
         bundleDir: URL,
+        computeUnits: MLComputeUnits = .all,
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> NemotronStreamingASRModel {
         AudioLog.modelLoading.info("Loading Nemotron Streaming from local: \(bundleDir.path)")
-        return try await load(from: bundleDir, source: bundleDir.path, progressHandler: progressHandler)
+        return try await load(
+            from: bundleDir,
+            source: bundleDir.path,
+            computeUnits: computeUnits,
+            progressHandler: progressHandler
+        )
     }
 
     private static func load(
         from cacheDir: URL,
         source: String,
+        computeUnits: MLComputeUnits,
         progressHandler: ((Double, String) -> Void)?
     ) async throws -> NemotronStreamingASRModel {
         progressHandler?(0.70, "Loading configuration...")
@@ -281,16 +330,19 @@ public class NemotronStreamingASRModel {
             )
         }
 
-        // `.all` lets CoreML schedule the encoder onto the ANE (which is what
-        // Python coremltools' `ComputeUnit.ALL` does). Encoder gains ~40% RTF
-        // over `.cpuAndGPU`. Decoder + joint are tiny enough that ANE vs CPU
-        // is a wash, but using `.all` keeps the unit selection consistent.
+        // Callers that share the GPU with another resident model can exclude
+        // it explicitly with `.cpuAndNeuralEngine`. `.all` remains the generic
+        // default to preserve existing clients and because a narrower placement
+        // still needs a model-, device-, and language-specific parity gate.
         progressHandler?(0.80, "Loading CoreML models...")
-        let encoder = try loadCoreMLModel(name: "encoder", from: cacheDir, computeUnits: .all)
+        let encoder = try loadCoreMLModel(
+            name: "encoder", from: cacheDir, computeUnits: computeUnits)
         progressHandler?(0.90, "Loading decoder...")
-        let decoder = try loadCoreMLModel(name: "decoder", from: cacheDir, computeUnits: .all)
+        let decoder = try loadCoreMLModel(
+            name: "decoder", from: cacheDir, computeUnits: computeUnits)
         progressHandler?(0.95, "Loading joint network...")
-        let joint = try loadCoreMLModel(name: "joint", from: cacheDir, computeUnits: .all)
+        let joint = try loadCoreMLModel(
+            name: "joint", from: cacheDir, computeUnits: computeUnits)
 
         progressHandler?(1.0, "Model loaded")
         AudioLog.modelLoading.info(
@@ -339,4 +391,12 @@ public class NemotronStreamingASRModel {
         return try MLModel(contentsOf: modelURL, configuration: mlConfig)
     }
 
+}
+
+extension NemotronStreamingASRModel: StreamingRecognitionModel {
+    public func makeStreamingSession(
+        language: String? = nil
+    ) throws -> any StreamingRecognitionSession {
+        try createSession(language: language)
+    }
 }

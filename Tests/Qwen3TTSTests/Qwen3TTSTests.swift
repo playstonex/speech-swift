@@ -54,7 +54,7 @@ final class Qwen3TTSConfigTests: XCTestCase {
         XCTAssertEqual(CodecTokens.ttsBos, 151672)
         XCTAssertEqual(CodecTokens.ttsEos, 151673)
         XCTAssertEqual(CodecTokens.languageEnglish, 2050)
-        XCTAssertEqual(CodecTokens.languageGerman, 2052)
+        XCTAssertEqual(CodecTokens.languageGerman, 2053)  // golden Qwen 12Hz config (was wrongly 2052)
         XCTAssertEqual(CodecTokens.languageChinese, 2055)
         XCTAssertEqual(CodecTokens.languageJapanese, 2058)
     }
@@ -63,8 +63,8 @@ final class Qwen3TTSConfigTests: XCTestCase {
         XCTAssertEqual(CodecTokens.languageId(for: "english"), 2050)
         XCTAssertEqual(CodecTokens.languageId(for: "English"), 2050)
         XCTAssertEqual(CodecTokens.languageId(for: "en"), 2050)
-        XCTAssertEqual(CodecTokens.languageId(for: "german"), 2052)
-        XCTAssertEqual(CodecTokens.languageId(for: "de"), 2052)
+        XCTAssertEqual(CodecTokens.languageId(for: "german"), 2053)
+        XCTAssertEqual(CodecTokens.languageId(for: "de"), 2053)
         XCTAssertEqual(CodecTokens.languageId(for: "chinese"), 2055)
         XCTAssertEqual(CodecTokens.languageId(for: "zh"), 2055)
         XCTAssertEqual(CodecTokens.languageId(for: "japanese"), 2058)
@@ -100,7 +100,7 @@ final class Qwen3TTSConfigTests: XCTestCase {
 
     func testTTSModelSizeDetection() {
         XCTAssertEqual(TTSModelSize.detect(from: "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-4bit"), .small)
-        XCTAssertEqual(TTSModelSize.detect(from: "aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-4bit"), .large)
+        XCTAssertEqual(TTSModelSize.detect(from: "aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-bf16"), .large)
         XCTAssertEqual(TTSModelSize.detect(from: "some/custom-1.7b-model"), .large)
         XCTAssertEqual(TTSModelSize.detect(from: "some/custom-model"), .small)
     }
@@ -122,12 +122,13 @@ final class Qwen3TTSConfigTests: XCTestCase {
         XCTAssertEqual(config.numLayers, 28)
     }
 
-    func testTalkerLarge4bit() {
-        let config = TalkerConfig.large4bit
+    func testTalkerLarge() {
+        // 1.7B base dims; int4 decommissioned, so the base precision is bf16 (bits 0).
+        let config = TalkerConfig.large
         XCTAssertEqual(config.hiddenSize, 2048)
         XCTAssertEqual(config.intermediateSize, 6144)
         XCTAssertEqual(config.textHiddenSize, 2048)
-        XCTAssertEqual(config.bits, 4)
+        XCTAssertEqual(config.bits, 0)
         XCTAssertEqual(config.numLayers, 28)
     }
 
@@ -144,12 +145,13 @@ final class Qwen3TTSConfigTests: XCTestCase {
         XCTAssertEqual(config.bits, 8)
     }
 
-    func testCodePredictorLarge4bit() {
-        let config = CodePredictorConfig.large4bit
+    func testCodePredictorLarge() {
+        // 1.7B base dims; bf16 (bits 0) after int4 decommission.
+        let config = CodePredictorConfig.large
         XCTAssertEqual(config.hiddenSize, 1024)
         XCTAssertEqual(config.embeddingDim, 2048)
         XCTAssertTrue(config.needsProjection)
-        XCTAssertEqual(config.bits, 4)
+        XCTAssertEqual(config.bits, 0)
     }
 
     func testCodePredictorLarge8bit() {
@@ -189,12 +191,12 @@ final class Qwen3TTSConfigTests: XCTestCase {
     // MARK: - Model Variants
 
     func testTTSModelVariants() {
-        XCTAssertEqual(TTSModelVariant.base.rawValue, "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-4bit")
-        XCTAssertEqual(TTSModelVariant.base8bit.rawValue, "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-8bit")
-        XCTAssertEqual(TTSModelVariant.base17B.rawValue, "aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-4bit")
+        // int4 decommissioned: 0.6B Base/CustomVoice use 8bit; 1.7B Base is bf16.
+        XCTAssertEqual(TTSModelVariant.base.rawValue, "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-8bit")
         XCTAssertEqual(TTSModelVariant.base17B8bit.rawValue, "aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-8bit")
-        XCTAssertEqual(TTSModelVariant.customVoice.rawValue, "aufklarer/Qwen3-TTS-12Hz-0.6B-CustomVoice-MLX-4bit")
-    }
+        XCTAssertEqual(TTSModelVariant.base17Bbf16.rawValue, "aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-bf16")
+        XCTAssertEqual(TTSModelVariant.customVoice.rawValue, "aufklarer/Qwen3-TTS-12Hz-0.6B-CustomVoice-MLX-bf16")
+            }
 
     func testUpsampleRateProduct() {
         let config = SpeechTokenizerDecoderConfig()
@@ -279,9 +281,9 @@ final class SpeakerConfigTests: XCTestCase {
     }
 
     func testTTSModelVariant() {
-        XCTAssertEqual(TTSModelVariant.base.rawValue, "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-4bit")
-        XCTAssertEqual(TTSModelVariant.customVoice.rawValue, "aufklarer/Qwen3-TTS-12Hz-0.6B-CustomVoice-MLX-4bit")
-    }
+        XCTAssertEqual(TTSModelVariant.base.rawValue, "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-8bit")
+        XCTAssertEqual(TTSModelVariant.customVoice.rawValue, "aufklarer/Qwen3-TTS-12Hz-0.6B-CustomVoice-MLX-bf16")
+            }
 
     func testAvailableSpeakersEmptyByDefault() {
         let model = Qwen3TTSModel()
@@ -297,9 +299,9 @@ final class SpeakerConfigTests: XCTestCase {
 
 // MARK: - Instruct Token Tests
 
-final class E2EInstructTokenTests: XCTestCase {
+final class E2EInstructTokenTests: E2ETestCase {
 
-    static let ttsModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-4bit"
+    static let ttsModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-8bit"
     private static var _sharedModel: Qwen3TTSModel?
 
     /// Verify instruct token format: <|im_start|>user\n{text}<|im_end|>\n
@@ -377,20 +379,20 @@ final class E2EInstructTokenTests: XCTestCase {
 // MARK: - CustomVoice Instruct E2E Tests
 
 /// End-to-end tests for CustomVoice model with instruct-based style control.
-/// Requires CustomVoice model weights (~1 GB download).
-final class E2ECustomVoiceInstructTests: XCTestCase {
+/// Requires CustomVoice model weights (~1.2 GB download).
+final class E2ECustomVoiceInstructTests: E2ETestCase {
 
-    static let customVoiceModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-CustomVoice-MLX-4bit"
+    static let customVoiceModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-CustomVoice-MLX-bf16"
     static let ttsTokenizerModelId = "Qwen/Qwen3-TTS-Tokenizer-12Hz"
     static let asrModelId = "aufklarer/Qwen3-ASR-0.6B-MLX-4bit"
     private static var _sharedTTSModel: Qwen3TTSModel?
     private static var _sharedASRModel: Qwen3ASRModel?
 
-    override func tearDown() {
-        super.tearDown()
-        // Release accumulated MLX buffer pool between tests to prevent
-        // memory pressure from cascading across sequential synthesis calls.
-        Memory.clearCache()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["QWEN3_CUSTOMVOICE_INSTRUCT_E2E"] == "1",
+            "Set QWEN3_CUSTOMVOICE_INSTRUCT_E2E=1 to run CustomVoice instruct E2E tests")
     }
 
     /// CustomVoice + instruct should produce valid audio
@@ -632,16 +634,11 @@ final class E2ECustomVoiceInstructTests: XCTestCase {
 
 /// Verifies that speaker token position in codec prefix produces correct voice identity.
 /// Regression test for #105: speaker token must come BEFORE pad+bos.
-final class E2ESpeakerTokenPositionTests: XCTestCase {
+final class E2ESpeakerTokenPositionTests: E2ETestCase {
 
-    static let customVoiceModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-CustomVoice-MLX-4bit"
+    static let customVoiceModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-CustomVoice-MLX-bf16"
     static let ttsTokenizerModelId = "Qwen/Qwen3-TTS-Tokenizer-12Hz"
     private static var _sharedModel: Qwen3TTSModel?
-
-    override func tearDown() {
-        super.tearDown()
-        Memory.clearCache()
-    }
 
     /// Two different speakers should produce distinct audio for the same text.
     /// With the old wrong token position, all speakers sounded the same.
@@ -739,9 +736,9 @@ final class E2ESpeakerTokenPositionTests: XCTestCase {
 
 /// End-to-end tests for TTS synthesis with latency measurement.
 /// Requires TTS model weights (~1.7 GB). Tests are grouped by language.
-final class E2ETTSTests: XCTestCase {
+final class E2ETTSTests: E2ETestCase {
 
-    static let ttsModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-4bit"
+    static let ttsModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-8bit"
     static let ttsTokenizerModelId = "Qwen/Qwen3-TTS-Tokenizer-12Hz"
     static let asrModelId = "aufklarer/Qwen3-ASR-0.6B-MLX-4bit"
     private static var _sharedTTSModel: Qwen3TTSModel?
@@ -1036,7 +1033,7 @@ final class E2ETTSTests: XCTestCase {
 // MARK: - TTS 8-bit E2E Tests
 
 /// End-to-end tests for 8-bit TTS model variant.
-final class E2ETTS8bitTests: XCTestCase {
+final class E2ETTS8bitTests: E2ETestCase {
 
     static let ttsModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-8bit"
     static let ttsTokenizerModelId = "Qwen/Qwen3-TTS-Tokenizer-12Hz"
@@ -1122,20 +1119,20 @@ final class E2ETTS8bitTests: XCTestCase {
 
 // MARK: - 1.7B TTS Tests
 
-final class E2ETTS17BTests: XCTestCase {
+final class E2ETTS17BTests: E2ETestCase {
 
-    static let ttsModelId4bit = "aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-4bit"
+    static let ttsModelIdBf16 = "aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-bf16"
     static let ttsModelId8bit = "aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-8bit"
     static let ttsTokenizerModelId = "Qwen/Qwen3-TTS-Tokenizer-12Hz"
     static let asrModelId = "aufklarer/Qwen3-ASR-0.6B-MLX-4bit"
-    private static var _shared4bitModel: Qwen3TTSModel?
+    private static var _sharedBf16Model: Qwen3TTSModel?
     private static var _shared8bitModel: Qwen3TTSModel?
     private static var _sharedASRModel: Qwen3ASRModel?
 
-    /// 1.7B 4-bit: model loads with correct config
-    func testModelLoading17B4bit() async throws {
-        let model = try await load4bitModel()
-        XCTAssertEqual(model.config.talker.bits, 4, "Should load as 4-bit model")
+    /// 1.7B bf16: model loads with correct config
+    func testModelLoading17BBf16() async throws {
+        let model = try await loadBf16Model()
+        XCTAssertEqual(model.config.talker.bits, 0, "Should load as bf16 (no quantization)")
         XCTAssertEqual(model.config.talker.hiddenSize, 2048, "Should be 1.7B (hidden=2048)")
         XCTAssertEqual(model.config.talker.intermediateSize, 6144, "1.7B intermediate size")
     }
@@ -1147,17 +1144,80 @@ final class E2ETTS17BTests: XCTestCase {
         XCTAssertEqual(model.config.talker.hiddenSize, 2048, "Should be 1.7B (hidden=2048)")
     }
 
-    /// 1.7B 4-bit -> ASR round-trip
-    func testRoundTrip17B4bit() async throws {
-        let ttsModel = try await load4bitModel()
+    /// Globs `downloadWeights` builds for a TTS bundle: implicit `config.json`
+    /// and weight discovery, plus the tokenizer assets passed as
+    /// `additionalFiles`.
+    private static let bundleGlobs = [
+        "config.json", "*.safetensors", "model.safetensors.index.json",
+        "merges.txt", "tokenizer_config.json", "vocab.json",
+    ]
+
+    /// Fresh-cache resolution must work for every shipped bundle layout.
+    ///
+    /// The bf16 repo ships a lone `model.safetensors` with no index and the
+    /// 8-bit repos ship an index alongside it, so the weight files are
+    /// discovered rather than named. Resolution is checked directly rather than
+    /// through `fromPretrained` so the guard costs four metadata requests
+    /// instead of re-downloading multi-GB weights on every E2E run.
+    func testFreshCacheResolvesEveryBundleLayout() async throws {
+        for modelId in TTSModelVariant.allCases.map(\.rawValue) {
+            let manifest = try await HuggingFaceDownloader.fetchManifest(modelId: modelId)
+            let paths = manifest.matching(globs: Self.bundleGlobs).map(\.path)
+
+            XCTAssertTrue(
+                paths.contains { $0.hasSuffix(".safetensors") },
+                "\(modelId): resolved no weight file")
+            for asset in ["config.json", "merges.txt", "tokenizer_config.json", "vocab.json"] {
+                XCTAssertTrue(paths.contains(asset), "\(modelId): missing \(asset)")
+            }
+        }
+    }
+
+    /// The speech tokenizer lives in an upstream repository we don't control,
+    /// so its layout is resolved rather than assumed.
+    func testTokenizerBundleResolves() async throws {
+        let manifest = try await HuggingFaceDownloader.fetchManifest(
+            modelId: Self.ttsTokenizerModelId)
+        let paths = manifest.matching(
+            globs: ["config.json", "*.safetensors", "model.safetensors.index.json"]).map(\.path)
+
+        XCTAssertTrue(paths.contains("config.json"))
+        XCTAssertTrue(paths.contains { $0.hasSuffix(".safetensors") })
+    }
+
+    /// Offline with an empty cache fails fast with an actionable message
+    /// instead of attempting a network listing.
+    func testOfflineResolutionFailsWithoutNetwork() async throws {
+        let empty = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tts-offline-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: empty) }
+
+        do {
+            try await HuggingFaceDownloader.downloadWeights(
+                modelId: Self.ttsModelIdBf16,
+                to: empty,
+                additionalFiles: ["vocab.json"],
+                offlineMode: true)
+            XCTFail("offline resolution with no cached weights should throw")
+        } catch {
+            XCTAssertTrue(
+                "\(error)".contains("offline cache miss"),
+                "unexpected error: \(error)")
+        }
+    }
+
+    /// 1.7B bf16 -> ASR round-trip
+    func testRoundTrip17BBf16() async throws {
+        let ttsModel = try await loadBf16Model()
         let asrModel = try await loadASRModel()
 
         let inputText = "Hello world, this is a test."
         let samples = ttsModel.synthesize(text: inputText, language: "english")
         let transcription = asrModel.transcribe(audio: samples, sampleRate: 24000)
 
-        print("1.7B 4-bit Input:  \"\(inputText)\"")
-        print("1.7B 4-bit Output: \"\(transcription)\"")
+        print("1.7B bf16 Input:  \"\(inputText)\"")
+        print("1.7B bf16 Output: \"\(transcription)\"")
 
         let lowerTranscription = transcription.lowercased()
         let expectedWords = ["hello", "world", "test"]
@@ -1187,16 +1247,16 @@ final class E2ETTS17BTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func load4bitModel() async throws -> Qwen3TTSModel {
-        if let model = Self._shared4bitModel { return model }
-        print("Loading 1.7B 4-bit TTS model...")
+    private func loadBf16Model() async throws -> Qwen3TTSModel {
+        if let model = Self._sharedBf16Model { return model }
+        print("Loading 1.7B bf16 TTS model...")
         let model = try await Qwen3TTSModel.fromPretrained(
-            modelId: Self.ttsModelId4bit,
+            modelId: Self.ttsModelIdBf16,
             tokenizerModelId: Self.ttsTokenizerModelId
         ) { progress, status in
-            print("[TTS-1.7B-4bit \(Int(progress * 100))%] \(status)")
+            print("[TTS-1.7B-bf16 \(Int(progress * 100))%] \(status)")
         }
-        Self._shared4bitModel = model
+        Self._sharedBf16Model = model
         return model
     }
 
@@ -1228,13 +1288,13 @@ final class E2ETTS17BTests: XCTestCase {
 
 // MARK: - Long Text Memory Regression
 
-final class E2ETTSLongTextTests: XCTestCase {
+final class E2ETTSLongTextTests: E2ETestCase {
 
     /// Verify long text synthesis completes without OOM.
     /// Before the chunkedDecode eval fix, this peaked at 17+ GB and crashed on 16 GB Macs.
     func testLongTextDoesNotOOM() async throws {
         let model = try await Qwen3TTSModel.fromPretrained(
-            modelId: "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-4bit"
+            modelId: "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-8bit"
         ) { _, _ in }
 
         let longText = "In the beginning of a new era of artificial intelligence, " +
@@ -1255,9 +1315,9 @@ final class E2ETTSLongTextTests: XCTestCase {
 
 // MARK: - Batch TTS Tests
 
-final class E2ETTSBatchTests: XCTestCase {
+final class E2ETTSBatchTests: E2ETestCase {
 
-    static let ttsModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-4bit"
+    static let ttsModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-8bit"
     static let ttsTokenizerModelId = "Qwen/Qwen3-TTS-Tokenizer-12Hz"
     static let asrModelId = "aufklarer/Qwen3-ASR-0.6B-MLX-4bit"
     private static var _sharedTTSModel: Qwen3TTSModel?
@@ -1452,9 +1512,9 @@ final class E2ETTSBatchTests: XCTestCase {
 
 /// End-to-end tests for streaming TTS synthesis.
 /// Requires TTS model weights (~1.7 GB).
-final class E2ETTSStreamingTests: XCTestCase {
+final class E2ETTSStreamingTests: E2ETestCase {
 
-    static let ttsModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-4bit"
+    static let ttsModelId = "aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-8bit"
     static let ttsTokenizerModelId = "Qwen/Qwen3-TTS-Tokenizer-12Hz"
     static let asrModelId = "aufklarer/Qwen3-ASR-0.6B-MLX-4bit"
     private static var _sharedTTSModel: Qwen3TTSModel?

@@ -4,10 +4,11 @@ import Accelerate
 /// 128-dim log-mel feature extractor for Sortformer diarization.
 ///
 /// Matches NeMo's audio preprocessor: Hann window (no Povey), no pre-emphasis,
-/// nFFT=400, hop=160, 128 mel bins, 16kHz. Uses vDSP for FFT and mel filterbank.
+/// nFFT=400, hop=160, 128 Slaney-scale mel bins, 16kHz, log with additive
+/// 2^-24 zero guard, no normalization. Uses vDSP for FFT and mel filterbank.
 ///
 /// Key differences from `MelFeatureExtractor` (WeSpeaker):
-/// - 128 mel bins (vs 80)
+/// - 128 mel bins (vs 80), Slaney scale (vs HTK)
 /// - Hann window (vs Povey window)
 /// - No pre-emphasis (vs 0.97)
 /// - Power spectrum (vs magnitude spectrum)
@@ -52,13 +53,22 @@ class SortformerMelExtractor {
         let fMin: Float = 0.0
         let fMax: Float = Float(sampleRate) / 2.0
 
-        // HTK mel scale
+        // Slaney mel scale (librosa default, htk=False): linear below 1 kHz,
+        // logarithmic above. NeMo's FilterbankFeatures builds its filterbank
+        // with librosa defaults, so the checkpoint expects Slaney-spaced bins.
+        // The HTK formula used here previously shifted every bin center by up
+        // to ~6 bins in the low-mid band, which degraded speaker separation.
+        let fSp: Float = 200.0 / 3.0
+        let minLogHz: Float = 1000.0
+        let minLogMel: Float = minLogHz / fSp
+        let logStep: Float = log(6.4) / 27.0
+
         func hzToMel(_ hz: Float) -> Float {
-            2595.0 * log10(1.0 + hz / 700.0)
+            hz >= minLogHz ? minLogMel + log(hz / minLogHz) / logStep : hz / fSp
         }
 
         func melToHz(_ mel: Float) -> Float {
-            700.0 * (pow(10.0, mel / 2595.0) - 1.0)
+            mel >= minLogMel ? minLogHz * exp(logStep * (mel - minLogMel)) : fSp * mel
         }
 
         let nBins = paddedFFT / 2 + 1  // 257
@@ -192,12 +202,14 @@ class SortformerMelExtractor {
         vDSP_mmul(powerSpec, 1, filterbankT, 1, &melSpec, 1,
                   vDSP_Length(nFrames), vDSP_Length(nMels), vDSP_Length(nBins))
 
-        // Log-mel: log(max(x, 1e-10))
+        // Log-mel with NeMo's additive zero guard: log(x + 2^-24). The previous
+        // clip-at-1e-10 floor let silence bins reach log values NeMo never
+        // produces, shifting the silence statistics the model was trained on.
         let count = melSpec.count
         var countN = Int32(count)
 
-        var epsilon: Float = 1e-10
-        vDSP_vclip(melSpec, 1, &epsilon, [Float.greatestFiniteMagnitude], &melSpec, 1, vDSP_Length(count))
+        var zeroGuard: Float = 0x1p-24
+        vDSP_vsadd(melSpec, 1, &zeroGuard, &melSpec, 1, vDSP_Length(count))
         vvlogf(&melSpec, melSpec, &countN)
 
         return (melSpec, nFrames)

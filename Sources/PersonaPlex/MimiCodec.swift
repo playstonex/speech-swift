@@ -106,6 +106,11 @@ public final class Mimi: Module {
 
 public extension Mimi {
     func sanitize(weights: [String: MLXArray]) -> [String: MLXArray] {
+        Self.sanitizeWeights(weights)
+    }
+
+    /// Maps original checkpoint tensors without constructing both codec directions.
+    static func sanitizeWeights(_ weights: [String: MLXArray]) -> [String: MLXArray] {
         var out: [String: MLXArray] = [:]
 
         for (rawKey, rawVal) in weights {

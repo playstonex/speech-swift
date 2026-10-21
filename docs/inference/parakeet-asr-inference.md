@@ -27,9 +27,20 @@ Token-and-Duration Transducer (TDT) decoding interprets the encoder output. Unli
 
 Greedy decoding selects the highest-probability token and duration at each step. No beam search or language model rescoring is applied.
 
+The vocabulary classifies angle-bracket entries as model-control tokens and omits them from the
+returned transcript without suppressing them during decoding. Ordinary tokens are not classified
+by ID range, so model-emitted digits `0`–`9` are preserved even though their IDs sit between
+control-token ranges. Hidden control tokens still update the recurrent decoder state.
+
 ### 4. Confidence Score
 
 The pipeline returns an overall confidence score (0.0 to 1.0) computed as the sigmoid-scaled mean of token logits. This provides a rough estimate of transcription reliability — useful for deciding whether to retry with a different model or prompt the user.
+
+### 5. Word Timestamps
+
+`transcribeWithLanguage` returns `TranscriptionResult.words`. Each `WordConfidence` carries `startTime` and `endTime` in seconds from the start of the input audio, taken from the encoder frame at which the decoder emitted the word's tokens. One encoder frame is 80 ms (hop 160 × subsampling 8 at 16 kHz). Audio longer than the encoder window is decoded in windows, and the times are converted to absolute seconds through mel frames, so they stay exact even when the window length is not a multiple of the subsampling factor (the 5 s encoder is 62.5 encoder frames).
+
+The times are emission-aligned, not forced-aligned. The offline encoder sees the whole window, so a word can be stamped before its sound begins: on the bundled test clip the first word of an utterance starts about 0.3 s before the acoustic onset and the last word ends about 0.2 s after the acoustic end. `endTime` is one frame after the last token's start rather than the start plus the predicted TDT duration, so gaps between consecutive words reflect decoding pace as well as silence. Use `Qwen3ForcedAligner` when you need acoustic word boundaries.
 
 ## Language Support
 
@@ -50,6 +61,29 @@ let _ = try model.transcribe(audio: silentBuffer, sampleRate: 16000)
 // Subsequent calls: ~0.6s for 20s audio
 ```
 
+## Encoder Variant Selection (multi-encoder repo)
+
+`aufklarer/Parakeet-TDT-v3-CoreML-INT8` ships multiple single-shape encoders in one repo (`encoder.mlmodelc` = 30s, `encoder_5s.mlmodelc`, `encoder_15s.mlmodelc`). Pick the variant matching your typical input length to cut per-call ANE bandwidth:
+
+```swift
+// Short voice-pipeline chunks (≤5s): ~6× less weight bandwidth per call than the 30s encoder
+let model = try await ParakeetASRModel.fromPretrained(
+    modelId: "aufklarer/Parakeet-TDT-v3-CoreML-INT8",
+    encoderVariant: "5s")
+```
+
+`encoderVariant: nil` (default) loads `encoder.mlmodelc`, so the single-shape `-30s` and `-iOS-5s` repos work unchanged.
+
+## Compute Units
+
+| Platform | Default | Fallback |
+|----------|---------|----------|
+| iOS Simulator | `.cpuOnly` | — (only path that returns non-zero tokens; the simulator's Espresso lacks an MPSGraph backend) |
+| iOS device | `.cpuAndNeuralEngine` | `.cpuAndGPU` |
+| macOS | `.cpuAndNeuralEngine` | `.cpuAndGPU` |
+
+macOS was historically pinned to `.cpuAndGPU` because the iOS17-target **EnumeratedShapes** INT8 encoder SIGSEGV'd in `bnns::GraphCompile` on Mac ANE (surfaced on M5, see issue #313). Single-shape builds aren't affected: the shipped `-30s` and `-iOS-5s` repos (iOS17 single-shape) ANE-compile cleanly on M5; the legacy multi-encoder `-INT8` repo was rebuilt with iOS18 single-shape variants since EnumeratedShapes can't be re-emitted on iOS18 either (MIL validator rejects the dynamic `tile` reps). So macOS now defaults to ANE and falls back to GPU only if loading throws.
+
 ## CLI
 
 ```bash
@@ -60,14 +94,19 @@ let _ = try model.transcribe(audio: silentBuffer, sampleRate: 16000)
 .build/release/speech transcribe recording.wav
 ```
 
-## Performance (M2 Max)
+## Performance (M5 Pro, macOS 26.5)
 
-| Metric | Value |
-|--------|-------|
-| RTF (after warmup) | ~0.03 |
-| Cold start | ~3s (CoreML compilation) |
-| Warm inference (20s audio) | ~0.6s |
-| Backend | Neural Engine (CoreML) |
+Encoder-only forward, warm best of 5, swift JIT process:
+
+| Shape | Compute | Warm encode | Encoder RTF | Peak RSS |
+|-------|---------|------|-----|----------|
+| 3000 (30s) | ANE | 74 ms | 0.0025 | 820 MB |
+| 1500 (15s) | ANE | 24 ms | 0.0016 | 784 MB |
+| 500  (5s)  | ANE |  8 ms | 0.0016 | 765 MB |
+
+End-to-end with TDT decode (release build of `speech transcribe` on the bundled 20s fixture, default `-30s` model, ANE): warm transcribe 0.10 s (RTF 0.005), peak memory footprint 857 MB.
+
+Cold start (first call) includes BNNS graph compile on ANE — 5 s for the 5s variant, ~11 s for 30s. CoreML caches the compile to disk so subsequent process launches skip it.
 
 ## Model Architecture Reference
 

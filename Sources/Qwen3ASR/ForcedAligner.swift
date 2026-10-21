@@ -10,6 +10,7 @@ import AudioCommon
 /// Forced aligner model variant
 public enum ForcedAlignerVariant: String, CaseIterable, Sendable {
     case mlx4bit = "aufklarer/Qwen3-ForcedAligner-0.6B-4bit"
+    case mlx5bit = "aufklarer/Qwen3-ForcedAligner-0.6B-5bit"
     case mlx8bit = "aufklarer/Qwen3-ForcedAligner-0.6B-8bit"
     case bf16 = "aufklarer/Qwen3-ForcedAligner-0.6B-bf16"
 
@@ -20,6 +21,7 @@ public enum ForcedAlignerVariant: String, CaseIterable, Sendable {
         }
         if modelId.contains("bf16") || modelId.contains("float") { return .bf16 }
         if modelId.contains("8bit") { return .mlx8bit }
+        if modelId.contains("5bit") { return .mlx5bit }
         if modelId.contains("4bit") { return .mlx4bit }
         return nil
     }
@@ -29,6 +31,11 @@ public enum ForcedAlignerVariant: String, CaseIterable, Sendable {
         case .mlx4bit:
             var cfg = TextDecoderConfig.small
             cfg.bits = 4
+            cfg.groupSize = 64
+            return cfg
+        case .mlx5bit:
+            var cfg = TextDecoderConfig.small
+            cfg.bits = 5
             cfg.groupSize = 64
             return cfg
         case .mlx8bit:
@@ -90,10 +97,12 @@ public class Qwen3ForcedAligner {
     /// LIS correction collapses into a flat plateau — every trailing word
     /// shares the same timestamp.
     ///
-    /// `alignLong` runs `align` on the full audio, detects the trailing
-    /// plateau, keeps the reliable prefix, then re-aligns the remaining
-    /// audio + remaining words and offsets timestamps. Iterates until no
-    /// plateau remains or the remaining work is below a minimum chunk size.
+    /// `alignLong` runs `align` on the full audio, finds the first point of
+    /// saturation (a word stamped past the audio's end, or a plateau run
+    /// anywhere in the sequence), keeps the reliable prefix, then re-aligns
+    /// the remaining audio + remaining words and offsets timestamps.
+    /// Iterates until no saturation remains or the remaining work is below
+    /// a minimum chunk size.
     ///
     /// For audio shorter than the threshold this is a one-pass call into
     /// `align`. For longer audio it pays one extra align pass per chunk.
@@ -104,12 +113,12 @@ public class Qwen3ForcedAligner {
         language: String = "English",
         progressHandler: ((String) -> Void)? = nil
     ) -> [AlignedWord] {
-        // The model is reliable up to ~270s on the bundles we ship; we
-        // don't try to be too aggressive with the threshold so the
-        // single-pass case stays the common path. The plateau detector
-        // does the actual work — this is just a fast bypass when there's
-        // no risk of saturation.
-        let bypassThresholdSeconds: Float = 240
+        // Saturation is checked on EVERY pass, whatever the duration: the
+        // ~270s reliable range was measured on wideband read speech, and on
+        // narrowband or out-of-domain audio the classify head collapses far
+        // earlier (observed at 60-220s on 8 kHz telephone material). The
+        // detector is cheap; only genuinely tiny inputs skip it.
+        let bypassThresholdSeconds: Float = 20
         let minChunkSeconds: Float = 5
         let plateauTolerance: Float = 0.1     // seconds; "same start time" if diff < this
         let plateauMinWords = 5               // need ≥ N stuck words to call it a plateau
@@ -138,12 +147,19 @@ public class Qwen3ForcedAligner {
                 break
             }
 
-            let plateauStart = Self.findTrailingPlateauStart(
-                aligned, tolerance: plateauTolerance, minSize: plateauMinWords
+            let plateauStart = Self.findFirstSaturation(
+                aligned, durationSec: durationSec,
+                tolerance: plateauTolerance, minSize: plateauMinWords
             )
             if plateauStart == aligned.count {
-                // No plateau — alignment looks healthy.
+                // No saturation — alignment looks healthy.
                 allAligned.append(contentsOf: Self.offsetWords(aligned, by: offsetSec))
+                break
+            }
+            guard plateauStart > 0 else {
+                // Saturated from the first word: no reliable prefix to keep and
+                // no split point to recurse on. Return what we have rather than
+                // loop; the caller sees a short result instead of garbage.
                 break
             }
 
@@ -213,6 +229,32 @@ public class Qwen3ForcedAligner {
             }
         }
         return (n - plateauStart) >= minSize ? plateauStart : n
+    }
+
+    /// First index at which the alignment stops being trustworthy: a word
+    /// stamped past the audio's end, or the start of ANY plateau run of
+    /// `minSize` words sharing one timestamp. The trailing-plateau walk above
+    /// only sees saturation at the very end; on narrowband or out-of-domain
+    /// audio the classify head collapses mid-sequence too, and every word
+    /// after that point is interpolation, not evidence.
+    static func findFirstSaturation(
+        _ aligned: [AlignedWord], durationSec: Float,
+        tolerance: Float, minSize: Int
+    ) -> Int {
+        let n = aligned.count
+        for (i, word) in aligned.enumerated() where word.endTime > durationSec + 0.25 {
+            return i
+        }
+        guard n > minSize else { return n }
+        var runStart = 0
+        for i in 1..<n {
+            if abs(aligned[i].startTime - aligned[runStart].startTime) >= tolerance {
+                runStart = i
+            } else if i - runStart + 1 >= minSize {
+                return runStart
+            }
+        }
+        return n
     }
 
     /// Align text to audio, producing word-level timestamps.
@@ -295,8 +337,22 @@ public class Qwen3ForcedAligner {
             rawIndices.append(Int(idx))
         }
 
-        // 8. Apply LIS monotonicity correction
-        let correctedIndices = TimestampCorrection.enforceMonotonicity(rawIndices)
+        // 8. Apply LIS monotonicity correction.
+        //
+        // First cap indices to the audio's actual extent. The classify head
+        // addresses classifyNum slots (400s) regardless of input length, and on
+        // hard audio it emits confident indices far past the end of the file.
+        // Those are not timestamps, and worse, a slow upward drift of garbage
+        // is monotonic -- fed to LIS uncapped it becomes the anchor set and the
+        // genuine indices get interpolated away. Capping first keeps impossible
+        // values out of the anchor competition entirely.
+        let durationSec = Float(audio.count) / Float(sampleRate)
+        let maxIndex = min(
+            config.classifyNum - 1,
+            Int((durationSec / config.timestampSegmentTime).rounded(.up))
+        )
+        let cappedIndices = rawIndices.map { min($0, maxIndex) }
+        let correctedIndices = TimestampCorrection.enforceMonotonicity(cappedIndices)
 
         // Optional raw/corrected dump for bug-triage of misaligned timestamps.
         if ProcessInfo.processInfo.environment["ALIGN_DEBUG"] == "1" {
@@ -317,8 +373,8 @@ public class Qwen3ForcedAligner {
 
             guard endIdx < correctedIndices.count else { break }
 
-            let startTime = Float(correctedIndices[startIdx]) * segmentTime
-            let endTime = Float(correctedIndices[endIdx]) * segmentTime
+            let startTime = min(Float(correctedIndices[startIdx]) * segmentTime, durationSec)
+            let endTime = min(Float(correctedIndices[endIdx]) * segmentTime, durationSec)
 
             alignedWords.append(AlignedWord(
                 text: word,
@@ -426,11 +482,13 @@ public extension Qwen3ForcedAligner {
             variant = .mlx4bit
         }
 
-        let model = Qwen3ForcedAligner(
-            audioConfig: .forcedAligner,
-            textConfig: variant.textConfig,
-            useFloatTextDecoder: variant.usesFloatTextDecoder
-        )
+        let model = withThrowawayRandomState {
+            Qwen3ForcedAligner(
+                audioConfig: .forcedAligner,
+                textConfig: variant.textConfig,
+                useFloatTextDecoder: variant.usesFloatTextDecoder
+            )
+        }
 
         // Load tokenizer
         let vocabPath = cacheDir.appendingPathComponent("vocab.json")
@@ -475,6 +533,7 @@ public extension Qwen3ForcedAligner {
         switch bits {
         case 0: return .bf16
         case 4: return .mlx4bit
+        case 5: return .mlx5bit
         case 8: return .mlx8bit
         default: return nil
         }

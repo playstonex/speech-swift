@@ -2,10 +2,21 @@
 
 ## Overview
 
-Speaker diarization identifies **who spoke when** in an audio recording. Two engines are available:
+Speaker diarization identifies **who spoke when** in an audio recording. Four
+engines are available:
 
 1. **Pyannote** (default) — two-stage pipeline: segmentation + activity-based speaker chaining → post-hoc WeSpeaker embedding
-2. **Sortformer** (CoreML) — NVIDIA's end-to-end neural diarization model, runs on Neural Engine
+2. **Community-1** (CoreML) — Pyannote segmentation + masked WeSpeaker embeddings + native PLDA/VBx clustering
+3. **Sortformer** (CoreML) — NVIDIA's end-to-end neural diarization model, runs on Neural Engine
+4. **Nemotron 3** (Core ML or MLX INT8) — eight-speaker activity at 10 ms resolution
+
+`Nemotron3Diarizer` adds eight-speaker, 10 ms speaker activity through public
+Core ML INT8 and MLX INT8 exports. Both backends share the same audio and
+streaming-cache pipeline.
+
+Named voice identity is a separate operation. `ReDimNet2SpeakerModel` compares
+clean voice samples across recordings; it does not replace the embedding and
+clustering stages inside any diarization engine.
 
 ## Architecture
 
@@ -13,8 +24,40 @@ Speaker diarization identifies **who spoke when** in an audio recording. Two eng
 
 ```bash
 speech diarize meeting.wav                    # Pyannote (default)
+speech diarize meeting.wav --engine community1  # Community-1 (CoreML + VBx)
 speech diarize meeting.wav --engine sortformer  # Sortformer (CoreML)
+speech diarize meeting.wav --engine nemotron3    # Nemotron 3 (Core ML)
 ```
+
+### Community-1 (CoreML + Native VBx)
+
+Community-1 is the accuracy-oriented, embedding-capable CoreML pipeline. Its
+two neural stages run through Core ML; powerset decoding, PLDA transforms, VBx,
+constrained assignment, and timeline reconstruction are native Swift. It does
+not load MLX or require a Metal shader library.
+
+```
+Audio → 10 s / 1 s-hop PyanNet → hard powerset tracks
+      → overlap-masked WeSpeaker embeddings → centroid AHC
+      → 256→128 PLDA transform → VBx → constrained assignment
+      → overlap-add speaker counting → diarized segments + 256-d centroids
+```
+
+- **Segmentation context**: 10 seconds, advanced by 1 second
+- **Local speakers**: up to three powerset tracks per chunk
+- **Embedding masks**: clean single-speaker frames, with the upstream
+  overlap-inclusive fallback for very short tracks
+- **AHC initialization**: centroid linkage over L2-normalized embeddings,
+  Euclidean threshold 0.6
+- **VBx defaults**: `Fa=0.07`, `Fb=0.8`, at most 20 iterations
+- **Assignment**: maximum-weight one-to-one matching inside each chunk
+- **Speaker bounds**: inferred by default; exact, minimum, and maximum counts
+  can be supplied by API or CLI
+
+The bundle is
+[`aufklarer/Pyannote-Community-1-CoreML`](https://huggingface.co/aufklarer/Pyannote-Community-1-CoreML),
+derived from `pyannote/speaker-diarization-community-1` and distributed under
+CC BY 4.0. Preserve its attribution when redistributing the weights.
 
 ### Sortformer (End-to-End, CoreML)
 
@@ -34,6 +77,35 @@ Audio → [128-dim Mel] → [Chunk Sliding Window] → [CoreML Neural Engine] �
 - **Frame duration**: 0.08s per prediction frame
 
 No speaker embeddings are produced — `--target-speaker` and `--embedding-engine` are not available with Sortformer.
+
+### Nemotron 3 Diarization (Core ML and MLX INT8)
+
+The Nemotron runtime uses the final model's 31-layer, 512-dimensional
+Transformer and eight arrival-order speaker slots. It preserves the published
+offline cache geometry while exporting the audio pre-encoder separately from
+the stateful diarization head.
+
+```
+16 kHz audio → 128-bin log-mel → 8× pre-encoder → 31-layer Transformer
+             → 8× subpixel head → 10 ms speaker probabilities → segments
+                         ↕
+             264-row speaker cache + 40-row FIFO
+```
+
+- **Core chunk**: 340 encoder rows (27.2 seconds)
+- **Cache update period**: 300 encoder rows (24 seconds)
+- **Right context**: 40 encoder rows (3.2 seconds)
+- **Output resolution**: 10 ms after the subpixel head
+- **Speaker capacity**: eight arrival-order slots
+- **Core ML artifact**: compiled pre-encoder and head graphs; linear operators
+  use symmetric INT8 blocks while convolutions and activations remain FP16
+- **MLX artifact**: 128 affine INT8 linear layers with group size 64;
+  convolutions remain FP16
+- **State**: the learned 512-value silence embedding is loaded from the local
+  bundle and used when maintaining speaker-cache silence rows
+
+Both loaders reject incompatible geometry and missing files. The public loaders
+download the final exports; directory loaders work offline.
 
 ### Pyannote Pipeline
 
@@ -93,6 +165,45 @@ The CoreML model uses EnumeratedShapes for variable mel lengths (20–2000 frame
 
 MLX and CoreML embeddings are **not interchangeable** — NHWC vs NCHW layout causes stats pooling to flatten features in different orders. Each backend is self-consistent (cosine sim 1.0 for same input) but cross-backend similarity is low (~0.15). Use the same backend for enrollment and comparison.
 
+### ReDimNet2-B6 Named Voice Identity
+
+ReDimNet2-B6 is the separate Core ML encoder for recording-local and persistent
+named voice matching. It accepts clean speaker-only PCM rather than a mixed
+meeting waveform and returns one 192-dimensional, L2-normalized embedding.
+
+```swift
+let identity = try await ReDimNet2SpeakerModel.fromPretrained()
+try identity.prewarm()
+
+let enrollment = try identity.embed(audio: enrollmentAudio, sampleRate: 16_000)
+let candidate = try identity.embed(audio: candidateAudio, sampleRate: 16_000)
+let shortProbe = try identity.embedShortUtterance(
+    audio: shortCleanAudio,
+    sampleRate: 16_000)
+let similarity = ReDimNet2SpeakerModel.cosineSimilarity(enrollment, candidate)
+```
+
+- Input is fixed at six seconds / 96,000 mono samples for the fast Core ML path.
+- Clean clips from two to six seconds are repeated to fill the window.
+- Longer clips are center-cropped; clips shorter than two seconds fail explicitly
+  through the default `embed` API.
+- `embedShortUtterance` explicitly accepts clean, non-overlapped 0.6-to-2-second
+  input. Repetition only satisfies the fixed graph shape; it adds no evidence.
+  Use these vectors solely as stricter, duration-calibrated probes against an
+  identity anchored by at least two seconds. Never enroll, create, or update an
+  identity with them.
+- The model uses 192-dimensional embeddings. They cannot be compared with
+  WeSpeaker's 256-dimensional embeddings or Community-1 centroids.
+- Matching thresholds must be calibrated for ReDimNet2; do not reuse WeSpeaker
+  thresholds.
+- Voice embeddings support labeling, not biometric authentication or spoofing
+  resistance.
+
+The fixed-shape compiled model is approximately 25 MiB and measured about
+13.6 ms per warm six-second inference on an Apple M2 Max. This encoder remains
+outside Community-1: Community-1's masked WeSpeaker, PLDA, and VBx stages stay
+in their original shared embedding space.
+
 ### Mel Feature Extraction
 
 80-dim log-mel spectrogram via vDSP (same pipeline as WhisperFeatureExtractor but with different parameters):
@@ -114,6 +225,28 @@ for seg in result.segments {
 }
 print("\(result.numSpeakers) speakers detected")
 ```
+
+### Community-1 Swift API
+
+```swift
+let diarizer = try await Community1DiarizationPipeline.fromPretrained()
+try diarizer.prewarm()
+
+let result = try diarizer.diarize(
+    audio: samples,
+    sampleRate: 16_000,
+    speakerBounds: Community1SpeakerBounds(minimum: 2, maximum: 6)
+)
+
+for segment in result.segments {
+    print("Speaker \(segment.speakerId): \(segment.startTime)s–\(segment.endTime)s")
+}
+// result.speakerEmbeddings contains one 256-d centroid per returned speaker.
+```
+
+Use `Community1SpeakerBounds(exact: 2)` when the number of speakers is known.
+Speaker IDs are local to one result; use the returned centroids to match them
+to a recording-local or persistent voice registry.
 
 #### Progress Reporting & Cancellation
 
@@ -144,6 +277,17 @@ Progress is based on completed work units (segmentation windows + embedding wind
 let model = try await WeSpeakerModel.fromPretrained()
 let embedding = model.embed(audio: samples, sampleRate: 16000)
 // embedding: [Float] of length 256, L2-normalized
+```
+
+For named identity across recordings, use the throwing ReDimNet2 API instead:
+
+```swift
+let model = try await ReDimNet2SpeakerModel.fromPretrained()
+let embedding = try model.embed(audio: cleanSpeakerAudio, sampleRate: 16_000)
+let shortProbe = try model.embedShortUtterance(
+    audio: shortCleanSpeakerAudio,
+    sampleRate: 16_000)
+// embedding: [Float] of length 192, L2-normalized
 ```
 
 ### Speaker Extraction
@@ -184,14 +328,89 @@ let result = diarizer.diarize(audio: samples, sampleRate: 16000) { progress, sta
 }
 ```
 
+### Nemotron 3 Swift API
+
+```swift
+let coreML = try await Nemotron3Diarizer.fromCoreMLPretrained()
+let coreMLResult = try coreML.diarize(
+    audio: samples,
+    sampleRate: 16_000
+)
+
+let mlx = try await Nemotron3Diarizer.fromMLXPretrained()
+let mlxResult = try mlx.diarize(audio: samples, sampleRate: 16_000)
+
+// Core ML only: low-latency incremental inference on 16 kHz PCM.
+let session = try coreML.makeStreamingSession()
+while let buffer = captureNextBuffer() {
+    let snapshot = try session.push(audio: buffer)
+    render(snapshot.segments)
+}
+let final = try session.finish()
+```
+
+The two public bundles use different backend-native INT8 layouts and should
+be evaluated as separate variants. The `fromCoreMLDirectory` and
+`fromMLXDirectory` methods remain available for offline files. Neither
+backend produces speaker embeddings.
+
+The Core ML session uses a 480 ms core and 560 ms right context by default.
+It confirms its first core after 1.06 seconds of input, and `finish()` flushes
+the pending tail. `currentResult()` returns a whole-stream snapshot, while
+`confirmedThroughSample` marks the committed audio boundary. `reset()` starts
+a new recording without reloading the model. The session is experimental:
+on five VoxConverse-dev files it matched the corresponding short-cadence
+offline decode (2.41% DER, 80% speaker-count agreement), but one four-speaker
+file was undercounted even by full-context offline Nemotron 3. It is not yet
+a proven drop-in replacement for Sortformer's live consumer.
+
+### Incremental streaming session
+
+`SortformerStreamingSession` runs the same model incrementally for live
+audio. Feed 16 kHz PCM in arbitrary sizes; every 480 ms of accumulated audio
+triggers one Neural Engine step (~8 ms), and speaker IDs are Arrival-Order
+Speaker Cache slots — stable for the whole session, with no window
+re-clustering and no renumbering. Each push returns a whole-stream snapshot;
+the model's 560 ms right context means the newest ~1 s stays pending until
+the next chunk (or `finish()`).
+
+```swift
+let session = try await SortformerStreamingSession.fromPretrained()
+while let samples = captureNextBuffer() {           // any push size
+    let snapshot = try session.push(audio: samples)
+    render(snapshot.segments)                       // stable speaker IDs
+}
+let final = try session.finish()                    // flushes the tail
+```
+
+An existing `SortformerDiarizer` loaded with the `.streaming` preset can open
+sessions without reloading the model via `makeStreamingSession()`. The
+session reproduces whole-buffer `diarize` output for the same preset —
+chunk mel is extracted with reflect-padding margins that keep every consumed
+frame bit-identical to whole-file extraction.
+
+Measured on VoxConverse-dev samples (M-series ANE): DER on par with the
+offline Community-1 pipeline, 12 ms median latency per 500 ms push, ~39×
+realtime end to end.
+
 ### CLI Commands
 
 ```bash
 # Pyannote diarization (default)
 speech diarize meeting.wav
 
+# Community-1 (CoreML + native PLDA/VBx)
+speech diarize meeting.wav --engine community1
+speech diarize meeting.wav --engine community1 --num-speakers 2
+speech diarize meeting.wav --engine community1 --min-speakers 2 --max-speakers 6
+
 # Sortformer diarization (CoreML, Neural Engine)
 speech diarize meeting.wav --engine sortformer
+
+# Nemotron 3 diarization (Core ML or MLX)
+speech diarize meeting.wav --engine nemotron3
+speech diarize meeting.wav --engine nemotron3 --nemotron3-backend mlx
+speech diarize meeting.wav --engine nemotron3 --nemotron3-directory /path/to/bundle
 
 # CoreML embeddings (Neural Engine, pyannote only)
 speech diarize meeting.wav --embedding-engine coreml
@@ -205,14 +424,37 @@ speech diarize meeting.wav --target-speaker enrollment.wav
 # Embed a speaker's voice
 speech embed-speaker enrollment.wav
 speech embed-speaker enrollment.wav --engine coreml --json
+speech embed-speaker enrollment.wav --engine redimnet2 --json
 ```
+
+Community-1 compute units can be selected with
+`--community1-compute-units ane|cpu|gpu|all` (`ane` is the default).
+
+## Community-1 Parity Check
+
+On the fixed five-file VoxConverse release subset (1,057.49 seconds, 0.25 s
+collar, overlap included), the Swift output rescored with `pyannote.metrics`
+measured **4.66% DER / 21.43% JER**. The published CoreML export measured
+**4.65% / 21.42%** with the same scorer. The residual difference is 0.02
+percentage points of DER and comes from floating-point/tie behavior; detected
+speaker counts match on all five files.
+
+This is a small release parity check, not a dataset-wide quality claim. Do not
+compare these percentages directly with the package's frame-grid benchmark,
+whose collar and boundary accounting are intentionally different.
 
 ## Model Weights
 
+- **Community-1 bundle (CoreML + PLDA/VBx)**:
+  [`aufklarer/Pyannote-Community-1-CoreML`](https://huggingface.co/aufklarer/Pyannote-Community-1-CoreML)
+  (~32 MiB)
 - **Segmentation**: `aufklarer/Pyannote-Segmentation-MLX` (~5.7 MB)
 - **Speaker Embedding (MLX)**: `aufklarer/WeSpeaker-ResNet34-LM-MLX` (~25 MB)
 - **Speaker Embedding (CoreML)**: `aufklarer/WeSpeaker-ResNet34-LM-CoreML` (~13 MB)
+- **Named Voice Identity (CoreML)**: `aufklarer/ReDimNet2-B6-CoreML` (~29 MiB, FP32 frontend/head)
 - **Sortformer (CoreML)**: `aufklarer/Sortformer-Diarization-CoreML` (~240 MB)
+- **Nemotron 3 (Core ML/MLX INT8)**: public 100M parameter exports with
+  eight-speaker, 10 ms output
 - Cache: `~/Library/Caches/qwen3-speech/`
 
 ### Weight Conversion
@@ -247,13 +489,21 @@ Sources/SpeechVAD/
 ├── WeSpeakerWeightLoading.swift       Weight loading from safetensors
 ├── WeSpeaker.swift                    Public API: embed(), fromPretrained(), engine selection
 ├── CoreMLWeSpeakerInference.swift     CoreML inference (EnumeratedShapes, float16)
+├── ReDimNet2Speaker.swift             Persistent identity encoder (fixed-waveform CoreML)
 ├── PowersetDecoder.swift              7-class powerset → per-speaker probs
 ├── DiarizationHelpers.swift            Merge segments, compact IDs, constrained clustering
 ├── DiarizationPipeline.swift          Pyannote pipeline (embedding clustering + speaker extraction)
+├── Community1Configuration.swift      Published pipeline constants + speaker-count bounds
+├── Community1CoreML.swift             PyanNet + masked WeSpeaker CoreML wrappers
+├── Community1Clustering.swift         PLDA loading, centroid AHC, VBx, assignment
+├── Community1DiarizationPipeline.swift  Community-1 orchestration + reconstruction
 ├── SortformerConfig.swift             Sortformer model configuration
 ├── SortformerMelExtractor.swift       128-dim log-mel for Sortformer (Hann window)
 ├── SortformerModel.swift              CoreML wrapper for Sortformer inference
 ├── SortformerDiarizer.swift           End-to-end Sortformer pipeline (streaming)
+├── Nemotron3Diarizer.swift            Cache orchestration + 10 ms decoding
+├── Nemotron3CoreMLModel.swift          Split compiled Core ML INT8 backend
+├── Nemotron3MLXModel.swift             Native MLX INT8 Transformer backend
 └── SpeechVAD+Protocols.swift          Protocol conformances
 
 Sources/AudioCommon/Protocols.swift    DiarizedSegment, SpeakerEmbeddingModel, SpeakerDiarizationModel
@@ -262,3 +512,39 @@ Sources/AudioCLILib/EmbedSpeakerCommand.swift  `speech embed-speaker` (--engine)
 scripts/convert_wespeaker.py                    MLX weight conversion
 scripts/convert_wespeaker_coreml.py             CoreML weight conversion
 ```
+
+
+## Ultra-Sortformer: eight streaming speaker slots
+
+`aufklarer/Ultra-Sortformer-Diarization-CoreML` hosts the
+[Ultra-Sortformer](https://github.com/mago-research/Ultra-Sortformer)
+8-speaker fine-tune of the same streaming architecture, converted with the
+same pipeline and validated by the same NeMo streaming-parity gate. The
+head widens 4 → 8; chunk shape, cache geometry, and the session protocol
+are unchanged.
+
+```swift
+let session = try await SortformerStreamingSession.fromPretrained(
+    modelId: SortformerDiarizer.ultraStreamingModelId,
+    config: .streamingUltra8)
+```
+
+Benchmark it against the 4-speaker base with the diarization bench:
+
+```bash
+swift run -c release diarization-bench \
+  --manifest suite.tsv \
+  --engines sortformer-session sortformer-session-ultra8
+```
+
+The benchmark groups pooled DER by the number of unique speakers in each
+reference RTTM, so 2-, 3-, and 4-speaker regressions are reported separately in
+both the console table and JSON. See
+[Speaker Diarization Benchmarks](../benchmarks/diarization.md) for the published
+CALLHOME baseline and the local reporting protocol.
+
+The fine-tune trained on synthetic multi-speaker sessions and its authors
+publish real-corpus rankings only for the 4-speaker base, so treat the
+extra capacity as something to validate on your own data: crowded scenes
+are the target, and 2–4 speaker behavior should be regression-checked
+before switching defaults.

@@ -3,6 +3,7 @@ import MLX
 import MLXNN
 import PersonaPlex
 import AudioCommon   // HuggingFaceDownloader, SentencePieceModel
+import MLXCommon
 
 // MARK: - Errors
 
@@ -102,8 +103,7 @@ public final class HibikiTranslateModel: Module {
             cfg = .zero3B
         }
 
-        let model = HibikiTranslateModel(cfg: cfg, modelId: modelId)
-
+        let model = withThrowawayRandomState { HibikiTranslateModel(cfg: cfg, modelId: modelId) }
         progressHandler?(0.7, "Loading model weights...")
         try HibikiWeightLoader.loadWeights(model: model, from: modelDir) { p, msg in
             progressHandler?(0.7 + p * 0.15, msg)

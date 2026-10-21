@@ -107,8 +107,7 @@ public final class OmnilingualASRMLXModel {
         AudioLog.modelLoading.debug("Loaded SentencePiece vocabulary: \(vocabulary.count) pieces")
 
         progressHandler?(0.88, "Building modules...")
-        let model = OmnilingualASRMLXModel(config: mlxConfig, vocabulary: vocabulary)
-
+        let model = withThrowawayRandomState { OmnilingualASRMLXModel(config: mlxConfig, vocabulary: vocabulary) }
         progressHandler?(0.92, "Loading weights...")
         try OmnilingualMLXWeightLoader.loadWeights(into: model, from: resolvedCacheDir)
 

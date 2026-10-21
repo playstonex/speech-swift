@@ -13,6 +13,7 @@ public class StreamingSession {
     private let vocabulary: NemotronVocabulary
     private let melPreprocessor: StreamingMelPreprocessor
     private let rnntDecoder: RNNTGreedyDecoder
+    private let language: String?
     private var wordBoostingState: WordBoostingState?
 
     private var cacheLastChannel: MLMultiArray
@@ -34,6 +35,10 @@ public class StreamingSession {
 
     private var allTokens: [Int] = []
     private var allLogProbs: [Float] = []
+    /// Session-absolute encoder frame at which each token in `allTokens`
+    /// was emitted.
+    private var allTokenFrames: [Int] = []
+    private var encoderFrameOffset = 0
     private var sampleBuffer: [Float] = []
     private var segmentIndex: Int = 0
     internal private(set) var wordBoostingChangedDecisions: Int = 0
@@ -41,13 +46,15 @@ public class StreamingSession {
     init(
         config: NemotronStreamingConfig,
         languageSlot: Int,
+        language: String?,
         encoder: MLModel,
         decoder: MLModel,
         joint: MLModel,
         vocabulary: NemotronVocabulary,
         melPreprocessor: StreamingMelPreprocessor,
         wordBoosting: WordBoostingConfig?,
-        wordBoostingTokenizer: NemotronSentencePieceUnigramTokenizer?
+        wordBoostingTokenizer: NemotronSentencePieceUnigramTokenizer?,
+        languageGuideMask: [Float]?
     ) throws {
         self.config = config
         self.encoder = encoder
@@ -55,6 +62,7 @@ public class StreamingSession {
         self.joint = joint
         self.vocabulary = vocabulary
         self.melPreprocessor = melPreprocessor
+        self.language = language
         let wordBoostingContext = WordBoostingContext(
             config: wordBoosting,
             vocabulary: vocabulary,
@@ -80,16 +88,24 @@ public class StreamingSession {
             shape: [1, numMelBins as NSNumber, preCacheSize as NSNumber], dataType: .float32)
         memset(preCache.dataPointer, 0, numMelBins * preCacheSize * MemoryLayout<Float>.stride)
 
-        // One-hot language mask, only allocated when the encoder accepts it.
+        // Language mask, only allocated when the encoder accepts it. Ordinary
+        // sessions use one-hot; an explicit experimental guide supplies a mix.
         // The English-only bundle's encoder takes no `language_mask` input;
         // multilingual 3.5 takes a 128-slot one-hot.
         if encoder.modelDescription.inputDescriptionsByName.keys.contains("language_mask") {
             let mask = try MLMultiArray(
                 shape: [1, numPrompts as NSNumber], dataType: .float32)
             memset(mask.dataPointer, 0, numPrompts * MemoryLayout<Float>.stride)
-            let clamped = max(0, min(numPrompts - 1, languageSlot))
             let lmPtr = mask.dataPointer.assumingMemoryBound(to: Float.self)
-            lmPtr[clamped] = 1.0
+            if let languageGuideMask {
+                guard languageGuideMask.count == numPrompts else {
+                    throw LanguageGuideError.automaticLanguageUnavailable
+                }
+                for slot in 0..<numPrompts { lmPtr[slot] = languageGuideMask[slot] }
+            } else {
+                let clamped = max(0, min(numPrompts - 1, languageSlot))
+                lmPtr[clamped] = 1.0
+            }
             languageMask = mask
         } else {
             languageMask = nil
@@ -138,6 +154,26 @@ public class StreamingSession {
 
     deinit {
         argmaxBuf.deallocate()
+    }
+
+    /// Sample rate accepted by the incremental session.
+    public var inputSampleRate: Int { config.sampleRate }
+
+    /// Seconds of audio represented by one encoder output frame.
+    public var frameDurationSeconds: Double {
+        Double(config.subsamplingFactor * config.hopLength) / Double(config.sampleRate)
+    }
+
+    /// Cumulative emission-aligned word timings for the whole session so
+    /// far, in seconds of session audio.
+    private func currentTimedWords() -> [TimedWord] {
+        let duration = frameDurationSeconds
+        return vocabulary.decodeTimedWords(allTokens, frames: allTokenFrames).map { piece in
+            TimedWord(
+                text: piece.word,
+                startTime: Double(piece.startFrame) * duration,
+                endTime: Double(piece.endFrame + 1) * duration)
+        }
     }
 
     public func pushAudio(_ samples: [Float]) throws -> [NemotronStreamingASRModel.PartialTranscript] {
@@ -199,7 +235,8 @@ public class StreamingSession {
             isFinal: true,
             confidence: confidence,
             segmentIndex: segmentIndex,
-            wordBoostingChangedDecisions: wordBoostingChangedDecisions
+            wordBoostingChangedDecisions: wordBoostingChangedDecisions,
+            words: currentTimedWords()
         )]
     }
 
@@ -262,6 +299,8 @@ public class StreamingSession {
 
         allTokens.append(contentsOf: result.tokens)
         allLogProbs.append(contentsOf: result.tokenLogProbs)
+        allTokenFrames.append(contentsOf: result.tokenFrames.map { encoderFrameOffset + $0 })
+        encoderFrameOffset += encodedLength
         wordBoostingChangedDecisions += result.wordBoostingChangedDecisions
 
         let text = vocabulary.decode(allTokens)
@@ -280,7 +319,8 @@ public class StreamingSession {
             isFinal: false,
             confidence: confidence,
             segmentIndex: segmentIndex,
-            wordBoostingChangedDecisions: wordBoostingChangedDecisions
+            wordBoostingChangedDecisions: wordBoostingChangedDecisions,
+            words: currentTimedWords()
         )
     }
 
@@ -328,5 +368,31 @@ public class StreamingSession {
                    (targetLength - actualLength) * stride)
         }
         return padded
+    }
+}
+
+extension StreamingSession: StreamingRecognitionSession {
+    public func push(_ chunk: CapturedAudioChunk) throws -> [StreamingRecognitionUpdate] {
+        guard chunk.sampleRate == inputSampleRate else {
+            throw StreamingRecognitionError.sampleRateMismatch(
+                expected: inputSampleRate, actual: chunk.sampleRate)
+        }
+        return try pushAudio(chunk.samples).map(unifiedUpdate)
+    }
+
+    public func finish() throws -> [StreamingRecognitionUpdate] {
+        try finalize().map(unifiedUpdate)
+    }
+
+    private func unifiedUpdate(
+        _ partial: NemotronStreamingASRModel.PartialTranscript
+    ) -> StreamingRecognitionUpdate {
+        StreamingRecognitionUpdate(
+            text: partial.text,
+            isFinal: partial.isFinal,
+            segmentIndex: partial.segmentIndex,
+            confidence: partial.confidence,
+            language: language,
+            words: partial.words)
     }
 }

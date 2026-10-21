@@ -85,7 +85,9 @@ public class ParakeetASRModel {
     /// - Parameters:
     ///   - audio: PCM Float32 audio samples
     ///   - sampleRate: Sample rate of the input audio in Hz
-    ///   - language: Language hint (unused, Parakeet auto-detects from 25 European languages)
+    ///   - language: Language steering — a comma-separated shortlist of ISO codes ("en", or
+    ///     "en,ru" for bilingual). The decoder is masked so it can only emit these languages'
+    ///     tags. Empty/nil (default) lets the model auto-detect natively.
     /// - Returns: Transcribed text
     /// - Throws: `AudioModelError` on CoreML inference failure
     public func transcribeAudio(_ audio: [Float], sampleRate: Int, language: String? = nil) throws -> String {
@@ -110,13 +112,21 @@ public class ParakeetASRModel {
         // has no EnumeratedShapes) transcribe arbitrarily long audio instead
         // of truncating to the tail.
         let maxWindow = supportedMelLengths.last ?? melLength
+        // Language steering: a per-call language wins; otherwise fall back to the persistent
+        // override. Empty/nil both mean auto-detect.
+        let effectiveLanguage = Self.effectiveLanguageHint(
+            perCall: language,
+            override: languageOverride)
+        let masked = vocabulary.maskedLanguageTokenIds(allowing: effectiveLanguage)
         let tInfer0 = CFAbsoluteTimeGetCurrent()
         var tokenIds: [Int] = []
         var tokenLogProbs: [Float] = []
+        var tokenTimes: [Double] = []
 
         if melLength <= maxWindow {
-            let r = try encodeAndDecodeWindow(mel: mel, actualLength: melLength)
+            let r = try encodeAndDecodeWindow(mel: mel, actualLength: melLength, maskedTokenIds: masked)
             tokenIds = r.tokens; tokenLogProbs = r.tokenLogProbs
+            tokenTimes = Self.absoluteTokenTimes(windowStartMelFrame: 0, tokenFrames: r.tokenFrames, config: config)
         } else {
             // The mel buffer is [1, 128, bufferFrames] where bufferFrames
             // (mel.shape[2]) can exceed the valid melLength — extract zero-pads
@@ -128,8 +138,10 @@ public class ParakeetASRModel {
             while start < melLength {
                 let win = min(maxWindow, melLength - start)
                 let windowMel = try sliceMel(mel: mel, start: start, length: win, totalFrames: bufferFrames)
-                let r = try encodeAndDecodeWindow(mel: windowMel, actualLength: win)
+                let r = try encodeAndDecodeWindow(mel: windowMel, actualLength: win, maskedTokenIds: masked)
+                // Decoder frames are window-relative and are converted to absolute seconds.
                 tokenIds += r.tokens; tokenLogProbs += r.tokenLogProbs
+                tokenTimes += Self.absoluteTokenTimes(windowStartMelFrame: start, tokenFrames: r.tokenFrames, config: config)
                 start += maxWindow; windows += 1
             }
             AudioLog.inference.debug(
@@ -145,7 +157,10 @@ public class ParakeetASRModel {
         lastConfidence = tokenLogProbs.isEmpty
             ? 0
             : min(1.0, exp(tokenLogProbs.reduce(0, +) / Float(tokenLogProbs.count)))
-        lastWordConfidences = vocabulary.decodeWords(tokenIds, logProbs: tokenLogProbs)
+        let secondsPerEncoderFrame = Double(config.hopLength * config.subsamplingFactor) / Double(config.sampleRate)
+        lastWordConfidences = vocabulary.decodeWords(
+            tokenIds, logProbs: tokenLogProbs,
+            tokenStartTimes: tokenTimes, frameDuration: secondsPerEncoderFrame)
 
         let melMs = (tMel1 - tMel0) * 1000
         let inferMs = (tInfer1 - tInfer0) * 1000
@@ -155,15 +170,42 @@ public class ParakeetASRModel {
     }
 
     /// Encode one mel window and run TDT greedy decode on it.
-    private func encodeAndDecodeWindow(mel: MLMultiArray, actualLength: Int)
-        throws -> (tokens: [Int], tokenLogProbs: [Float], confidence: Float)
+    private func encodeAndDecodeWindow(mel: MLMultiArray, actualLength: Int, maskedTokenIds: Set<Int> = [])
+        throws -> (tokens: [Int], tokenLogProbs: [Float], tokenFrames: [Int], confidence: Float)
     {
         let (paddedMel, effectiveLength) = try padMelToSupportedShape(mel: mel, actualLength: actualLength)
         let encoderOutput = try runEncoder(mel: paddedMel, length: effectiveLength)
         let encoded = encoderOutput.featureValue(for: "encoded")!.multiArrayValue!
         let encodedLength = encoderOutput.featureValue(for: "encoded_length")!.multiArrayValue![0].intValue
-        let tdtDecoder = TDTGreedyDecoder(config: config, decoder: decoder!, joint: joint!)
+        let tdtDecoder = TDTGreedyDecoder(
+            config: config,
+            decoder: decoder!,
+            joint: joint!,
+            vocabulary: vocabulary,
+            maskedTokenIds: maskedTokenIds
+        )
         return try tdtDecoder.decode(encoded: encoded, encodedLength: encodedLength)
+    }
+
+    /// Persistent language steering applied when a per-call `language` isn't given. Accepts an
+    /// ISO code / shortlist ("en", "en,ru"), or nil for auto-detect.
+    public var languageOverride: String?
+
+    static func effectiveLanguageHint(perCall: String?, override: String?) -> String? {
+        let trimmed = perCall?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : override
+    }
+
+    /// Absolute start time in seconds of each window-relative encoder frame.
+    /// Window starts are mel-frame aligned and an encoder window need not be a
+    /// multiple of the subsampling factor (500 mel frames is 62.5 encoder
+    /// frames), so this counts in mel frames. Rounding a window start to whole
+    /// encoder frames would stamp every later window up to one frame early.
+    static func absoluteTokenTimes(windowStartMelFrame: Int, tokenFrames: [Int], config: ParakeetConfig) -> [Double] {
+        tokenFrames.map {
+            Double(windowStartMelFrame + $0 * config.subsamplingFactor)
+                * Double(config.hopLength) / Double(config.sampleRate)
+        }
     }
 
     /// Copy frames `[start, start+length)` out of a `[1, 128, totalFrames]`
@@ -283,12 +325,19 @@ public class ParakeetASRModel {
     ///
     /// - Parameters:
     ///   - modelId: HuggingFace model identifier
+    ///   - encoderVariant: For multi-encoder repos (e.g.
+    ///     `aufklarer/Parakeet-TDT-v3-CoreML-INT8` after the M5 fix), the
+    ///     shape suffix to pick: `"5s"`, `"15s"`, etc. Selects
+    ///     `encoder_{variant}.mlmodelc`. `nil` (default) picks the repo's
+    ///     `encoder.mlmodelc`, which is what single-shape repos
+    ///     (`-30s`, `-iOS-5s`) ship.
     ///   - progressHandler: Optional callback for download/load progress `(fraction, status)`
     /// - Returns: Initialized model ready for transcription
     public static func fromPretrained(
         modelId: String? = nil,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        encoderVariant: String? = nil,
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> ParakeetASRModel {
         let effectiveModelId: String
@@ -302,7 +351,10 @@ public class ParakeetASRModel {
             #endif
         }
 
-        AudioLog.modelLoading.info("Loading Parakeet model: \(effectiveModelId)")
+        let encoderFileName: String = encoderVariant.map { "encoder_\($0).mlmodelc" }
+            ?? "encoder.mlmodelc"
+
+        AudioLog.modelLoading.info("Loading Parakeet model: \(effectiveModelId) (encoder: \(encoderFileName))")
 
         // Step 1: Get/create cache directory
         let resolvedCacheDir: URL
@@ -320,7 +372,7 @@ public class ParakeetASRModel {
                 modelId: effectiveModelId,
                 to: resolvedCacheDir,
                 additionalFiles: [
-                    "encoder.mlmodelc/**",
+                    "\(encoderFileName)/**",
                     "decoder.mlmodelc/**",
                     "joint.mlmodelc/**",
                     "vocab.json",
@@ -367,24 +419,23 @@ public class ParakeetASRModel {
         //     backend ("Espresso compiled without MPSGraph engine") — any
         //     other choice silently falls back to a partial CPU/GPU mix
         //     that returns 0 tokens for the INT8-quantized encoder.
-        //   iOS device: prefer `.cpuAndNeuralEngine` (3-10× faster +
-        //     more power-efficient when ANE picks up the model), fall
-        //     back to `.cpuAndGPU` if loading throws — some devices
-        //     report `numANECores: Unknown aneSubType` and ANE
-        //     compilation fails for INT8 encoders on those.
-        //   macOS: pin `.cpuAndGPU`. Mac ANE has a different generation
-        //     than iOS A-series and SIGSEGVs when loading this INT8
-        //     encoder (observed in E2E tests). Sticking with the
-        //     established GPU path keeps test runs reliable.
+        //   iOS device + macOS: prefer `.cpuAndNeuralEngine` for the
+        //     3-10× ANE speedup, fall back to `.cpuAndGPU` if loading
+        //     throws. macOS was historically pinned to `.cpuAndGPU`
+        //     because the iOS17-target INT8 encoder SIGSEGV'd in
+        //     bnns::GraphCompile on Mac ANE (issue #313 surfaced this on
+        //     M5). The iOS18-target single-shape encoders shipped in
+        //     `Parakeet-TDT-v3-CoreML-INT8-30s`, `-iOS-5s`, and the
+        //     multi-encoder `Parakeet-TDT-v3-CoreML-INT8` repos fix
+        //     that, so macOS now also tries ANE first.
         #if targetEnvironment(simulator)
         let computeUnitsToTry: [MLComputeUnits] = [.cpuOnly]
-        #elseif os(iOS)
-        let computeUnitsToTry: [MLComputeUnits] = [.cpuAndNeuralEngine, .cpuAndGPU]
         #else
-        let computeUnitsToTry: [MLComputeUnits] = [.cpuAndGPU]
+        let computeUnitsToTry: [MLComputeUnits] = [.cpuAndNeuralEngine, .cpuAndGPU]
         #endif
         let (encoder, encoderUnits) = try loadCoreMLModelWithFallback(
-            name: "encoder", from: resolvedCacheDir, computeUnitsToTry: computeUnitsToTry)
+            name: encoderFileName.replacingOccurrences(of: ".mlmodelc", with: ""),
+            from: resolvedCacheDir, computeUnitsToTry: computeUnitsToTry)
         progressHandler?(0.90, "Loading decoder...")
         let (decoder, _) = try loadCoreMLModelWithFallback(
             name: "decoder", from: resolvedCacheDir, computeUnitsToTry: computeUnitsToTry)

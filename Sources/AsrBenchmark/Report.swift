@@ -1,21 +1,53 @@
 import Foundation
 
+public struct UtteranceResult: Codable, Sendable {
+    public var id: String
+    public var reference: String
+    public var hypothesis: String
+    public var audioSeconds: Double
+    public var elapsedSeconds: Double
+    public var werPercent: Double
+    /// Compute time until the first text piece, with audio supplied without pacing.
+    public var firstTokenSeconds: Double?
+    /// Amount of input audio consumed when the first text piece becomes available.
+    public var firstTokenAudioSeconds: Double?
+    public var frameLatencyP50Seconds: Double? = nil
+    public var frameLatencyP95Seconds: Double? = nil
+    public var flushSeconds: Double? = nil
+}
+
 public struct EngineResult: Codable, Sendable {
     public var engine: String
     public var utterances: Int
-    public var werPercent: Double
+    public var werPercent: Double       // aggregate WER, kept for older dashboards
+    public var werAggregatePercent: Double
+    public var werMeanPercent: Double
+    public var werMedianPercent: Double
+    public var cerPercent: Double       // aggregate CER, kept compact for dashboards
+    public var cerAggregatePercent: Double
+    public var cerMeanPercent: Double
+    public var cerMedianPercent: Double
     public var substitutions: Int
     public var insertions: Int
     public var deletions: Int
     public var referenceWords: Int
+    public var characterErrors: Int
+    public var referenceCharacters: Int
     public var rtfMean: Double          // mean per-utterance RTF after warmup
+    public var rtfMedian: Double
     public var rtfFirst: Double         // first transcription (cold-after-load)
     public var loadElapsedSeconds: Double
     public var audioSecondsTotal: Double
     public var elapsedSecondsTotal: Double
-    public var peakRSSBytes: UInt64     // peak resident memory observed during run
+    public var peakRSSBytes: UInt64     // kernel-recorded resident-memory high-water mark
     public var rssDeltaBytes: Int64     // peak RSS minus pre-load RSS
-    public var throughputXRT: Double    // audio seconds per wall second (= 1 / rtf)
+    public var peakPhysicalFootprintBytes: UInt64 // peak unified-memory pressure
+    public var physicalFootprintDeltaBytes: Int64 // peak footprint minus pre-load
+    public var throughputXRT: Double    // kept for older dashboards (= 1 / mean rtf)
+    public var throughputMeanXRT: Double
+    public var throughputMedianXRT: Double
+    public var throughputOverallXRT: Double
+    public var utteranceResults: [UtteranceResult]? = nil
 }
 
 public struct Report: Codable, Sendable {
@@ -23,6 +55,7 @@ public struct Report: Codable, Sendable {
     public var datasetPath: String
     public var utterances: Int
     public var results: [EngineResult]
+    public var mlxCacheLimitMB: Int? = nil
 }
 
 public enum ReportPrinter {
@@ -34,18 +67,23 @@ public enum ReportPrinter {
         // NOTE: Swift `String` is NOT a C string; `%s` with a Swift String is
         // undefined behavior (typically segfault). Use `%@` for objects, and
         // pad/truncate manually for strings to keep the table clean.
-        s += pad("Engine", 32) + "  " + pad("WER%", 6) + "  " + pad("RTF", 6) + "  " +
-             pad("xRT", 6) + "  " + pad("Load(s)", 7) + "  " + pad("Peak(MB)", 8) + "  " +
-             pad("Δ(MB)", 7) + "\n"
-        s += String(repeating: "-", count: 88) + "\n"
+        s += pad("Engine", 32) + "  " + pad("AggWER", 6) + "  " + pad("AvgWER", 6) + "  " +
+             pad("CER", 6) + "  " + pad("xRT", 7) + "  " + pad("MedxRT", 7) + "  " +
+             pad("Load(s)", 7) + "  " + pad("RSS(MB)", 8) + "  " + pad("RSSΔ", 7) + "  " +
+             pad("Phys(MB)", 8) + "  " + pad("PhysΔ", 7) + "\n"
+        s += String(repeating: "-", count: 130) + "\n"
         for r in report.results {
             s += pad(r.engine, 32) + "  " +
-                 String(format: "%6.2f", r.werPercent) + "  " +
-                 String(format: "%6.3f", r.rtfMean) + "  " +
-                 String(format: "%6.1f", r.throughputXRT) + "  " +
+                 String(format: "%6.2f", r.werAggregatePercent) + "  " +
+                 String(format: "%6.2f", r.werMeanPercent) + "  " +
+                 String(format: "%6.2f", r.cerAggregatePercent) + "  " +
+                 String(format: "%7.1f", r.throughputOverallXRT) + "  " +
+                 String(format: "%7.1f", r.throughputMedianXRT) + "  " +
                  String(format: "%7.1f", r.loadElapsedSeconds) + "  " +
                  String(format: "%8.0f", Double(r.peakRSSBytes) / (1024 * 1024)) + "  " +
-                 String(format: "%+7.0f", Double(r.rssDeltaBytes) / (1024 * 1024)) + "\n"
+                 String(format: "%+7.0f", Double(r.rssDeltaBytes) / (1024 * 1024)) + "  " +
+                 String(format: "%8.0f", Double(r.peakPhysicalFootprintBytes) / (1024 * 1024)) + "  " +
+                 String(format: "%+7.0f", Double(r.physicalFootprintDeltaBytes) / (1024 * 1024)) + "\n"
         }
         return s
     }

@@ -95,6 +95,48 @@ final class ParakeetASRTests: XCTestCase {
         XCTAssertEqual(text, "unbelievable")
     }
 
+    func testVocabularyClassifiesTextByTokenSyntaxRatherThanIdRange() {
+        let vocab = ParakeetVocabulary(idToToken: [
+            0: "<unk>",
+            5: "<|pnc|>",
+            64: "<|en|>",
+            233: "<|spk15|>",
+            234: "0",
+            235: "1",
+            243: "9",
+            244: "<|spltoken0|>",
+            273: "<|spltoken29|>",
+            274: "en",
+            8_000: "<|future_control|>",
+        ])
+
+        // Digit tokens are interleaved with special-token ranges in the shipped vocabulary.
+        XCTAssertTrue(vocab.isTextToken(234))
+        XCTAssertTrue(vocab.isTextToken(235))
+        XCTAssertTrue(vocab.isTextToken(243))
+        XCTAssertTrue(vocab.isTextToken(274))
+
+        for id in [0, 5, 64, 233, 244, 273, 8_000] {
+            XCTAssertFalse(vocab.isTextToken(id), "Token ID \(id) should be special")
+        }
+        XCTAssertFalse(vocab.isTextToken(9_999), "Unknown IDs should not be emitted")
+    }
+
+    func testVocabularyDecodesDigitTokensBelowFormerTextBoundary() {
+        let vocab = ParakeetVocabulary(idToToken: [
+            234: "0",
+            235: "1",
+            236: "2",
+            237: "3",
+            7_863: "\u{2581}",
+        ])
+
+        let textTokenIds = [7_863, 235, 7_863, 236, 7_863, 237]
+            .filter(vocab.isTextToken)
+
+        XCTAssertEqual(vocab.decode(textTokenIds), "1 2 3")
+    }
+
     func testVocabularyEmpty() {
         let vocab = ParakeetVocabulary(idToToken: [:])
         let text = vocab.decode([0, 1, 2])
@@ -180,6 +222,50 @@ final class E2EParakeetASRTests: XCTestCase {
         if let g = guaranteeWord {
             XCTAssertGreaterThan(g.confidence, 0.3, "'guarantee' should have decent confidence")
         }
+
+        // Emission-aligned word times: every word carries a span, spans are
+        // ordered, and they track the speech in the clip (speech runs from
+        // about 5.2 s to 8.4 s of the 20 s fixture) rather than starting at 0.
+        var previousStart = 0.0
+        for w in words {
+            let start = try XCTUnwrap(w.startTime, "'\(w.word)' has no start time")
+            let end = try XCTUnwrap(w.endTime, "'\(w.word)' has no end time")
+            XCTAssertLessThanOrEqual(start, end, "'\(w.word)' ends before it starts")
+            XCTAssertGreaterThanOrEqual(start, previousStart, "'\(w.word)' starts before the previous word")
+            previousStart = start
+        }
+        let duration = Double(audio.count) / 16000
+        let firstStart = try XCTUnwrap(words.first?.startTime)
+        let lastEnd = try XCTUnwrap(words.last?.endTime)
+        XCTAssertGreaterThan(firstStart, 3.0, "First word should start after the leading silence")
+        XCTAssertLessThan(firstStart, 7.0, "First word should start near the speech onset")
+        XCTAssertGreaterThan(lastEnd, 6.0, "Last word should end near the speech end")
+        XCTAssertLessThanOrEqual(lastEnd, duration, "Word times must stay within the audio")
+    }
+
+    /// Word times must stay absolute across encoder windows. Three copies of
+    /// the 20 s fixture make 60 s of audio, so the third utterance sits in a
+    /// later window than the first and must land one clip length after the
+    /// second copy.
+    func testWordTimesStayAbsoluteAcrossWindows() async throws {
+        let model = try await ParakeetASRModel.fromPretrained(modelId: Self.modelId)
+
+        guard let audioURL = Bundle.module.url(forResource: "test_audio", withExtension: "wav") else {
+            throw XCTSkip("test_audio.wav not found in test resources")
+        }
+
+        let clip = try AudioFileLoader.load(url: audioURL, targetSampleRate: 16000)
+        let clipSeconds = Double(clip.count) / 16000
+        let result = model.transcribeWithLanguage(audio: clip + clip + clip, sampleRate: 16000, language: nil)
+        let words = try XCTUnwrap(result.words, "Should return per-word times")
+
+        let firstStart = try XCTUnwrap(words.first?.startTime)
+        let thirdUtterance = words.first { ($0.startTime ?? 0) > 2 * clipSeconds - 4 }
+        let thirdStart = try XCTUnwrap(thirdUtterance?.startTime, "No words found in the third copy of the clip")
+        XCTAssertEqual(thirdStart, firstStart + 2 * clipSeconds, accuracy: 0.5,
+            "Third utterance should start two clip lengths after the first")
+        XCTAssertLessThanOrEqual(try XCTUnwrap(words.last?.endTime), 3 * clipSeconds,
+            "Word times must stay within the audio")
     }
 
     func testGermanTranscription() async throws {
@@ -198,6 +284,30 @@ final class E2EParakeetASRTests: XCTestCase {
         // TTS-generated audio — Parakeet should at least get "guten tag"
         XCTAssertTrue(lower.contains("guten tag"), "Should contain 'guten tag', got: \(result)")
         print("German transcription: \(result)")
+    }
+
+    func testLanguageSteeringPreservesEnglishAndGermanTranscription() async throws {
+        let model = try await ParakeetASRModel.fromPretrained(modelId: Self.modelId)
+
+        guard
+            let englishURL = Bundle.module.url(forResource: "test_audio", withExtension: "wav"),
+            let germanURL = Bundle.module.url(forResource: "test_audio_german", withExtension: "wav")
+        else {
+            throw XCTSkip("Parakeet language-steering fixtures not found")
+        }
+
+        let englishAudio = try AudioFileLoader.load(url: englishURL, targetSampleRate: 16000)
+        let english = try model.transcribeAudio(englishAudio, sampleRate: 16000, language: "en")
+        let englishLower = english.lowercased()
+        XCTAssertTrue(englishLower.contains("guarantee"), "English steering lost 'guarantee': \(english)")
+        XCTAssertTrue(englishLower.contains("replacement"), "English steering lost 'replacement': \(english)")
+        XCTAssertTrue(englishLower.contains("shipped"), "English steering lost 'shipped': \(english)")
+
+        let germanAudio = try AudioFileLoader.load(url: germanURL, targetSampleRate: 16000)
+        let german = try model.transcribeAudio(germanAudio, sampleRate: 16000, language: "de")
+        XCTAssertTrue(
+            german.lowercased().contains("guten tag"),
+            "German steering lost 'guten tag': \(german)")
     }
 
     func testWarmup() async throws {
@@ -371,6 +481,45 @@ final class ParakeetASRUnitTests: XCTestCase {
         XCTAssertEqual(words[0].confidence, 0)
     }
 
+    func testDecodeWordsCarriesTokenTimes() {
+        let vocab = ParakeetVocabulary(idToToken: [
+            0: "\u{2581}hel", 1: "lo", 2: "\u{2581}world",
+        ])
+        // "hello" tokens start at 0.24 s and 0.32 s, and "world" at 0.80 s.
+        // Each token's emission frame spans 80 ms.
+        let words = vocab.decodeWords(
+            [0, 1, 2], logProbs: [-0.1, -0.1, -0.1],
+            tokenStartTimes: [0.24, 0.32, 0.80], frameDuration: 0.08)
+        XCTAssertEqual(words.map(\.word), ["hello", "world"])
+        XCTAssertEqual(words[0].startTime ?? -1, 0.24, accuracy: 1e-9)
+        XCTAssertEqual(words[0].endTime ?? -1, 0.40, accuracy: 1e-9)
+        XCTAssertEqual(words[1].startTime ?? -1, 0.80, accuracy: 1e-9)
+        XCTAssertEqual(words[1].endTime ?? -1, 0.88, accuracy: 1e-9)
+    }
+
+    func testDecodeWordsOmitsTimesWhenTimesMismatch() {
+        let vocab = ParakeetVocabulary(idToToken: [0: "\u{2581}hi", 1: "\u{2581}there"])
+        let words = vocab.decodeWords(
+            [0, 1], logProbs: [-0.1, -0.1], tokenStartTimes: [0.16], frameDuration: 0.08)
+        XCTAssertEqual(words.map(\.word), ["hi", "there"])
+        XCTAssertNil(words[0].startTime)
+        XCTAssertNil(words[0].endTime)
+        XCTAssertNil(words[1].startTime)
+        XCTAssertNil(words[1].endTime)
+    }
+
+    func testAbsoluteTokenTimesUsesMelFrames() {
+        let config = ParakeetConfig()
+        // A second 500-mel-frame window starts at mel frame 500 (5.0 s), which is
+        // 62.5 encoder frames in. Encoder frame 3 of that window is mel frame 524.
+        // The old whole-frame rounding (500 / 8 = 62) would have given 5.20 s here.
+        let times = ParakeetASRModel.absoluteTokenTimes(
+            windowStartMelFrame: 500, tokenFrames: [0, 3], config: config)
+        XCTAssertEqual(times.count, 2)
+        XCTAssertEqual(times[0], 5.0, accuracy: 1e-9)
+        XCTAssertEqual(times[1], 5.24, accuracy: 1e-9)
+    }
+
     func testTranscriptionResultWithWords() {
         let words = [
             WordConfidence(word: "hello", confidence: 0.95),
@@ -445,5 +594,59 @@ final class ParakeetASRUnitTests: XCTestCase {
         // Higher log-prob → higher confidence
         XCTAssertGreaterThan(words[0].confidence, words[1].confidence)
         XCTAssertGreaterThan(words[1].confidence, words[2].confidence)
+    }
+
+    // MARK: - Language-Tag Steering
+
+    func testLanguageTagExtraction() {
+        // Control tokens live at ids 0..23; per-language `<|xx|>` tags start at 24.
+        let vocab = ParakeetVocabulary(idToToken: [
+            0: "<unk>",
+            5: "<|pnc|>",             // control token (id < 24) — not a language
+            16: "<|emo:neutral|>",    // colon — not a language
+            21: "<|unklang|>",        // control token — not a language
+            24: "<|aa|>",
+            26: "<|af|>",
+            100: "<|en|>",
+            150: "<|ru|>",
+            274: "\u{2581}the",       // text token
+        ])
+        let tags = vocab.languageTagIds
+        XCTAssertEqual(tags["en"], 100)
+        XCTAssertEqual(tags["ru"], 150)
+        XCTAssertEqual(tags["aa"], 24)
+        XCTAssertEqual(tags["af"], 26)
+        // Only the four `<|xx|>` tags at id >= 24 qualify; controls and text tokens are excluded.
+        XCTAssertEqual(tags.count, 4)
+        XCTAssertNil(tags["pnc"])      // id 5 < 24
+        XCTAssertNil(tags["unklang"])  // control + too long
+    }
+
+    func testLanguageMaskAllowsOnlyRequestedTags() {
+        let vocab = ParakeetVocabulary(idToToken: [
+            64: "<|en|>",
+            78: "<|de|>",
+            157: "<|ru|>",
+            274: "en",
+        ])
+
+        XCTAssertEqual(vocab.maskedLanguageTokenIds(allowing: "en"), [78, 157])
+        XCTAssertEqual(vocab.maskedLanguageTokenIds(allowing: " EN, de "), [157])
+        XCTAssertEqual(vocab.maskedLanguageTokenIds(allowing: "unknown"), [])
+        XCTAssertEqual(vocab.maskedLanguageTokenIds(allowing: "  "), [])
+        XCTAssertEqual(vocab.maskedLanguageTokenIds(allowing: nil), [])
+    }
+
+    func testPerCallLanguagePrecedesOverrideUnlessItIsBlank() {
+        XCTAssertEqual(
+            ParakeetASRModel.effectiveLanguageHint(perCall: "en", override: "de"),
+            "en")
+        XCTAssertEqual(
+            ParakeetASRModel.effectiveLanguageHint(perCall: "  ", override: "de"),
+            "de")
+        XCTAssertEqual(
+            ParakeetASRModel.effectiveLanguageHint(perCall: nil, override: "de"),
+            "de")
+        XCTAssertNil(ParakeetASRModel.effectiveLanguageHint(perCall: nil, override: nil))
     }
 }

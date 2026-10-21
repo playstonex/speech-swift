@@ -2,6 +2,7 @@ import Foundation
 import MLX
 import MLXNN
 import MLXFast
+import MLXCommon
 
 // MARK: - Differential attention (DiT-Medium uses 5-way QKV split)
 
@@ -19,9 +20,9 @@ public final class DiffSelfAttentionMedium: Module {
     public init(bits: Int, groupSize: Int = 64) {
         let E = DiTMediumDims.embedDim
         let D = DiTMediumDims.headDim
-        self._toQKV.wrappedValue = QuantizedLinear(E, 5 * E, bias: false,
+        self._toQKV.wrappedValue = QuantizedLinear.preQuantized(E, 5 * E, bias: false,
                                                     groupSize: groupSize, bits: bits)
-        self._toOut.wrappedValue = QuantizedLinear(E, E, bias: false,
+        self._toOut.wrappedValue = QuantizedLinear.preQuantized(E, E, bias: false,
                                                     groupSize: groupSize, bits: bits)
         self._qNorm.wrappedValue = RMSNorm(dimensions: D, eps: DiTMediumDims.qkNormEps)
         self._kNorm.wrappedValue = RMSNorm(dimensions: D, eps: DiTMediumDims.qkNormEps)
@@ -74,11 +75,11 @@ public final class DiffCrossAttentionMedium: Module {
     public init(bits: Int, groupSize: Int = 64) {
         let E = DiTMediumDims.embedDim
         let D = DiTMediumDims.headDim
-        self._toQ.wrappedValue = QuantizedLinear(E, 2 * E, bias: false,
+        self._toQ.wrappedValue = QuantizedLinear.preQuantized(E, 2 * E, bias: false,
                                                   groupSize: groupSize, bits: bits)
-        self._toKV.wrappedValue = QuantizedLinear(E, 3 * E, bias: false,
+        self._toKV.wrappedValue = QuantizedLinear.preQuantized(E, 3 * E, bias: false,
                                                    groupSize: groupSize, bits: bits)
-        self._toOut.wrappedValue = QuantizedLinear(E, E, bias: false,
+        self._toOut.wrappedValue = QuantizedLinear.preQuantized(E, E, bias: false,
                                                     groupSize: groupSize, bits: bits)
         self._qNorm.wrappedValue = RMSNorm(dimensions: D, eps: DiTMediumDims.qkNormEps)
         self._kNorm.wrappedValue = RMSNorm(dimensions: D, eps: DiTMediumDims.qkNormEps)
@@ -123,7 +124,7 @@ public final class DiffCrossAttentionMedium: Module {
 public final class GLUWrapMedium: Module {
     @ModuleInfo public var proj: QuantizedLinear
     public init(bits: Int, groupSize: Int = 64) {
-        self._proj.wrappedValue = QuantizedLinear(
+        self._proj.wrappedValue = QuantizedLinear.preQuantized(
             DiTMediumDims.embedDim, 2 * DiTMediumDims.ffInner,
             bias: true, groupSize: groupSize, bits: bits)
         super.init()
@@ -145,7 +146,7 @@ public final class FeedForwardMedium: Module {
         @ModuleInfo public var out: QuantizedLinear
         public init(bits: Int, groupSize: Int = 64) {
             self._glu.wrappedValue = GLUWrapMedium(bits: bits, groupSize: groupSize)
-            self._out.wrappedValue = QuantizedLinear(
+            self._out.wrappedValue = QuantizedLinear.preQuantized(
                 DiTMediumDims.ffInner, DiTMediumDims.embedDim,
                 bias: true, groupSize: groupSize, bits: bits)
             super.init()
@@ -171,7 +172,7 @@ public final class LocalEmbedSeqMedium: Module {
         @ModuleInfo public var outProj: QuantizedLinear
         public init(bits: Int, groupSize: Int = 64) {
             self._inProj.wrappedValue = Linear(DiTMediumDims.localAddCondDim, DiTMediumDims.embedDim, bias: true)
-            self._outProj.wrappedValue = QuantizedLinear(
+            self._outProj.wrappedValue = QuantizedLinear.preQuantized(
                 DiTMediumDims.embedDim, DiTMediumDims.embedDim,
                 bias: true, groupSize: groupSize, bits: bits)
             super.init()
@@ -250,9 +251,9 @@ public final class GlobalCondEmbedderMedium: Module {
     @ModuleInfo public var outProj: QuantizedLinear
     public init(bits: Int, groupSize: Int = 64) {
         let E = DiTMediumDims.embedDim
-        self._inProj.wrappedValue = QuantizedLinear(
+        self._inProj.wrappedValue = QuantizedLinear.preQuantized(
             E, E, bias: true, groupSize: groupSize, bits: bits)
-        self._outProj.wrappedValue = QuantizedLinear(
+        self._outProj.wrappedValue = QuantizedLinear.preQuantized(
             E, 6 * E, bias: true, groupSize: groupSize, bits: bits)
         super.init()
     }
@@ -271,10 +272,10 @@ public final class ContinuousTransformerMedium: Module {
     public init(bits: Int) {
         let E = DiTMediumDims.embedDim
         let groupSize = 64
-        self._projectIn.wrappedValue = QuantizedLinear(
+        self._projectIn.wrappedValue = QuantizedLinear.preQuantized(
             DiTMediumDims.ioChannels, E, bias: false,
             groupSize: groupSize, bits: bits)
-        self._projectOut.wrappedValue = QuantizedLinear(
+        self._projectOut.wrappedValue = QuantizedLinear.preQuantized(
             E, DiTMediumDims.ioChannels, bias: false,
             groupSize: groupSize, bits: bits)
         self._memoryTokens.wrappedValue = MLXArray.zeros([DiTMediumDims.numMemoryTokens, E])
@@ -311,9 +312,9 @@ public final class CondEmbed2Medium: Module {
     @ModuleInfo public var inProj: QuantizedLinear
     @ModuleInfo public var outProj: QuantizedLinear
     public init(inDim: Int, outDim: Int, bias: Bool, bits: Int, groupSize: Int = 64) {
-        self._inProj.wrappedValue = QuantizedLinear(
+        self._inProj.wrappedValue = QuantizedLinear.preQuantized(
             inDim, outDim, bias: bias, groupSize: groupSize, bits: bits)
-        self._outProj.wrappedValue = QuantizedLinear(
+        self._outProj.wrappedValue = QuantizedLinear.preQuantized(
             outDim, outDim, bias: bias, groupSize: groupSize, bits: bits)
         super.init()
     }

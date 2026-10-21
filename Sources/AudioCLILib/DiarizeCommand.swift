@@ -2,6 +2,9 @@ import Foundation
 import ArgumentParser
 import SpeechVAD
 import AudioCommon
+#if canImport(CoreML)
+import CoreML
+#endif
 
 public struct DiarizeCommand: ParsableCommand {
     public static let configuration = CommandConfiguration(
@@ -15,8 +18,35 @@ public struct DiarizeCommand: ParsableCommand {
     @Option(name: .long, help: "Enrollment audio for target speaker extraction")
     public var targetSpeaker: String?
 
-    @Option(name: .long, help: "Diarization engine: pyannote (default) or sortformer")
+    @Option(name: .long, help: "Diarization engine: pyannote (default), community1, sortformer, or nemotron3")
     public var engine: String = "pyannote"
+
+    @Option(name: .long, help: "Nemotron 3 backend: coreml (default) or mlx")
+    public var nemotron3Backend: String = "coreml"
+
+    @Option(name: .long, help: "Optional local Nemotron 3 bundle directory")
+    public var nemotron3Directory: String?
+
+    @Option(name: .long, help: "Nemotron 3 Core ML compute units: ane (default), cpu, gpu, or all")
+    public var nemotron3ComputeUnits: String = "ane"
+
+    @Option(name: .long, help: "Sortformer variant: default (offline, ~125x RTF), balanced (faster first-load, ~hundreds-x RTF), or streaming (low-latency)")
+    public var sortformerVariant: String = "default"
+
+    @Option(name: .long, help: "Sortformer CoreML compute units: ane (default, ANE+CPU), cpu (instant first-load, ~20x RTF), gpu (cpu+gpu), all (every backend; rarely needed)")
+    public var sortformerComputeUnits: String = "ane"
+
+    @Option(name: .long, help: "Community-1 CoreML compute units: ane (default), cpu, gpu, or all")
+    public var community1ComputeUnits: String = "ane"
+
+    @Option(name: .long, help: "Known exact speaker count for Community-1")
+    public var numSpeakers: Int?
+
+    @Option(name: .long, help: "Minimum speaker count for Community-1 (default 1)")
+    public var minSpeakers: Int = 1
+
+    @Option(name: .long, help: "Maximum speaker count for Community-1")
+    public var maxSpeakers: Int?
 
     @Option(name: .long, help: "Speaker embedding engine: mlx (default) or coreml")
     public var embeddingEngine: String = "mlx"
@@ -36,6 +66,15 @@ public struct DiarizeCommand: ParsableCommand {
     @Option(name: .long, help: "Minimum silence between segments in seconds (default 0.15)")
     public var minSilence: Float = 0.15
 
+    @Option(name: .long, help: "Minimum speech segment duration in seconds (default 0.3)")
+    public var minSpeech: Float = 0.3
+
+    @Option(name: .long, help: "Speaker activity onset threshold (default 0.5)")
+    public var onset: Float = 0.5
+
+    @Option(name: .long, help: "Speaker activity offset threshold (default: 0.5 for Sortformer and Nemotron 3; 0.3 for pyannote)")
+    public var offset: Float?
+
     @Option(name: .long, help: "Cosine distance threshold for speaker clustering (default 0.715, lower = fewer speakers)")
     public var clusterThreshold: Float = 0.715
 
@@ -49,7 +88,12 @@ public struct DiarizeCommand: ParsableCommand {
             let duration = formatDuration(audio.count, sampleRate: 16000)
             print("  Loaded \(audio.count) samples (\(duration)s)")
 
+            // Sortformer binarizes at NeMo's symmetric 0.5/0.5 by default; the
+            // pyannote pipeline keeps its tuned 0.3 hysteresis offset.
             let config = DiarizationConfig(
+                onset: onset,
+                offset: offset ?? ((engine == "sortformer" || engine == "nemotron3") ? 0.5 : 0.3),
+                minSpeechDuration: minSpeech,
                 minSilenceDuration: minSilence,
                 clusteringThreshold: clusterThreshold)
 
@@ -59,30 +103,211 @@ public struct DiarizeCommand: ParsableCommand {
                 #else
                 print("Error: Sortformer requires CoreML (not available on this platform).")
                 #endif
+            } else if engine == "nemotron3" {
+                #if canImport(CoreML)
+                try await runNemotron3(audio: audio, config: config)
+                #else
+                print("Error: Nemotron 3 requires an Apple Silicon runtime.")
+                #endif
+            } else if engine == "community1" {
+                #if canImport(CoreML)
+                try await runCommunity1(audio: audio)
+                #else
+                print("Error: Community-1 requires CoreML (not available on this platform).")
+                #endif
             } else if engine == "pyannote" {
                 try await runPyannote(audio: audio, config: config)
             } else {
-                print("Error: unknown engine '\(engine)'. Use 'pyannote' or 'sortformer'.")
+                print("Error: unknown engine '\(engine)'. Use 'pyannote', 'community1', 'sortformer', or 'nemotron3'.")
             }
         }
     }
 
     #if canImport(CoreML)
+    private func runNemotron3(audio: [Float], config: DiarizationConfig) async throws {
+        if targetSpeaker != nil {
+            print("Warning: --target-speaker is not supported with Nemotron 3. Ignoring.")
+        }
+        let backend = nemotron3Backend.lowercased()
+        let diarizer: Nemotron3Diarizer
+        switch backend {
+        case "coreml":
+            let computeUnits: MLComputeUnits
+            switch nemotron3ComputeUnits.lowercased() {
+            case "ane", "cpuandneuralengine", "neuralengine":
+                computeUnits = .cpuAndNeuralEngine
+            case "cpu", "cpuonly":
+                computeUnits = .cpuOnly
+            case "gpu", "cpuandgpu":
+                computeUnits = .cpuAndGPU
+            case "all":
+                computeUnits = .all
+            default:
+                print("Error: unknown Nemotron 3 compute units '\(nemotron3ComputeUnits)'. Use 'ane', 'cpu', 'gpu', or 'all'.")
+                return
+            }
+            if let nemotron3Directory {
+                diarizer = try Nemotron3Diarizer.fromCoreMLDirectory(
+                    URL(fileURLWithPath: nemotron3Directory, isDirectory: true),
+                    computeUnits: computeUnits)
+            } else {
+                diarizer = try await Nemotron3Diarizer.fromCoreMLPretrained(
+                    computeUnits: computeUnits, progressHandler: reportProgress)
+            }
+        case "mlx":
+            if let nemotron3Directory {
+                diarizer = try Nemotron3Diarizer.fromMLXDirectory(
+                    URL(fileURLWithPath: nemotron3Directory, isDirectory: true))
+            } else {
+                diarizer = try await Nemotron3Diarizer.fromMLXPretrained(
+                    progressHandler: reportProgress)
+            }
+        default:
+            print("Error: unknown Nemotron 3 backend '\(nemotron3Backend)'. Use 'coreml' or 'mlx'.")
+            return
+        }
+
+        print("Running diarization (Nemotron 3 \(backend))...")
+        let start = Date()
+        var result = try diarizer.diarize(audio: audio, sampleRate: 16_000, config: config)
+        if vadFilter {
+            let vadModel = try await SileroVADModel.fromPretrained(
+                progressHandler: reportProgress)
+            let speech = vadModel.detectSpeech(audio: audio, sampleRate: 16_000)
+            result = Self.maskedToSpeech(result, speech: speech)
+        }
+        outputResult(result, elapsed: Date().timeIntervalSince(start))
+        if let scoreAgainst {
+            try scoreDER(result: result, refFile: scoreAgainst)
+        }
+    }
+
     private func runSortformer(audio: [Float], config: DiarizationConfig) async throws {
         if targetSpeaker != nil {
             print("Warning: --target-speaker is not supported with Sortformer (no speaker embeddings). Ignoring.")
         }
 
-        print("Loading Sortformer model...")
+        let sortformerConfig: SortformerConfig
+        switch sortformerVariant.lowercased() {
+        case "default":   sortformerConfig = .default
+        case "balanced":  sortformerConfig = .balanced
+        case "streaming": sortformerConfig = .streaming
+        default:
+            print("Error: unknown sortformer variant '\(sortformerVariant)'. Use 'default', 'balanced', or 'streaming'.")
+            return
+        }
+
+        let computeUnits: MLComputeUnits
+        switch sortformerComputeUnits.lowercased() {
+        case "ane", "cpuandneuralengine", "neuralengine":
+            computeUnits = .cpuAndNeuralEngine
+        case "cpu", "cpuonly":
+            computeUnits = .cpuOnly
+        case "gpu", "cpuandgpu":
+            computeUnits = .cpuAndGPU
+        case "all":
+            computeUnits = .all
+        default:
+            print("Error: unknown sortformer compute units '\(sortformerComputeUnits)'. Use 'ane', 'cpu', 'gpu', or 'all'.")
+            return
+        }
+
+        print("Loading Sortformer model (variant: \(sortformerVariant.lowercased()), chunk=\(sortformerConfig.coreMLInputFrames) mel frames, compute units: \(sortformerComputeUnits.lowercased()))...")
         let diarizer = try await SortformerDiarizer.fromPretrained(
+            config: sortformerConfig,
+            computeUnits: computeUnits,
             progressHandler: reportProgress
         )
 
         print("Running diarization (Sortformer)...")
         let start = Date()
-        let result = diarizer.diarize(audio: audio, sampleRate: 16000, config: config)
+        var result = diarizer.diarize(audio: audio, sampleRate: 16000, config: config)
+        if vadFilter {
+            print("Applying Silero VAD filter...")
+            let vadModel = try await SileroVADModel.fromPretrained(progressHandler: reportProgress)
+            let speech = vadModel.detectSpeech(audio: audio, sampleRate: 16000)
+            result = Self.maskedToSpeech(result, speech: speech)
+        }
         let elapsed = Date().timeIntervalSince(start)
 
+        outputResult(result, elapsed: elapsed)
+
+        if let refFile = scoreAgainst {
+            try scoreDER(result: result, refFile: refFile)
+        }
+    }
+
+    /// Keep only diarized segments that mostly overlap Silero speech regions,
+    /// trimmed to the speech bounds — the same rule the pyannote pipeline
+    /// applies when its VAD filter is enabled.
+    static func maskedToSpeech(
+        _ result: DiarizationResult, speech: [SpeechSegment]
+    ) -> DiarizationResult {
+        let minDuration: Float = 0.3
+        var kept: [DiarizedSegment] = []
+        for segment in result.segments {
+            var overlap: Float = 0
+            var trimStart = segment.endTime
+            var trimEnd = segment.startTime
+            for region in speech {
+                let s = max(segment.startTime, region.startTime)
+                let e = min(segment.endTime, region.endTime)
+                if s < e {
+                    overlap += e - s
+                    trimStart = min(trimStart, s)
+                    trimEnd = max(trimEnd, e)
+                }
+            }
+            guard segment.duration > 0,
+                  overlap / segment.duration >= 0.5,
+                  trimEnd - trimStart >= minDuration else { continue }
+            kept.append(DiarizedSegment(
+                startTime: trimStart, endTime: trimEnd, speakerId: segment.speakerId))
+        }
+        return DiarizationResult(
+            segments: kept,
+            numSpeakers: Set(kept.map(\.speakerId)).count,
+            speakerEmbeddings: result.speakerEmbeddings)
+    }
+
+    private func runCommunity1(audio: [Float]) async throws {
+        if targetSpeaker != nil {
+            print("Warning: --target-speaker is not supported with Community-1. Ignoring.")
+        }
+
+        let computeUnits: MLComputeUnits
+        switch community1ComputeUnits.lowercased() {
+        case "ane", "cpuandneuralengine", "neuralengine":
+            computeUnits = .cpuAndNeuralEngine
+        case "cpu", "cpuonly":
+            computeUnits = .cpuOnly
+        case "gpu", "cpuandgpu":
+            computeUnits = .cpuAndGPU
+        case "all":
+            computeUnits = .all
+        default:
+            print("Error: unknown Community-1 compute units '\(community1ComputeUnits)'. Use 'ane', 'cpu', 'gpu', or 'all'.")
+            return
+        }
+
+        print("Loading Community-1 CoreML + native VBx pipeline...")
+        let pipeline = try await Community1DiarizationPipeline.fromPretrained(
+            computeUnits: computeUnits,
+            progressHandler: reportProgress
+        )
+        let bounds = Community1SpeakerBounds(
+            exact: numSpeakers,
+            minimum: minSpeakers,
+            maximum: maxSpeakers
+        )
+        print("Running diarization (Community-1)...")
+        let start = Date()
+        let result = try pipeline.diarize(
+            audio: audio,
+            sampleRate: 16000,
+            speakerBounds: bounds
+        )
+        let elapsed = Date().timeIntervalSince(start)
         outputResult(result, elapsed: elapsed)
 
         if let refFile = scoreAgainst {

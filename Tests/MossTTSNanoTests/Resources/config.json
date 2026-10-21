@@ -1,0 +1,11 @@
+{
+  "model_type": "moss_tts_nano_coreml",
+  "sample_rate": 48000,
+  "channels": 2,
+  "samples_per_frame": 3840,
+  "context_length": 1024,
+  "prefill_limit": 256,
+  "codebooks": 16,
+  "codebook_size": 1024,
+  "hidden_size": 768
+}

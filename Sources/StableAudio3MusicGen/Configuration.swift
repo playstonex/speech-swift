@@ -1,25 +1,27 @@
 import Foundation
 
-/// Stable Audio 3 model variant. Pairs each DiT family (Medium 1.4 B,
-/// Small-Music 50 M, Small-SFX 50 M) with its INT4 or INT8 quantization.
+/// Stable Audio 3 model variant. Pairs a DiT family with its quantization.
+///
+/// Only the two published bundles are listed. The export pipeline can build
+/// INT4 and INT8 for all three families (Medium 1.4 B, Small-Music 50 M,
+/// Small-SFX 50 M), but only these two were ever uploaded, and offering the
+/// rest meant a selectable variant that failed at download time. Add a case
+/// back when its bundle is published.
+///
+/// Note that `.smallMusicInt4` is published but not yet loadable:
+/// `fromPretrained` throws `unsupportedFamily` for everything except the
+/// Medium family, whose DiT/SAME-L path is the only one wired up so far.
+///
 /// All bundles ship the matching SAME codec (SAME-L for Medium, SAME-S for
 /// the Small variants) and T5Gemma text encoder alongside the DiT.
 public enum StableAudio3Variant: String, Sendable, CaseIterable {
     case mediumInt8 = "medium-int8"
-    case mediumInt4 = "medium-int4"
-    case smallMusicInt8 = "small-music-int8"
     case smallMusicInt4 = "small-music-int4"
-    case smallSFXInt8 = "small-sfx-int8"
-    case smallSFXInt4 = "small-sfx-int4"
 
     public var huggingFaceRepoId: String {
         switch self {
         case .mediumInt8:      return "aufklarer/Stable-Audio-3-DiT-Medium-MLX-8bit"
-        case .mediumInt4:      return "aufklarer/Stable-Audio-3-DiT-Medium-MLX-4bit"
-        case .smallMusicInt8:  return "aufklarer/Stable-Audio-3-DiT-Small-Music-MLX-8bit"
         case .smallMusicInt4:  return "aufklarer/Stable-Audio-3-DiT-Small-Music-MLX-4bit"
-        case .smallSFXInt8:    return "aufklarer/Stable-Audio-3-DiT-Small-SFX-MLX-8bit"
-        case .smallSFXInt4:    return "aufklarer/Stable-Audio-3-DiT-Small-SFX-MLX-4bit"
         }
     }
 
@@ -27,8 +29,8 @@ public enum StableAudio3Variant: String, Sendable, CaseIterable {
     /// (its differential attention cancels in FP16); T5Gemma stays FP16.
     public var bits: Int {
         switch self {
-        case .mediumInt8, .smallMusicInt8, .smallSFXInt8: return 8
-        case .mediumInt4, .smallMusicInt4, .smallSFXInt4: return 4
+        case .mediumInt8:     return 8
+        case .smallMusicInt4: return 4
         }
     }
 
@@ -36,9 +38,8 @@ public enum StableAudio3Variant: String, Sendable, CaseIterable {
     /// (medium ⇒ DiT-Medium + SAME-L, small-* ⇒ DiT-Small + SAME-S).
     public var family: StableAudio3Family {
         switch self {
-        case .mediumInt8, .mediumInt4:           return .medium
-        case .smallMusicInt8, .smallMusicInt4:   return .smallMusic
-        case .smallSFXInt8, .smallSFXInt4:       return .smallSFX
+        case .mediumInt8:     return .medium
+        case .smallMusicInt4: return .smallMusic
         }
     }
 }

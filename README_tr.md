@@ -9,7 +9,12 @@ Mac ve iOS için cihaz üzerinde konuşma tanıma, sentezleme ve anlama. Apple S
 **[📚 Tam Dokümantasyon →](https://soniqo.audio)** · **[🤗 HuggingFace Modelleri](https://huggingface.co/aufklarer)** · **[📝 Blog](https://blog.ivan.digital)** · **[💬 Discord](https://discord.gg/TnCryqEMgu)**
 
 <p align="center">
-  <a href="https://www.producthunt.com/products/speech-swift?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-speech-swift" target="_blank" rel="noopener noreferrer"><img alt="speech-swift -  The whole speech stack, on your laptop. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1151422&amp;theme=light&amp;t=1779261593657"></a>
+  <a href="https://formulae.brew.sh/formula/speech"><img src="https://img.shields.io/homebrew/installs/dm/speech.svg?logo=homebrew&amp;label=Homebrew%20installs&amp;color=FBB040" alt="Homebrew installs"></a>
+  <a href="https://github.com/soniqo/speech-swift#built-with-speech-swift"><img src="https://img.shields.io/badge/verified%20public%20repositories-16-2ea44f?logo=github" alt="Verified public repositories: 15"></a>
+</p>
+
+<p align="center">
+  <a href="https://trendshift.io/repositories/24196?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-24196" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/24196/daily?language=Swift" alt="soniqo%2Fspeech-swift | Trendshift" width="250" height="55"/></a>
 </p>
 
 <p align="center">
@@ -21,36 +26,87 @@ Mac ve iOS için cihaz üzerinde konuşma tanıma, sentezleme ve anlama. Apple S
 
 **Kullanım senaryoları:** [Sesli Ajanlar](https://soniqo.audio/voice-agents) · [Transkripsiyon](https://soniqo.audio/transcription) · [Konuşma Üretimi](https://soniqo.audio/speech-generation)
 
+## Speech Swift ile geliştirildi
+
+Speech Swift paketine doğrulanabilir biçimde başvuran 16 açık depo.
+
+[AnythingLLM](https://github.com/Mintplex-Labs/anything-llm) · [Palmier Pro](https://github.com/palmier-io/palmier-pro) · [Anarlog](https://github.com/fastrepl/anarlog) · [ClawdHome](https://github.com/ThinkInAIXYZ/clawdhome) · [Jabber](https://github.com/rselbach/jabber) · [Ora](https://github.com/wuwangzhang1216/ora) · [VoxFlow](https://github.com/xingbofeng/VoxFlow) · [LokalBot](https://github.com/stevyhacker/lokalbot) · [Voicey](https://github.com/jonathanKingston/voicey) · [HushType](https://github.com/felixfu824/HushType) · [DexDictate macOS](https://github.com/westkitty/DexDictate_MacOS) · [Watchtower](https://github.com/aiwatchtowers/watchtower) · [Wishper App](https://github.com/irangareddy/wishper-app) · [FriSpeak](https://github.com/KSubedi/FriSpeak) · [Scribe](https://github.com/itchat/Scribe) · [VoicePen](https://github.com/dot-sk/VoicePen)
+
+**Yetenek grupları:** STT / ASR · Hizalama · TTS · LLM ve çeviri · Speech-to-Speech · İyileştirme / restorasyon · Kaynak ayırma · Müzik / ses üretimi · Wake word, VAD, konuşmacı ayrıştırma ve konuşmacı kimliği
+
+**STT / ASR**
+
 - **[Qwen3-ASR](https://soniqo.audio/guides/transcribe)** — Konuşmadan metne (otomatik konuşma tanıma, 52 dil, MLX + CoreML)
+- **[WhisperASR](docs/models/whisper-asr.md)** — Whisper Large-v3 Turbo speech-to-text via native CoreML runtime (ANE, multilingual)
+- **[MOSS Transcribe Diarize](https://soniqo.audio/tr/guides/moss)** — Model tarafından üretilen konuşmacı etiketleri ve zaman damgalarıyla yerel CoreML/MLX çevrimdışı transkripsiyonu (128K MLX bağlamı; INT5/INT8)
 - **[Parakeet TDT](https://soniqo.audio/guides/parakeet)** — CoreML üzerinden konuşmadan metne (Neural Engine, NVIDIA FastConformer + TDT kod çözücü, 25 dil)
 - **[Omnilingual ASR](https://soniqo.audio/guides/omnilingual)** — Konuşmadan metne (Meta wav2vec2 + CTC, 32 yazı sistemi üzerinde **1.672 dil**, CoreML 300M + MLX 300M/1B/3B/7B)
+- **[Cohere Transcribe 2B](https://soniqo.audio/tr/guides/cohere-transcribe)** — Yerel MLX konuşmadan metne (14 dil, FP16/INT5/INT8)
+- **[Kyutai STT](https://soniqo.audio/tr/guides/kyutai-stt)** — Yerel MLX ile akışlı konuşma tanıma (1B İngilizce/Fransızca; 2.6B İngilizce yapılandırması; 24 kHz Mimi; FP16/INT4/INT8 dışa aktarma) · [INT8](https://huggingface.co/aufklarer/Kyutai-STT-1B-MLX-8bit) (varsayılan) · [INT4](https://huggingface.co/aufklarer/Kyutai-STT-1B-MLX-4bit) · [FP16](https://huggingface.co/aufklarer/Kyutai-STT-1B-MLX-FP16)
+- **[Voxtral Mini 3B](https://soniqo.audio/tr/guides/voxtral)** — Yerel MLX konuşmadan metne (8 dil, FP16/INT5/INT8) — M5 Pro üzerinde RTF 0,074
 - **[Akış Dikte](https://soniqo.audio/guides/dictate)** — Kısmi sonuçlar ve söyleyiş sonu algılaması ile gerçek zamanlı dikte (Parakeet-EOU-120M)
 - **[Nemotron Streaming (Çok dilli)](https://soniqo.audio/guides/nemotron)** — Yerel noktalama ve büyük harf desteğiyle düşük gecikmeli akış ASR (NVIDIA Nemotron-3.5-ASR-Streaming-0.6B, CoreML + MLX, **40 dil-yerel ayarı**)
 - **[Nemotron Streaming (İngilizce)](https://soniqo.audio/guides/nemotron)** — Yerel noktalama ve büyük harf desteğiyle düşük gecikmeli akış ASR (NVIDIA Nemotron-Speech-Streaming-0.6B, CoreML, yalnızca İngilizce, çok dilli varyanttan daha küçük ve hızlı)
+
+**Hizalama**
+
 - **[Qwen3-ForcedAligner](https://soniqo.audio/guides/align)** — Kelime düzeyinde zaman damgası hizalama (ses + metin → zaman damgaları)
+
+**TTS / Konuşma üretimi**
+
 - **[Qwen3-TTS](https://soniqo.audio/guides/speak)** — Metinden konuşmaya (en yüksek kalite, akış, özel konuşmacılar, 10 dil)
 - **[CosyVoice TTS](https://soniqo.audio/guides/cosyvoice)** — Ses klonlama, çok konuşmacılı diyalog, duygu etiketleri ile akış TTS (9 dil)
-- **[VoxCPM2](https://soniqo.audio/speech-generation)** — Ses klonlama ve talimat odaklı ses tasarımı ile 48 kHz stüdyo kalitesinde TTS (2B, MLX bf16/int8/int4, 30 dil)
+- **[VoxCPM2](https://soniqo.audio/speech-generation)** — Ses klonlama ve talimat odaklı ses tasarımı ile 48 kHz stüdyo kalitesinde TTS (2B, MLX bf16/int8, 30 dil)
+- **[IndexTTS2](docs/models/indextts2.md)** — Native MLX voice cloning from a reference voice (IndexTeam IndexTTS-2, 1.5B-class fp16 bundle, speaker/emotion/pause controls)
+- **[F5-TTS](docs/models/f5-tts.md)** — Zero-shot voice cloning from a short reference clip + transcript (SWivid F5-TTS v1 Base, DiT flow matching + Vocos, MLX fp16, 24 kHz, English + Mandarin; non-commercial license)
+- **[Higgs TTS 3](docs/models/higgs-tts.md)** — Conversational TTS with zero-shot voice cloning and inline emotion/style/SFX/prosody tags (Boson Higgs TTS 3, Qwen3-4B backbone, MLX bf16, 24 kHz, 100+ languages; research/non-commercial license)
 - **[Kokoro TTS](https://soniqo.audio/guides/kokoro)** — Cihaz üzerinde TTS (82M, CoreML/Neural Engine, 54 ses, iOS için hazır, 10 dil)
 - **[VibeVoice TTS](https://soniqo.audio/guides/vibevoice)** — Uzun biçimli / çok konuşmacılı TTS (Microsoft VibeVoice Realtime-0.5B + 1.5B, MLX, 90 dakikaya kadar podcast/sesli kitap sentezi, EN/ZH)
-- **[Magpie TTS](https://soniqo.audio/guides/magpie)** — Çok dilli TTS (NVIDIA Magpie-TTS Multilingual 357M, MLX INT4 247 MB / INT8 411 MB veya CoreML INT8 342 MB, 9 dil, 5 hazır konuşmacı, MLX'te akış)
-- **[Qwen3.5-Chat](https://soniqo.audio/guides/chat)** — Cihaz üzerinde LLM sohbet (0.8B, MLX INT4 + CoreML INT8, DeltaNet hibrit, akış token'ları)
+- **[Magpie TTS](https://soniqo.audio/guides/magpie)** — Çok dilli TTS (NVIDIA Magpie-TTS Multilingual 357M, MLX INT8 411 MB veya CoreML INT8 342 MB, 9 dil, 5 hazır konuşmacı, MLX'te akış)
+- **[MOSS-TTS-Nano](https://soniqo.audio/guides/moss-tts-nano)** — Akışlı konuşma sentezi ve döküm gerektirmeyen ses klonlama (CoreML, 48 kHz stereo, 80 ms parçalar, 367,6 MB derlenmiş modeller; macOS 15+ / iOS 18+)
+- **[Supertonic TTS](https://soniqo.audio/guides/supertonic)** — Cihaz üzerinde flow-matching TTS (Supertone Supertonic-3 99M, CoreML/Neural Engine, 31 dil, 10 ses, G2P-free, 44.1 kHz)
+- **[Chatterbox TTS](https://huggingface.co/aufklarer/Chatterbox-Multilingual-MLX-fp16)** — Zero-shot ses klonlama özellikli çok dilli TTS (Resemble AI Chatterbox Multilingual, MLX fp16 ~1,3 GB, 23 çalışma zamanı dili; İbranice için niqqud gerekir, MIT)
+- **[OmniVoice TTS](https://huggingface.co/aufklarer/OmniVoice-MLX-fp16)** — Zero-shot ses klonlama ile otoregresif olmayan difüzyon TTS (k2-fsa OmniVoice, Qwen3 omurgası, MLX fp16 varsayılan / int8 kullanılabilir, 600+ dil, Apache-2.0)
+- **[Indic-Mio](docs/models/indic-mio-tts.md)** — Hindi/Indic TTS with inline emotion markers and optional reference-voice cloning (MLX, 24 kHz)
+- **[CSM (Conversational Speech Model)](docs/models/csm.md)** — Bir referans klip + transkript üzerinden zero-shot ses klonlama ile diyalog odaklı metinden konuşmaya (Sesame CSM-1B, Llama-1B omurgası + Mimi codec, MLX int8/fp16, 24 kHz, İngilizce; Apache-2.0)
+
+**LLM ve çeviri**
+
+- **[Qwen3Chat](https://soniqo.audio/guides/chat)** — Cihaz üzerinde LLM sohbet (Qwen3.5-0.8B MLX/CoreML artı dense Qwen3 4B ve Gemma 4 E2B/E4B MLX arka uçları, akış token'ları)
+- **[FunctionGemma](https://soniqo.audio/guides/function-calls)** — Cihaz üzerinde yapılandırılmış fonksiyon / araç çağrıları için LLM (Gemma 3 270M, CoreML 8-bit paletleme, Neural Engine, ~252 tok/s)
 - **[MADLAD-400](https://soniqo.audio/guides/translate)** — 400+ dil arasında çoktan-çoğa çeviri (3B, MLX INT4 + INT8, T5 v1.1, Apache 2.0)
+- **[GLiNER2.5-Decide](https://soniqo.audio/guides/gliner)** - Verilen etiketlere göre yerel metin sınıflandırma ve varlık çıkarma (DeBERTa-v3-large kodlayıcı, MLX, INT8/FP16/FP32; geliştirme önizlemesi, Apache 2.0)
+- **[Clef-flash](docs/models/clef.md)** — Metin ve izin verilen yanıtlardan yerel kararlar (9B, MLX 4 bit; geliştirme önizlemesi, Apache 2.0)
+
+**Speech-to-Speech ve sesli ajanlar**
+
 - **[Hibiki Zero-3B](https://soniqo.audio/guides/audio-translate)** — Akışlı konuşmadan konuşmaya çeviri (FR/ES/PT/DE → EN, MLX INT4 + INT8, Kyutai Moshi/Mimi yığını, CC-BY-4.0)
 - **[PersonaPlex](https://soniqo.audio/guides/respond)** — Tam çift yönlü (full-duplex) konuşmadan konuşmaya (7B, ses girişi → ses çıkışı, 18 ses ön ayarı)
+- **[VoiceChat 11B](docs/models/voicechat.md)** — Sürekli konuşma girişi, duplex metin/işlev kanalları ve EAR-TTS + nöral codec üzerinden doğrudan konuşma çıkışı sunan native MLX duplex speech-to-speech (INT5/INT8)
+- **[Audio2Face-3D](docs/models/audio2face3d.md)** — Konuşmayla sürülen avatar yüz animasyonu (NVIDIA Audio2Face-3D v2.3 Mark, 301 yüz katsayısı, MLX)
+
+**İyileştirme, ayırma ve ses üretimi**
+
 - **[DeepFilterNet3](https://soniqo.audio/guides/denoise)** — Gerçek zamanlı gürültü bastırma (2.1M parametre, 48 kHz)
+- **[LocalVQE v1.4-AEC](https://soniqo.audio/tr/guides/echo-cancellation)** — Ayrı ve eşzamanlı mikrofon ile oynatma referansı akışlarından akışlı akustik yankı giderme (Core ML + yerel uyarlamalı filtre, 16 kHz, 16 ms algoritmik gecikme)
 - **[Kaynak Ayrıştırma](https://soniqo.audio/guides/separate)** — HTDemucs (Demucs v4) + Open-Unmix ile müzik kaynağı ayrıştırma (UMX-HQ / UMX-L, 4 katman: vokal/davul/bas/diğer, 44,1 kHz stereo)
-- **[MAGNeT](https://soniqo.audio/guides/compose)** — Metinden müziğe üretim (Meta MAGNeT Small 300M / Medium 1.5B, MLX INT4/INT8, 32 kHz mono'da 30 sn klipler, maskelenmiş paralel kod çözme)
+- **[MAGNeT](https://soniqo.audio/guides/compose)** — Metinden müziğe üretim (Meta MAGNeT Small 300M / Medium 1.5B, MLX INT8, 32 kHz mono'da 30 sn klipler, maskelenmiş paralel kod çözme)
+- **[Stable Audio 3](docs/models/stable-audio-3.md)** — Text-to-audio/music generation (Stable Audio 3 Medium, MLX INT8/INT4, 44.1 kHz stereo, variable length)
 - **[FlashSR](https://soniqo.audio/guides/upsample)** — Ses süper çözünürlük (FlashSR ICASSP 2025, MLX, 48 kHz mono, 1 adımda damıtılmış difüzyon, INT4 363 MB / INT8 720 MB)
+
+**Sıra algılama, konuşmacı ayrıştırma ve konuşmacı kimliği**
+
 - **[Uyandırma kelimesi](https://soniqo.audio/guides/wake-word)** — Cihaz üzerinde anahtar kelime tespiti (KWS Zipformer 3M, CoreML, 26× gerçek zaman, yapılandırılabilir anahtar kelime listesi)
 - **[VAD](https://soniqo.audio/guides/vad)** — Ses etkinlik algılama (Silero akış, Pyannote çevrimdışı, FireRedVAD 100+ dil)
-- **[Konuşmacı Ayrımı](https://soniqo.audio/guides/diarize)** — Kim ne zaman konuştu (Pyannote pipeline, Neural Engine üzerinde uçtan uca Sortformer)
-- **[Konuşmacı Gömmeleri](https://soniqo.audio/guides/embed-speaker)** — WeSpeaker ResNet34 (256-boyut), CAM++ (192-boyut)
+- **[Smart Turn](docs/models/smart-turn-v3.md)** — Sesten konuşma sırası sonu algılama (Pipecat Smart Turn v3.2, CoreML, 8M, 23 dil; Silero VAD duraklamalarını doğrular, böylece cümle ortasındaki duraklama sırayı bitirmez)
+- **[Konuşmacı Ayrımı](https://soniqo.audio/guides/diarize)** — Kim ne zaman konuştu (Pyannote pipeline, Neural Engine üzerinde uçtan uca Sortformer) — artık artımlı akış oturumuyla (sabit konuşmacı kimlikleri, 480 ms'de bir güncelleme)
+- **[Konuşmacı Gömmeleri](https://soniqo.audio/guides/embed-speaker)** — WeSpeaker ResNet34 (256-boyut), ReDimNet2-B6 ile adlandırılmış ses kimliği (192-boyut), CAM++ (192-boyut)
 
 Makaleler: [Qwen3-ASR](https://arxiv.org/abs/2601.21337) (Alibaba) · [Qwen3-TTS](https://arxiv.org/abs/2601.15621) (Alibaba) · [Omnilingual ASR](https://arxiv.org/abs/2511.09690) (Meta) · [Parakeet TDT](https://arxiv.org/abs/2304.06795) (NVIDIA) · [CosyVoice 3](https://arxiv.org/abs/2505.17589) (Alibaba) · [Kokoro](https://arxiv.org/abs/2301.01695) (StyleTTS 2) · [PersonaPlex](https://arxiv.org/abs/2602.06053) (NVIDIA) · [Mimi](https://arxiv.org/abs/2410.00037) (Kyutai) · [Hibiki](https://arxiv.org/abs/2502.03382) (Kyutai) · [Sortformer](https://arxiv.org/abs/2409.06656) (NVIDIA)
 
 ## Haberler
 
+- **10 Eyl 2026** — [Apple Silicon'da NVIDIA Nemotron VoiceChat — Araç Çağıran Tam Çift Yönlü Konuşma](https://blog.ivan.digital/nvidia-nemotron-voicechat-on-apple-silicon-full-duplex-speech-with-tools-6165625d55c4)
 - **19 Nis 2026** — [Apple Silicon'da MLX vs CoreML — Doğru Backend'i Seçmek İçin Pratik Bir Rehber](https://blog.ivan.digital/mlx-vs-coreml-on-apple-silicon-a-practical-guide-to-picking-the-right-backend-and-why-you-should-f77ddea7b27a)
 - **20 Mar 2026** — [Tamamen Mac'inizde Çalışan 600M'lik Bir Modelle Whisper Large v3'ü Geçtik](https://blog.ivan.digital/we-beat-whisper-large-v3-with-a-600m-model-running-entirely-on-your-mac-20e6ce191174)
 - **26 Şub 2026** — [Apple Silicon'da Konuşmacı Ayrımı ve Ses Etkinlik Algılama — MLX ile Yerel Swift](https://blog.ivan.digital/speaker-diarization-and-voice-activity-detection-on-apple-silicon-native-swift-with-mlx-92ea0c9aca0f)
@@ -115,7 +171,7 @@ struct DictateView: View {
 
 `SpeechUI` yalnızca `TranscriptionView` (kesin sonuçlar + kısmi sonuçlar) ve `TranscriptionStore` (akış ASR adaptörü) sunar. Ses görselleştirme ve oynatma için AVFoundation kullanın.
 
-Mevcut SPM ürünleri: `Qwen3ASR`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `KokoroTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `MagpieTTS`, `MagpieTTSCoreML`, `MAGNeTMusicGen`, `FlashSR`, `PersonaPlex`, `HibikiTranslate`, `SpeechVAD`, `SpeechEnhancement`, `SourceSeparation`, `Qwen3Chat`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
+Mevcut SPM ürünleri: `Qwen3ASR`, `WhisperASR`, `MossTranscribe`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `CohereTranscribeASR`, `KyutaiSTT`, `VoxtralASR`, `KokoroTTS`, `SupertonicTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `IndexTTS2TTS`, `F5TTS`, `HiggsTTS`, `ChatterboxTTS`, `OmniVoiceTTS`, `IndicMioTTS`, `FishAudioTTS`, `MagpieTTS`, `MagpieTTSCoreML`, `MAGNeTMusicGen`, `StableAudio3MusicGen`, `FlashSR`, `PersonaPlex`, `VoiceChat`, `CSM`, `Audio2Face3D`, `HibikiTranslate`, `MADLADTranslation`, `GLiNER`, `Clef`, `SpeechVAD`, `SpeechLanguageID`, `SpeechWakeWord`, `SpeechEnhancement`, `SpeechRestoration`, `SourceSeparation`, `Qwen3Chat`, `FunctionGemma`, `SpeechCore`, `SpeechUI`, `AudioCommon`.
 
 ## Modeller
 
@@ -124,33 +180,62 @@ Aşağıda kompakt bir görünüm. **[Boyutlar, kuantizasyonlar, indirme URL'ler
 | Model | Görev | Backend'ler | Boyutlar | Diller |
 |-------|------|----------|-------|-----------|
 | [Qwen3-ASR](https://soniqo.audio/guides/transcribe) | Konuşma → Metin | MLX, CoreML (hibrit) | 0.6B, 1.7B | 52 |
+| [WhisperASR](docs/models/whisper-asr.md) | Speech → Text | CoreML (ANE) | Large-v3 Turbo | Multi |
+| [MOSS Transcribe Diarize](https://soniqo.audio/tr/guides/moss) | Konuşma → Metin + konuşmacı zaman damgaları | CoreML / MLX | 0.9B (MLX INT5/INT8; CoreML INT8/FP16) | Çok dilli |
 | [Parakeet TDT](https://soniqo.audio/guides/parakeet) | Konuşma → Metin | CoreML (ANE) | 0.6B | 25 Avrupa dili |
 | [Parakeet EOU](https://soniqo.audio/guides/dictate) | Konuşma → Metin (akış) | CoreML (ANE) | 120M | 25 Avrupa dili |
 | [Nemotron Streaming (Çok dilli)](https://soniqo.audio/guides/nemotron) | Konuşma → Metin (akış, noktalamalı) | CoreML (ANE), MLX | 0.6B | **40** |
 | [Nemotron Streaming (İngilizce)](https://soniqo.audio/guides/nemotron) | Konuşma → Metin (akış, noktalamalı) | CoreML (ANE) | 0.6B | EN |
 | [Omnilingual ASR](https://soniqo.audio/guides/omnilingual) | Konuşma → Metin | CoreML (ANE), MLX | 300M / 1B / 3B / 7B | **[1.672](https://github.com/facebookresearch/omnilingual-asr/blob/main/src/omnilingual_asr/models/wav2vec2_llama/lang_ids.py)** |
+| [Cohere Transcribe 2B](https://soniqo.audio/tr/guides/cohere-transcribe) | Konuşma → Metin | MLX | 2B (FP16 / INT5 / INT8) | 14 |
+| [Kyutai STT](docs/models/kyutai-stt.md) | Konuşma → Metin (akış) | MLX | 1B (FP16 / INT4 / INT8) | EN/FR |
+| [Voxtral Mini 3B](https://soniqo.audio/tr/guides/voxtral) | Konuşma → Metin | MLX | 3B (FP16 / INT5 / INT8) | 8 |
 | [Qwen3-ForcedAligner](https://soniqo.audio/guides/align) | Ses + Metin → Zaman damgaları | MLX, CoreML | 0.6B | Çoklu |
 | [Qwen3-TTS](https://soniqo.audio/guides/speak) | Metin → Konuşma | MLX, CoreML | 0.6B, 1.7B | 10 |
 | [CosyVoice3](https://soniqo.audio/guides/cosyvoice) | Metin → Konuşma | MLX | 0.5B | 9 |
-| [VoxCPM2](https://soniqo.audio/speech-generation) | Metin → Konuşma (48 kHz, ses tasarımı + klonlama) | MLX | 2B (bf16/int8/int4) | 30 |
+| [VoxCPM2](https://soniqo.audio/speech-generation) | Metin → Konuşma (48 kHz, ses tasarımı + klonlama) | MLX | 2B (bf16/int8) | 30 |
+| [IndexTTS2](docs/models/indextts2.md) | Text → Speech (zero-shot voice cloning) | MLX | 1.5B-class (fp16) | EN/ZH |
+| [F5-TTS](docs/models/f5-tts.md) | Text → Speech (zero-shot voice cloning) | MLX | 336M (fp16) | EN/ZH |
+| [Higgs TTS 3](docs/models/higgs-tts.md) | Text → Speech (conversational, zero-shot voice cloning) | MLX | 4B (bf16) | 100+ |
 | [Kokoro-82M](https://soniqo.audio/guides/kokoro) | Metin → Konuşma | CoreML (ANE) | 82M | 10 |
+| [Supertonic-3](https://soniqo.audio/guides/supertonic) | Metin → Konuşma (44.1 kHz, flow-matching, G2P-free) | CoreML (ANE) | 99M | 31 |
 | [VibeVoice Realtime-0.5B](https://soniqo.audio/guides/vibevoice) | Metin → Konuşma (uzun biçimli, çok konuşmacılı) | MLX | 0.5B | EN/ZH |
 | [VibeVoice 1.5B](https://soniqo.audio/guides/vibevoice) | Metin → Konuşma (90 dakikaya kadar podcast) | MLX | 1.5B | EN/ZH |
-| [Magpie-TTS Multilingual](https://soniqo.audio/guides/magpie) | Metin → Konuşma (5 hazır konuşmacı, akış) | MLX / CoreML | 357M (MLX INT4/INT8, CoreML INT8) | 9 (CoreML, JA hariç) |
-| [Qwen3.5-Chat](https://soniqo.audio/guides/chat) | Metin → Metin (LLM) | MLX, CoreML | 0.8B | Çoklu |
+| [Magpie-TTS Multilingual](https://soniqo.audio/guides/magpie) | Metin → Konuşma (5 hazır konuşmacı, akış) | MLX / CoreML | 357M (MLX INT8, CoreML INT8) | 9 (CoreML, JA hariç) |
+| [Chatterbox Multilingual](https://huggingface.co/aufklarer/Chatterbox-Multilingual-MLX-fp16) | Metin → Konuşma (zero-shot klonlama) | MLX | 0.8B (fp16) | 23 (HE için niqqud gerekir) |
+| [OmniVoice](https://huggingface.co/aufklarer/OmniVoice-MLX-fp16) | Metin → Konuşma (NAR difüzyon, zero-shot klonlama) | MLX | 0.8B (fp16 varsayılan / int8) | **600+** |
+| [Indic-Mio](docs/models/indic-mio-tts.md) | Text → Speech (Hindi/Indic, emotion tags, voice cloning) | MLX | fp16 | Hindi / Indic |
+| [Fish Audio S2 Pro](docs/models/fish-audio-s2-pro.md) | Metin → Konuşma (zero-shot klonlama, açık stil işaretleri) | MLX | 0.5B-class (fp16) | Çok dilli |
+| [CSM](docs/models/csm.md) | Metin → Konuşma (diyalog odaklı, zero-shot klonlama) | MLX | 1B (int8 / fp16) | EN |
+| [Qwen3.5 Chat](docs/models/qwen35-chat.md) | Text → Text (LLM) | MLX, CoreML | 0.8B | Multi |
+| [Qwen3 Dense Chat](docs/models/qwen3-dense-chat.md) | Text → Text (LLM) | MLX | 4B | Multi |
+| [Gemma 4 Chat](docs/models/gemma4-chat.md) | Text → Text (LLM) | MLX | E2B / E4B (4-bit) | Multi |
+| [FunctionGemma](docs/models/function-gemma.md) | Metin → Araç çağrıları (LLM) | CoreML | 270M | EN |
 | [MADLAD-400](https://soniqo.audio/guides/translate) | Metin → Metin (Çeviri) | MLX | 3B | **400+** |
+| [GLiNER2.5-Decide](docs/models/gliner.md) | Metin → Etiketler + aralıklar (sınıflandırma, varlık çıkarma) | MLX | 340M | EN |
+| [Clef-flash](docs/models/clef.md) | Metin → İzin verilen yanıtların olasılıkları | MLX | 9B (4-bit) | İngilizce test edildi |
 | [Hibiki Zero-3B](https://soniqo.audio/guides/audio-translate) | Konuşma → Konuşma (Çeviri) | MLX | 3B | FR/ES/PT/DE → EN |
 | [PersonaPlex](https://soniqo.audio/guides/respond) | Konuşma → Konuşma | MLX | 7B | EN |
+| [VoiceChat 11B](docs/models/voicechat.md) | Konuşma → Konuşma + Metin | MLX | 11B (INT5 / INT8) | EN |
+| [Audio2Face-3D](docs/models/audio2face3d.md) | Konuşma → Yüz animasyonu | MLX | v2.3 Mark | Bağımsız |
 | [Silero VAD](https://soniqo.audio/guides/vad) | Ses Etkinlik Algılama | MLX, CoreML | 309K | Bağımsız |
+| [Smart Turn v3.2](https://huggingface.co/aufklarer/Smart-Turn-v3.2-CoreML) | Konuşma Sırası Sonu Algılama | CoreML | 8M | 23 dil |
+| [KWS Zipformer](docs/models/kws-zipformer.md) | Audio → Wake word | CoreML (ANE) | 3M | EN/custom keywords |
 | [Pyannote](https://soniqo.audio/guides/diarize) | VAD + Konuşmacı Ayrımı | MLX | 1.5M | Bağımsız |
-| [Sortformer](https://soniqo.audio/guides/diarize) | Konuşmacı Ayrımı (E2E) | CoreML (ANE) | — | Bağımsız |
+| [Pyannote Community-1](https://huggingface.co/aufklarer/Pyannote-Community-1-CoreML) | Konuşmacı ayrıştırma + konuşmacı gömmeleri | CoreML (ANE) + Swift VBx | 8.35M | Bağımsız |
+| [Sortformer](https://huggingface.co/aufklarer/Sortformer-Diarization-CoreML) | [Konuşmacı Ayrımı (E2E), artımlı akış](https://soniqo.audio/tr/guides/diarize) | CoreML (ANE) | 117M | Bağımsız |
+| [Nemotron 3](docs/models/nemotron3-diarization.md) | Konuşmacı ayrıştırma (en fazla 8 konuşmacı) | CoreML / MLX (INT8) | 100M | Bağımsız |
 | [DeepFilterNet3](https://soniqo.audio/guides/denoise) | Konuşma İyileştirme | CoreML | 2.1M | Bağımsız |
+| [LocalVQE v1.4-AEC](https://soniqo.audio/tr/guides/echo-cancellation) | Akustik Yankı Giderme | CoreML + C++ | 200K + 2,742 | Bağımsız |
 | [Sidon](https://soniqo.audio/guides/restore) | Konuşma Onarımı (gürültü bastırma + yankı giderme, 48 kHz) | CoreML | w2v-BERT 2.0 + DAC (fp16/int8) | Bağımsız |
 | [HTDemucs (Demucs v4)](https://soniqo.audio/guides/separate) | Kaynak Ayrıştırma | MLX | 168M | Bağımsız |
 | [Open-Unmix](https://soniqo.audio/guides/separate) | Kaynak Ayrıştırma | MLX | 8.6M | Bağımsız |
 | [MAGNeT](https://soniqo.audio/guides/compose) | Metin → Müzik (30s @ 32 kHz) | MLX | 300M / 1.5B (int4/int8) | EN prompt'ları |
+| [Stable Audio 3](docs/models/stable-audio-3.md) | Text → Music/audio (44.1 kHz stereo) | MLX | Medium 1.4B (int4/int8) | EN prompts |
 | [FlashSR](https://soniqo.audio/guides/upsample) | Ses süper çözünürlük (48 kHz) | MLX | 363 MB / 720 MB (int4/int8) | Bağımsız |
 | [WeSpeaker](https://soniqo.audio/guides/embed-speaker) | Konuşmacı Gömme | MLX, CoreML | 6.6M | Bağımsız |
+| [SpeechBrain ECAPA VoxLingua107](https://soniqo.audio/tr/guides/language-id) | Dil tanımlama | MLX, CoreML | 21.25M | 107 dil |
+| [ReDimNet2-B6](https://huggingface.co/aufklarer/ReDimNet2-B6-CoreML) | Adlandırılmış Ses Kimliği | CoreML | 12.3M | Bağımsız |
 
 ## Kurulum
 
@@ -166,9 +251,17 @@ Ardından:
 
 ```bash
 speech transcribe recording.wav
+speech transcribe recording.wav --engine cohere
+speech transcribe recording.wav --engine voxtral
+speech transcribe recording.wav --engine moss
+speech transcribe meeting.wav --engine moss --backend mlx
 speech speak "Hello world"
+speech csm "Nice to meet you" --ref-audio voice.wav --ref-text "reference transcript"
 speech translate "Hello, how are you?" --to es
+speech gliner classify "Remind me to call Dad at six PM." --labels create_reminder,send_message,other
+speech clef decide request.json
 speech respond --input question.wav --transcript
+speech voice-chat
 speech-server --port 8080            # yerel HTTP / WebSocket sunucusu (OpenAI-compatible /v1/realtime + /v1/audio/transcriptions)
 ```
 
@@ -186,18 +279,29 @@ Yalnızca ihtiyacınız olanı içe aktarın — her model kendi SPM hedefidir:
 
 ```swift
 import Qwen3ASR             // Konuşma tanıma (MLX)
+import WhisperASR           // Whisper Large-v3 Turbo (CoreML)
+import MossTranscribe       // MOSS transcription with timestamps + speaker labels (CoreML + MLX)
 import ParakeetASR          // Konuşma tanıma (CoreML, batch)
 import ParakeetStreamingASR // Kısmi sonuçlar + EOU ile akış dikte
 import NemotronStreamingASR // Yerel noktalama ile çok dilli akış ASR (0.6B, 40 dil)
 import OmnilingualASR       // 1.672 dil (CoreML + MLX)
+import CohereTranscribeASR  // Cohere Transcribe 2B (MLX, 14 dil)
+import VoxtralASR           // Voxtral Mini 3B (MLX, 8 dil)
 import Qwen3TTS             // Metinden konuşmaya
 import CosyVoiceTTS         // Ses klonlama ile metinden konuşmaya
 import VoxCPM2TTS           // Ses klonlama + ses tasarımı ile 48 kHz TTS (2B)
+import IndexTTS2TTS         // Native MLX voice cloning from reference audio
+import F5TTS                // Zero-shot voice cloning (DiT flow matching + Vocos)
+import HiggsTTS             // Conversational TTS + cloning (Qwen3 backbone, control tags)
+import CSM                  // Conversational Speech Model — text→audio + voice cloning (Sesame CSM-1B, MLX)
 import KokoroTTS            // Metinden konuşmaya (iOS için hazır)
 import VibeVoiceTTS         // Uzun biçimli / çok konuşmacılı TTS (EN/ZH)
 import MagpieTTS            // Çok dilli TTS (NVIDIA Magpie 357M, MLX, 9 dil)
 import MagpieTTSCoreML      // Magpie CoreML backend'i (hibrit CoreML + MLX, 8 dil)
+import FishAudioTTS         // Ses klonlama özellikli deneysel Fish Audio S2 Pro runtime
 import Qwen3Chat            // Cihaz üzerinde LLM sohbet
+import FunctionGemma    // Cihaz üzerinde araç çağrı LLM'i
+import Clef                // Metinden yerel kararlar
 import MADLADTranslation    // 400+ dil arasında çoktan-çoğa çeviri
 import HibikiTranslate      // Akışlı konuşmadan konuşmaya çeviri (FR/ES/PT/DE → EN)
 import PersonaPlex          // Tam çift yönlü konuşmadan konuşmaya
@@ -233,9 +337,18 @@ make build
 - **[DictateDemo](Examples/DictateDemo/)** ([dokümantasyon](https://soniqo.audio/guides/dictate)) — Canlı kısmi sonuçlar, VAD tabanlı söyleyiş sonu algılaması ve tek tıklama kopyalama ile macOS menü çubuğu akış dikte. Arka plan ajanı olarak çalışır (Parakeet-EOU-120M + Silero VAD).
 - **[iOSEchoDemo](Examples/iOSEchoDemo/)** — iOS yankı demosu (Parakeet ASR + Kokoro TTS). Cihaz ve simülatör.
 - **[PersonaPlexDemo](Examples/PersonaPlexDemo/)** — Mikrofon girişi, VAD ve çok turlu bağlam ile konuşmacı sesli asistan. macOS. M2 Max üzerinde RTF ~0.94 (gerçek zamandan hızlı).
+- **[Soniqo VoiceChat CLI](docs/inference/voicechat.md)** ([kılavuz](https://soniqo.audio/tr/guides/speech-to-speech)) — Canlı RNN-T altyazıları, model tabanlı sıra alma, uyarlanabilir EAR-TTS ayrıntısı ve isteğe bağlı MCP araçları sunan yerel tam çift yönlü Nemotron 11B terminal asistanı. Birlikte gelen Apple Reminders yapılandırması yalnızca oluşturma, listeleme ve güncelleme işlemlerini açar.
 - **[SpeechDemo](Examples/SpeechDemo/)** — Sekmeli arayüzde dikte ve TTS sentezi. macOS.
 
-Her demonun README'sinde derleme talimatları yer alır.
+Release derlemesinden sonra VoiceChat hatırlatıcı demosunu çalıştırın:
+
+```bash
+./.build/release/speech voice-chat \
+  --model /path/to/voicechat-mlx-int5 \
+  --mcp-config Examples/VoiceChatMCP/apple-reminders.json
+```
+
+İfade, üretilen telaffuzun bitişi ve modelin çözdüğü araç yaşam döngüsü zaman damgaları için `--debug-timeline` ekleyin. Araç bağımsız değişkenlerini gösterebilir; paylaşılan günlüklerde kullanmayın. Derleme ve çalışma ayrıntıları için uygulama README'lerine veya bağlantılı kılavuza bakın.
 
 ## Kod örnekleri
 
@@ -250,7 +363,7 @@ let model = try await Qwen3ASRModel.fromPretrained()
 let text = model.transcribe(audio: audioSamples, sampleRate: 16000)
 ```
 
-Alternatif backend'ler: [Parakeet TDT](https://soniqo.audio/guides/parakeet) (CoreML, 32× gerçek zaman), [Omnilingual ASR](https://soniqo.audio/guides/omnilingual) (1.672 dil, CoreML veya MLX), [Akış dikte](https://soniqo.audio/guides/dictate) (canlı kısmi sonuçlar).
+Alternatif backend'ler: [WhisperASR](docs/inference/whisper-asr-inference.md) (Whisper Large-v3 Turbo, native CoreML), [Parakeet TDT](https://soniqo.audio/guides/parakeet) (CoreML, 32× gerçek zaman), [Omnilingual ASR](https://soniqo.audio/guides/omnilingual) (1.672 dil, CoreML veya MLX), [Akış dikte](https://soniqo.audio/guides/dictate) (canlı kısmi sonuçlar).
 
 ### Zorunlu Hizalama — [tam rehber →](https://soniqo.audio/guides/align)
 
@@ -279,7 +392,7 @@ let audio = model.synthesize(text: "Hello world", language: "english")
 try WAVWriter.write(samples: audio, sampleRate: 24000, to: outputURL)
 ```
 
-Alternatif TTS motorları: [CosyVoice3](https://soniqo.audio/guides/cosyvoice) (akış + ses klonlama + duygu etiketleri), [Kokoro-82M](https://soniqo.audio/guides/kokoro) (iOS için hazır, 54 ses), [VibeVoice](https://soniqo.audio/guides/vibevoice) (uzun biçimli podcast / çok konuşmacılı, EN/ZH), [Ses klonlama](https://soniqo.audio/guides/voice-cloning).
+Alternatif TTS motorları: [CosyVoice3](https://soniqo.audio/guides/cosyvoice) (akış + ses klonlama + duygu etiketleri), [Kokoro-82M](https://soniqo.audio/guides/kokoro) (iOS için hazır, 54 ses), [VibeVoice](https://soniqo.audio/guides/vibevoice) (uzun biçimli podcast / çok konuşmacılı, EN/ZH), [Fish Audio S2 Pro](docs/inference/fish-audio-s2-pro.md) (deneysel zero-shot klonlama + köşeli parantez stil işaretleri), [Ses klonlama](https://soniqo.audio/guides/voice-cloning).
 
 ### Konuşmadan konuşmaya — [tam rehber →](https://soniqo.audio/guides/respond)
 
@@ -295,12 +408,35 @@ let responseAudio = model.respond(userAudio: userSamples)
 
 ```swift
 import Qwen3Chat
+import FunctionGemma
 
 let chat = try await Qwen35MLXChat.fromPretrained()
 chat.chat(messages: [(.user, "Explain MLX in one sentence")]) { token, isFinal in
     print(token, terminator: "")
 }
 ```
+
+### Clef-flash ile yerel kararlar
+
+Clef’e bir metin ve yanıt listesi verin. Uygulamanızın sonraki adımı seçebilmesi için her yanıtı puanlar. Seçenekleri, doğru/yanlış sorularını ve sıralı puanları destekler. Kütüphaneyi kullanmak için `Clef` SPM ürününü ekleyin.
+
+```swift
+import Clef
+
+let model = try await Clef.fromPretrained()
+let result = try model.decide(
+    state: "Please turn the kitchen lights on.",
+    questions: [
+        ClefQuestion(id: "action", instructions: "Which action was requested?",
+            kind: .choice(["on": "Turn lights on", "off": "Turn lights off", "other": "Other request"]))
+    ])
+print(result.decisions[0].selectedOption)
+print(result.decisions[0].probabilities)
+```
+
+Apple Silicon ve macOS 15+ gerekir. İlk yüklemede yaklaşık 5.3 GB indirilir; çalışma sırasında ek bellek gerekir. Tek bir örneği yüklü tutun ve sırayla kullanın.
+
+[Model](https://huggingface.co/aufklarer/Clef-flash-9B-MLX-4bit) · [Kullanım](docs/inference/clef.md) · [Ölçülen gecikme ve bellek](docs/benchmarks/clef.md)
 
 ### Çeviri — [tam rehber →](https://soniqo.audio/guides/translate)
 
@@ -355,6 +491,18 @@ let denoiser = try await DeepFilterNet3Model.fromPretrained()
 let clean = try denoiser.enhance(audio: noisySamples, sampleRate: 48000)
 ```
 
+### Akustik yankı giderme — [tam kılavuz →](https://soniqo.audio/tr/guides/echo-cancellation)
+
+```swift
+import SpeechEnhancement
+
+let aec = try await LocalVQEEchoCanceller.fromPretrained()
+let cleanMicrophone = try aec.processFrame(
+    microphone: microphoneFrame,
+    reference: playbackReferenceFrame
+)
+```
+
 ### Konuşma Onarımı — [tam rehber →](https://soniqo.audio/guides/restore)
 
 [Sidon](https://arxiv.org/abs/2509.17052) ile birlikte gürültü bastırma **ve** yankı giderme (w2v-BERT 2.0 tahmincisi + DAC vokoderi, Core ML). Genel bir gürültü bastırıcının aksine, Sidon konuşmacı kimliğini koruyacak şekilde eğitilmiştir; bu nedenle TTS öncesinde gürültülü veya yankılı bir ses klonlama referansını temizlemek için çok uygundur. Giriş 16 kHz; çıkış 48 kHz mono'dur.
@@ -402,6 +550,10 @@ speech-server --port 8080
 
 OpenAI uyumlu API'lar dahil olmak üzere her modeli HTTP REST + WebSocket uç noktaları üzerinden sunar: `/v1/realtime` üzerindeki Realtime WebSocket ve `/v1/audio/transcriptions` üzerindeki transkripsiyon REST uç noktası. Bkz. [`Sources/AudioServer/`](Sources/AudioServer/).
 
+## Araştırma makaleleri
+
+- [SALM-Duplex: Efficient and Direct Duplex Modeling for Speech-to-Speech Language Model](https://arxiv.org/abs/2505.15670) — VoiceChat 11B mimari referansı (Interspeech 2025).
+
 ## Mimari
 
 speech-swift, kullanıcıların yalnızca içe aktardıkları şey için bedel ödemesi adına model başına bir SPM hedefine ayrılmıştır. Paylaşılan altyapı `AudioCommon` (protokoller, ses G/Ç, HuggingFace indirici, `SentencePieceModel`) ve `MLXCommon` (ağırlık yükleme, `QuantizedLinear` yardımcıları, `SDPA` çok başlı dikkat yardımcısı) içinde yer alır.
@@ -409,8 +561,9 @@ speech-swift, kullanıcıların yalnızca içe aktardıkları şey için bedel �
 **[Backend'ler, bellek tabloları ve modül haritasıyla tam mimari diyagramı → soniqo.audio/architecture](https://soniqo.audio/architecture)** · **[API referansı → soniqo.audio/api](https://soniqo.audio/api)** · **[Benchmark'lar → soniqo.audio/benchmarks](https://soniqo.audio/benchmarks)**
 
 Yerel dokümantasyon (depo):
-- **Modeller:** [Qwen3-ASR](docs/models/asr-model.md) · [Qwen3-TTS](docs/models/tts-model.md) · [CosyVoice](docs/models/cosyvoice-tts.md) · [Kokoro](docs/models/kokoro-tts.md) · [VibeVoice](docs/models/vibevoice.md) · [Parakeet TDT](docs/models/parakeet-asr.md) · [Parakeet Streaming](docs/models/parakeet-streaming-asr.md) · [Nemotron Streaming](docs/models/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/models/omnilingual-asr.md) · [PersonaPlex](docs/models/personaplex.md) · [Hibiki](docs/models/hibiki.md) · [FireRedVAD](docs/models/fireredvad.md) · [Source Separation](docs/models/source-separation.md) · [HTDemucs](docs/models/htdemucs.md) · [MAGNeT](docs/models/magnet-music-gen.md) · [FlashSR](docs/models/flashsr.md)
-- **Çıkarım:** [Qwen3-ASR](docs/inference/qwen3-asr-inference.md) · [Parakeet TDT](docs/inference/parakeet-asr-inference.md) · [Parakeet Streaming](docs/inference/parakeet-streaming-asr-inference.md) · [Nemotron Streaming](docs/inference/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/inference/omnilingual-asr-inference.md) · [TTS](docs/inference/qwen3-tts-inference.md) · [VibeVoice](docs/inference/vibevoice-inference.md) · [Hibiki](docs/inference/hibiki-inference.md) · [MAGNeT](docs/inference/magnet-music-gen.md) · [FlashSR](docs/inference/flashsr.md) · [Forced Aligner](docs/inference/forced-aligner.md) · [Silero VAD](docs/inference/silero-vad.md) · [Konuşmacı Ayrımı](docs/inference/speaker-diarization.md) · [Konuşma İyileştirme](docs/inference/speech-enhancement.md)
+- **Modeller:** [Qwen3-ASR](docs/models/asr-model.md) · [WhisperASR](docs/models/whisper-asr.md) · [MOSS Transcribe Diarize](docs/models/moss-transcribe-diarize.md) · [Qwen3-TTS](docs/models/tts-model.md) · [CosyVoice](docs/models/cosyvoice-tts.md) · [Kokoro](docs/models/kokoro-tts.md) · [VoxCPM2](docs/models/voxcpm2-tts.md) · [IndexTTS2](docs/models/indextts2.md) · [F5-TTS](docs/models/f5-tts.md) · [Higgs TTS 3](docs/models/higgs-tts.md) · [VibeVoice](docs/models/vibevoice.md) · [Supertonic](docs/models/supertonic-tts.md) · [Chatterbox](docs/models/chatterbox-tts.md) · [Indic-Mio](docs/models/indic-mio-tts.md) · [Fish Audio S2 Pro](docs/models/fish-audio-s2-pro.md) · [Magpie TTS](docs/models/magpie-tts.md) · [Parakeet TDT](docs/models/parakeet-asr.md) · [Parakeet Streaming](docs/models/parakeet-streaming-asr.md) · [Nemotron Streaming](docs/models/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/models/omnilingual-asr.md) · [PersonaPlex](docs/models/personaplex.md) · [VoiceChat](docs/models/voicechat.md) · [CSM](docs/models/csm.md) · [Hibiki](docs/models/hibiki.md) · [MADLAD-400](docs/models/madlad-translation.md) · [GLiNER](docs/models/gliner.md) · [Clef-flash](docs/models/clef.md) · [FunctionGemma](docs/models/function-gemma.md) · [Qwen3.5 Chat](docs/models/qwen35-chat.md) · [Gemma 4 Chat](docs/models/gemma4-chat.md) · [Qwen3 Dense Chat](docs/models/qwen3-dense-chat.md) · [FireRedVAD](docs/models/fireredvad.md) · [Smart Turn v3.2](docs/models/smart-turn-v3.md) · [KWS Zipformer](docs/models/kws-zipformer.md) · [Sidon](docs/models/sidon.md) · [Source Separation](docs/models/source-separation.md) · [HTDemucs](docs/models/htdemucs.md) · [MAGNeT](docs/models/magnet-music-gen.md) · [Stable Audio 3](docs/models/stable-audio-3.md) · [FlashSR](docs/models/flashsr.md) · [Audio2Face-3D](docs/models/audio2face3d.md)
+- **Çıkarım:** [Qwen3-ASR](docs/inference/qwen3-asr-inference.md) · [WhisperASR](docs/inference/whisper-asr-inference.md) · [MOSS Transcribe Diarize](docs/inference/moss-transcribe-diarize.md) · [Parakeet TDT](docs/inference/parakeet-asr-inference.md) · [Parakeet Streaming](docs/inference/parakeet-streaming-asr-inference.md) · [Nemotron Streaming](docs/inference/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/inference/omnilingual-asr-inference.md) · [TTS](docs/inference/qwen3-tts-inference.md) · [VoxCPM2](docs/inference/voxcpm2-inference.md) · [IndexTTS2](docs/inference/indextts2.md) · [F5-TTS](docs/inference/f5-tts.md) · [Higgs TTS 3](docs/inference/higgs-tts.md) · [VibeVoice](docs/inference/vibevoice-inference.md) · [Fish Audio S2 Pro](docs/inference/fish-audio-s2-pro.md) · [Magpie TTS](docs/inference/magpie-tts.md) · [CSM](docs/inference/csm.md) · [Hibiki](docs/inference/hibiki-inference.md) · [MADLAD-400](docs/inference/madlad-translation.md) · [MAGNeT](docs/inference/magnet-music-gen.md) · [Stable Audio 3](docs/inference/stable-audio-3.md) · [FlashSR](docs/inference/flashsr.md) · [Forced Aligner](docs/inference/forced-aligner.md) · [Silero VAD](docs/inference/silero-vad.md) · [Smart Turn](docs/inference/smart-turn.md) · [FireRedVAD](docs/inference/fireredvad.md) · [Wake-word](docs/inference/wake-word.md) · [Speaker Diarization](docs/inference/speaker-diarization.md) · [Speech Enhancement](docs/inference/speech-enhancement.md) · [Sidon](docs/inference/sidon.md) · [Cache/offline](docs/inference/cache-and-offline.md)
+- **Yankı giderme:** [LocalVQE AEC](docs/inference/echo-cancellation.md)
 - **Referans:** [Paylaşılan Protokoller](docs/shared-protocols.md)
 
 ## Önbellek yapılandırması

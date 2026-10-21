@@ -23,7 +23,7 @@ public struct ComposeCommand: ParsableCommand {
     public var engine: String = "sa3"
 
     // MARK: SA3 options
-    @Option(name: .long, help: "SA3 variant: medium-int8 (default) | medium-int4 (Stable Audio 3 Small variants land in a follow-up)")
+    @Option(name: .long, help: "SA3 variant: medium-int8 (default, 1.4 B) | small-music-int4 (50 M)")
     public var sa3Variant: String = "medium-int8"
 
     @Option(name: .long, help: "SA3 output length in seconds (1.0–384.0)")

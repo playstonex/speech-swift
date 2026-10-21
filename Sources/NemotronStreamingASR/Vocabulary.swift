@@ -6,11 +6,38 @@ import AudioCommon
 /// regular BPE tokens; per-language tags (`<en-US>`, `<ar-AR>`, …) and
 /// other angle-bracket special tokens (`<unk>`, `<s>`, `</s>`, `<auto>`)
 /// are stripped during decode so they don't pollute the user-facing text.
+/// One decoded word with its encoder-frame emission span, before the
+/// session converts frames to seconds.
+public struct TimedWordPiece: Sendable, Equatable {
+    public let word: String
+    public let startFrame: Int
+    public let endFrame: Int
+
+    public init(word: String, startFrame: Int, endFrame: Int) {
+        self.word = word
+        self.startFrame = startFrame
+        self.endFrame = endFrame
+    }
+}
+
 public struct NemotronVocabulary: Sendable {
     private let idToToken: [Int: String]
     private let tokenToId: [String: Int]
 
     public var count: Int { idToToken.count }
+
+    /// Exact locale markers from the loaded vocabulary. Other special tokens
+    /// and ordinary angle-bracket text are not language-guide capabilities.
+    var languageTags: [Int: String] {
+        idToToken.reduce(into: [:]) { result, entry in
+            let bytes = Array(entry.value.utf8)
+            guard bytes.count == 7, bytes[0] == 60, bytes[3] == 45, bytes[6] == 62,
+                (97...122).contains(bytes[1]), (97...122).contains(bytes[2]),
+                (65...90).contains(bytes[4]), (65...90).contains(bytes[5])
+            else { return }
+            result[entry.key] = String(entry.value.dropFirst().dropLast())
+        }
+    }
 
     public init(idToToken: [Int: String]) {
         self.idToToken = idToToken
@@ -22,10 +49,23 @@ public struct NemotronVocabulary: Sendable {
         self.tokenToId = reverse
     }
 
-    /// Load vocabulary from vocab.json (format: `{"0": "▁the", "1": "▁a", ...}`).
+    /// Load vocabulary from either the Core ML dictionary form
+    /// (`{"0": "▁the"}`) or the MLX ordered-array form (`["▁the", ...]`).
     public static func load(from url: URL) throws -> NemotronVocabulary {
         let data = try Data(contentsOf: url)
-        let raw = try JSONDecoder().decode([String: String].self, from: data)
+        if let ordered = try? JSONDecoder().decode([String].self, from: data) {
+            return NemotronVocabulary(
+                idToToken: Dictionary(
+                    uniqueKeysWithValues: ordered.enumerated().map {
+                        ($0.offset, $0.element)
+                    }
+                )
+            )
+        }
+        let raw = try JSONDecoder().decode(
+            [String: String].self,
+            from: data
+        )
         var mapping: [Int: String] = [:]
         for (key, value) in raw {
             if let id = Int(key) {
@@ -147,6 +187,50 @@ public struct NemotronVocabulary: Sendable {
             .joined(separator: " ")
         guard !normalized.isEmpty else { return "" }
         return "▁" + normalized.replacingOccurrences(of: " ", with: "▁")
+    }
+
+    /// Decode with per-word emission frames. Mirrors `decodeWords`: special
+    /// tokens are skipped and a `▁`-prefixed piece starts a new word. Frames
+    /// are whatever the caller provides (session-absolute encoder frames);
+    /// `endFrame` is the frame of the word's last token, inclusive. The
+    /// session converts pieces to seconds-based `TimedWord`s.
+    public func decodeTimedWords(
+        _ tokenIds: [Int], frames: [Int]
+    ) -> [TimedWordPiece] {
+        guard tokenIds.count == frames.count else { return [] }
+
+        var words: [TimedWordPiece] = []
+        var currentWord = ""
+        var currentStart = 0
+        var currentEnd = 0
+
+        func flushCurrentWord() {
+            let word = currentWord.replacingOccurrences(of: "▁", with: " ")
+                .trimmingCharacters(in: .whitespaces)
+            if !word.isEmpty {
+                words.append(TimedWordPiece(
+                    word: word, startFrame: currentStart, endFrame: currentEnd))
+            }
+        }
+
+        for (i, id) in tokenIds.enumerated() {
+            guard let token = idToToken[id] else { continue }
+            if Self.isSpecialToken(token) { continue }
+            let isWordStart = token.hasPrefix("▁") && !currentWord.isEmpty
+
+            if isWordStart {
+                flushCurrentWord()
+                currentWord = token
+                currentStart = frames[i]
+                currentEnd = frames[i]
+            } else {
+                if currentWord.isEmpty { currentStart = frames[i] }
+                currentWord += token
+                currentEnd = frames[i]
+            }
+        }
+        flushCurrentWord()
+        return words
     }
 
     /// Decode with per-word confidence scores. Angle-bracket special tokens

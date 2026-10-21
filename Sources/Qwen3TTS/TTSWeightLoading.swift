@@ -3,12 +3,14 @@ import MLXCommon
 import MLX
 import MLXNN
 import AudioCommon
+import os
 
-/// Weight-loading progress logs go to stderr so they don't corrupt a stdout-based
-/// IPC channel (e.g. the speech-studio sidecar's NDJSON protocol).
+/// Route package-owned, non-sensitive weight-loading progress through the
+/// model-loading category. The explicit public privacy keeps this helper's
+/// dynamic string payload from being rendered as `<private>`.
 @inline(__always)
 internal func logLoad(_ message: String) {
-    FileHandle.standardError.write(Data((message + "\n").utf8))
+    AudioLog.modelLoading.debug("\(message, privacy: .public)")
 }
 
 /// Weight loading for TTS components
@@ -19,10 +21,22 @@ public enum TTSWeightLoader {
     public static func loadTalkerAndCodePredictorWeights(
         talker: TalkerModel,
         codePredictor: CodePredictorModel,
-        from directory: URL
+        from directory: URL,
+        castFloat16ToBFloat16: Bool = false
     ) throws {
-        let allWeights = try CommonWeightLoader.loadAllSafetensors(from: directory)
+        var allWeights = try CommonWeightLoader.loadAllSafetensors(from: directory)
         logLoad("Loaded \(allWeights.count) weights from safetensors")
+
+        // The talker's cached incremental decode is numerically unstable in
+        // float16 (prefill is fine; step logits degenerate into repetition
+        // and EOS never fires). Upstream runs bfloat16, and the quantized
+        // bundles keep their float tensors in bfloat16 — only unquantized
+        // float16 exports hit this, so promote them to bfloat16 at load.
+        if castFloat16ToBFloat16 {
+            for (key, value) in allWeights where value.dtype == .float16 {
+                allWeights[key] = value.asType(.bfloat16)
+            }
+        }
 
         // Split into talker and code predictor weights
         var talkerWeights: [String: MLXArray] = [:]
@@ -440,8 +454,14 @@ public enum TTSWeightLoader {
         logLoad("Applied weights to Speaker Encoder")
     }
 
-    /// Apply Conv1d weights from safetensors. Speaker encoder weights are already in
-    /// MLX format [out_channels, kernel_size, in_channels] — no transpose needed.
+    /// Apply Conv1d weights from safetensors. Speaker-encoder exports are NOT
+    /// consistent: some store the convs in MLX layout [out, kernel, in] (e.g. the
+    /// 0.6B-4bit model) and some in PyTorch layout [out, in, kernel] (e.g. the
+    /// 1.7B-bf16 model). An unconditional transpose breaks the former; loading
+    /// verbatim breaks the latter (the first TDNN conv sees a [512,128,5] weight
+    /// against a [B,T,128] input → MLX channel mismatch in==5 vs 128, SIGTRAP).
+    /// So detect the layout by comparing the loaded weight against the conv's
+    /// allocated MLX weight shape and transpose only the PyTorch-layout case.
     private static func applySpeakerConv1dWeights(
         to conv: Conv1d,
         prefix: String,
@@ -449,7 +469,13 @@ public enum TTSWeightLoader {
     ) {
         var params: [String: NestedItem<String, MLXArray>] = [:]
         if let w = weights["\(prefix).weight"] {
-            params["weight"] = .value(w)
+            let mlx = conv.weight.shape  // MLX Conv1d weight is [out, kernel, in]
+            let isPyTorchLayout = w.ndim == 3 && mlx.count == 3
+                && w.shape[0] == mlx[0]
+                && w.shape[1] == mlx[2]   // loaded in-channels  == expected in
+                && w.shape[2] == mlx[1]   // loaded kernel-size  == expected kernel
+                && mlx[1] != mlx[2]       // unambiguous only when kernel != in
+            params["weight"] = .value(isPyTorchLayout ? w.transposed(0, 2, 1) : w)
         }
         if let b = weights["\(prefix).bias"] {
             params["bias"] = .value(b)

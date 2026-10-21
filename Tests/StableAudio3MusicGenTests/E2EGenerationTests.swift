@@ -8,9 +8,15 @@ import MLX
 final class E2EGenerationTests: XCTestCase {
 
     func testGenerateMediumInt8ShortClip() async throws {
-        let model = try await StableAudio3MusicGen.fromPretrained(
-            variant: .mediumInt8,
-            tLatHint: StableAudio3MusicGen.computeTLat(seconds: 2.0))
+        let initializationState = MLXRandom.RandomState(seed: 42)
+        let originalKey = initializationState.innerState()[0]
+        let model = try await withRandomState(initializationState) {
+            try await StableAudio3MusicGen.fromPretrained(
+                variant: .mediumInt8,
+                tLatHint: StableAudio3MusicGen.computeTLat(seconds: 2.0))
+        }
+        XCTAssertTrue(initializationState.innerState()[0] === originalKey,
+                      "Every component must isolate its discarded initialization draws")
 
         let (left, right) = model.generate(
             prompt: "lofi house loop",

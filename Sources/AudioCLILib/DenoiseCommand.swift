@@ -15,8 +15,11 @@ public struct DenoiseCommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Output file path (default: input_clean.wav)")
     public var output: String?
 
-    @Option(name: .shortAndLong, help: "Model ID on HuggingFace")
-    public var model: String = SpeechEnhancer.defaultModelId
+    @Option(name: .shortAndLong, help: "Model ID on HuggingFace (default: per --engine)")
+    public var model: String?
+
+    @Option(name: .long, help: "Inference engine: coreml (Neural Engine) or mlx (GPU)")
+    public var engine: String = "coreml"
 
     @Option(name: .long, help: "Window size in seconds when auto-chunking long inputs (default: 45.0)")
     public var chunkSeconds: Double = 45.0
@@ -37,9 +40,16 @@ public struct DenoiseCommand: ParsableCommand {
             let duration = Double(audio.count) / 48000.0
             print("  Loaded \(audio.count) samples (\(String(format: "%.2f", duration))s @ 48kHz)")
 
-            print("Loading DeepFilterNet3 model: \(model)")
+            guard let resolvedEngine = SpeechEnhancerEngine(rawValue: engine.lowercased()) else {
+                throw ValidationError("Unknown engine '\(engine)' — expected 'coreml' or 'mlx'")
+            }
+            let resolvedModel = model
+                ?? (resolvedEngine == .mlx
+                    ? SpeechEnhancer.defaultMLXModelId : SpeechEnhancer.defaultModelId)
+            print("Loading DeepFilterNet3 model: \(resolvedModel) (\(resolvedEngine.rawValue))")
             let enhancer = try await SpeechEnhancer.fromPretrained(
-                modelId: model,
+                modelId: resolvedModel,
+                engine: resolvedEngine,
                 progressHandler: reportProgress
             )
 

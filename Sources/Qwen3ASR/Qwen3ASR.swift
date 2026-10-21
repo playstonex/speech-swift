@@ -105,12 +105,28 @@ public struct Qwen3ASRTokens: Sendable {
     public static let imStartTokenId = 151644      // <|im_start|>
     public static let imEndTokenId = 151645        // <|im_end|>
     public static let timestampTokenId = 151705    // <|timestamp|>
+    public static let asrTextTokenId = 151704      // <asr_text>
+    public static let newlineTokenId = 198         // \n
+    public static let systemTokenId = 8948         // system
+    public static let userTokenId = 872            // user
+    public static let assistantTokenId = 77091     // assistant
 }
 
 /// Main Qwen3-ASR model for speech recognition.
 ///
 /// - Warning: This class is not thread-safe. Create separate instances for concurrent use.
 public class Qwen3ASRModel {
+    /// Default HuggingFace model identifier — the 0.6B 4-bit MLX bundle.
+    /// Mirrors `ASRModelSize.small.modelId`; kept as a top-level constant so
+    /// the AudioServer registry and other call sites have a single SSOT.
+    public static let defaultModelId = "aufklarer/Qwen3-ASR-0.6B-MLX-4bit"
+
+    /// 1.7B 8-bit MLX bundle — higher-capacity sibling of the default.
+    public static let largeModelId = "aufklarer/Qwen3-ASR-1.7B-MLX-8bit"
+
+    /// CoreML-packaged variant for Neural Engine deployment.
+    public static let coreMLModelId = "aufklarer/Qwen3-ASR-CoreML"
+
     public let audioEncoder: Qwen3AudioEncoder
     public let featureExtractor: WhisperFeatureExtractor
     public var textDecoder: QuantizedTextModel?
@@ -124,12 +140,9 @@ public class Qwen3ASRModel {
     /// Whether the model weights are loaded and ready for inference.
     var _isLoaded = true
 
-    /// MLX cache limit captured at load time for the .large variant. Stored
-    /// per-instance so `unload()` can restore it — preventing the 4 GB cap
-    /// from leaking into co-loaded models (PersonaPlex loads ASR + LM + TTS
-    /// in the same process). `nil` when no cap was applied (small variant
-    /// or already-capped global state).
-    var savedMLXCacheLimit: Int?
+    /// Registration in the shared cache-budget coordinator. Released by
+    /// `unload()` or automatically when this model is destroyed.
+    var mlxCacheLimitLease: Qwen3ASRCacheLimitCoordinator.Lease?
 
     init(
         audioConfig: Qwen3AudioEncoderConfig = .default,
@@ -152,6 +165,93 @@ public class Qwen3ASRModel {
         self.textDecoder = QuantizedTextModel(config: textConfig)
     }
 
+    // MARK: - Batched Transcription
+
+    /// Transcribe multiple audio chunks in a single batched decoder pass.
+    ///
+    /// For greedy decoding (default options) this amortises decoder weight
+    /// loads across `B` independent token streams on the MLX/GPU backend.
+    ///
+    /// Non-greedy options fall back to serial per-chunk decoding.
+    public func transcribeBatch(
+        audios: [[Float]],
+        sampleRate: Int = 16000,
+        language: String? = nil,
+        maxTokens: Int? = nil,
+        context: String? = nil,
+        options: Qwen3DecodingOptions = Qwen3DecodingOptions()
+    ) -> [String] {
+        if audios.isEmpty { return [] }
+
+        let resolvedOptions = Self.resolveBatchDecodingOptions(
+            language: language, maxTokens: maxTokens, context: context, options: options
+        )
+
+        guard Self.isGreedyFastPath(resolvedOptions) else {
+            return audios.map { transcribe(audio: $0, sampleRate: sampleRate, options: resolvedOptions) }
+        }
+
+        guard let textDecoder = textDecoder else {
+            return audios.map { transcribe(audio: $0, sampleRate: sampleRate, options: resolvedOptions) }
+        }
+
+        let embedsPairs: [(embeds: MLXArray, seqLen: Int)] = audios.map { audio in
+            let mel = featureExtractor.process(audio, sampleRate: sampleRate)
+            let batched = mel.expandedDimensions(axis: 0)
+            var ae = audioEncoder(batched)
+            ae = ae.expandedDimensions(axis: 0)
+            return (ae, ae.dim(1))
+        }
+
+        guard Self.isExperimentalBatchedDecodeEnabled() else {
+            return generateTextBatchedBulkSync(
+                audioEmbedsBatch: embedsPairs,
+                textDecoder: textDecoder,
+                language: resolvedOptions.language,
+                maxTokens: resolvedOptions.maxTokens,
+                context: resolvedOptions.context
+            )
+        }
+
+        // Bucket by encoder sequence length. The batched decoder currently
+        // requires equal-length prefill so cache offsets stay uniform across
+        // rows; mixed-duration inputs are split into independent buckets and
+        // restored to the caller's original order.
+        let seqLenBatches = Self.makeSeqLenBatches(
+            seqLens: embedsPairs.map(\.seqLen),
+            maxBatchSize: embedsPairs.count
+        )
+        var results = Array(repeating: "", count: embedsPairs.count)
+        for indices in seqLenBatches {
+            if indices.count == 1, let index = indices.first {
+                let pair = embedsPairs[index]
+                results[index] = generateText(
+                    audioEmbeds: pair.embeds,
+                    textDecoder: textDecoder,
+                    language: resolvedOptions.language,
+                    maxTokens: resolvedOptions.maxTokens,
+                    context: resolvedOptions.context,
+                    decodingOptions: resolvedOptions,
+                    checkCancellation: {}
+                )
+                continue
+            }
+
+            let bucketPairs = indices.map { embedsPairs[$0] }
+            let bucketResults = generateTextBatched(
+                audioEmbedsBatch: bucketPairs,
+                textDecoder: textDecoder,
+                language: resolvedOptions.language,
+                maxTokens: resolvedOptions.maxTokens,
+                context: resolvedOptions.context
+            )
+            for (index, text) in zip(indices, bucketResults) {
+                results[index] = text
+            }
+        }
+        return results
+    }
+
     /// Transcribe audio to text with explicit decoder options.
     ///
     /// The legacy `transcribe(audio:sampleRate:language:maxTokens:context:)`
@@ -168,12 +268,68 @@ public class Qwen3ASRModel {
         sampleRate: Int = 16000,
         options: Qwen3DecodingOptions
     ) -> String {
+        transcribe(
+            audio: audio, sampleRate: sampleRate, options: options,
+            checkCancellation: {})
+    }
+
+    /// Throwing entry point that validates model readiness and cooperatively
+    /// observes cancellation using the native cancellation-aware decoder.
+    public func transcribeThrowing(
+        audio: [Float],
+        sampleRate: Int = 16000,
+        options: Qwen3DecodingOptions = Qwen3DecodingOptions()
+    ) throws -> String {
+        try Task.checkCancellation()
+        guard _isLoaded, textDecoder != nil, tokenizer != nil else {
+            throw AudioModelError.inferenceFailed(operation: "transcribe", reason: "Model is not loaded")
+        }
+        return try transcribeCheckingCancellation(
+            audio: audio, sampleRate: sampleRate, options: options)
+    }
+
+    /// Cancellation-aware transcription for async callers.
+    ///
+    /// Decodes exactly like `transcribe(audio:sampleRate:options:)` but
+    /// observes Swift task cancellation at cooperative checkpoints: before
+    /// feature extraction, before the audio encoder, before decoder prefill,
+    /// and before every decoder step on both the greedy and the
+    /// repetition-aware paths. Once cancellation is observed, this throws
+    /// `CancellationError` instead of returning a partial transcript. MLX
+    /// work already in flight completes first, so cancellation latency is
+    /// bounded by one encoder/prefill evaluation or one token step.
+    ///
+    /// The synchronous `transcribe` overloads keep their non-throwing
+    /// contract and are not task-cancellation entry points. Use this method
+    /// from request-scoped tasks (HTTP handlers, WebSocket sessions, UI
+    /// tasks) where an abandoned request should release the GPU promptly.
+    public func transcribeCheckingCancellation(
+        audio: [Float],
+        sampleRate: Int = 16000,
+        options: Qwen3DecodingOptions = Qwen3DecodingOptions()
+    ) throws -> String {
+        try transcribe(
+            audio: audio, sampleRate: sampleRate, options: options,
+            checkCancellation: { try Task.checkCancellation() })
+    }
+
+    /// Shared implementation behind the synchronous and the
+    /// cancellation-aware entry points. `checkCancellation` is invoked at
+    /// each cooperative checkpoint; the synchronous API passes a no-op.
+    private func transcribe(
+        audio: [Float],
+        sampleRate: Int,
+        options: Qwen3DecodingOptions,
+        checkCancellation: () throws -> Void
+    ) rethrows -> String {
+        try checkCancellation()
         let durationSeconds = sampleRate > 0
             ? Double(audio.count) / Double(sampleRate)
             : 0.0
         let effective = options.adaptedFor(audioDurationSeconds: durationSeconds)
 
         let melFeatures = featureExtractor.process(audio, sampleRate: sampleRate)
+        try checkCancellation()
         let batchedFeatures = melFeatures.expandedDimensions(axis: 0)
         var audioEmbeds = audioEncoder(batchedFeatures)
         audioEmbeds = audioEmbeds.expandedDimensions(axis: 0)
@@ -181,16 +337,16 @@ public class Qwen3ASRModel {
             let shape = audioEmbeds.shape
             return "[Audio encoded: \(shape)] - Text decoder not loaded"
         }
-        let result = generateText(
+        defer { Memory.clearCache() }
+        return try generateText(
             audioEmbeds: audioEmbeds,
             textDecoder: textDecoder,
             language: effective.language,
             maxTokens: effective.maxTokens,
             context: effective.context,
-            decodingOptions: effective
+            decodingOptions: effective,
+            checkCancellation: checkCancellation
         )
-        Memory.clearCache()
-        return result
     }
 
     /// Transcribe audio to text
@@ -245,7 +401,8 @@ public class Qwen3ASRModel {
                 language: effective.language,
                 maxTokens: effective.maxTokens,
                 context: effective.context,
-                decodingOptions: effective
+                decodingOptions: effective,
+                checkCancellation: {}
             )
         }
         return generateText(
@@ -253,7 +410,8 @@ public class Qwen3ASRModel {
             textDecoder: textDecoder,
             language: effective.language,
             maxTokens: effective.maxTokens,
-            context: effective.context
+            context: effective.context,
+            checkCancellation: {}
         )
     }
 
@@ -264,67 +422,82 @@ public class Qwen3ASRModel {
     /// optional temperature sampling before each token selection. With the
     /// default `Qwen3DecodingOptions()` (repetition=1.0, no-repeat=0,
     /// temperature=0) behaviour is bit-identical to plain greedy.
+    ///
+    /// `checkCancellation` is invoked before decoder prefill and forwarded
+    /// to the decoder loop, which invokes it before each token's work is
+    /// submitted. Synchronous callers pass a no-op closure.
+    ///
+    /// Single-input transcription entry points share this decoder. Clear
+    /// reusable MLX buffers on return or cancellation so a long-running
+    /// process releases its scratch pool between requests.
     func generateText(
         audioEmbeds: MLXArray,
         textDecoder: QuantizedTextModel,
         language: String?,
         maxTokens: Int,
         context: String? = nil,
-        decodingOptions: Qwen3DecodingOptions = Qwen3DecodingOptions()
-    ) -> String {
-        // Special token IDs
-        let imStartId = 151644
-        let imEndId = 151645
-        let audioStartId = 151669
-        let audioEndId = 151670
-        let audioPadId = 151676
-        let asrTextId = 151704
-        let newlineId = 198
+        decodingOptions: Qwen3DecodingOptions = Qwen3DecodingOptions(),
+        checkCancellation: () throws -> Void
+    ) rethrows -> String {
+        defer {
+            // Speculative greedy work can still be running at EOS or
+            // cancellation. Wait for its buffers to become reusable before
+            // clearing the pool, after the decoder's local arrays are gone.
+            StreamOrDevice.default.stream.synchronize()
+            Memory.clearCache()
+        }
+        return try generateTextImpl(
+            audioEmbeds: audioEmbeds, textDecoder: textDecoder,
+            language: language, maxTokens: maxTokens, context: context,
+            decodingOptions: decodingOptions, checkCancellation: checkCancellation)
+    }
 
-        // Token IDs for "system", "user", "assistant"
-        let systemId = 8948
-        let userId = 872
-        let assistantId = 77091
-
-        // Number of audio tokens (from audio encoder output)
+    private func generateTextImpl(
+        audioEmbeds: MLXArray,
+        textDecoder: QuantizedTextModel,
+        language: String?,
+        maxTokens: Int,
+        context: String?,
+        decodingOptions: Qwen3DecodingOptions,
+        checkCancellation: () throws -> Void
+    ) rethrows -> String {
+        let T = Qwen3ASRTokens.self
         let numAudioTokens = audioEmbeds.dim(1)
-
-        // Build input_ids array with audio_pad placeholder tokens
         var inputIds: [Int32] = []
 
         // <|im_start|>system\n{context}<|im_end|>\n
-        inputIds.append(contentsOf: [imStartId, systemId, newlineId].map { Int32($0) })
+        inputIds.append(contentsOf: [T.imStartTokenId, T.systemTokenId, T.newlineTokenId].map { Int32($0) })
         if let context = context, !context.isEmpty, let tokenizer = tokenizer {
             let contextTokens = tokenizer.encode(context)
             inputIds.append(contentsOf: contextTokens.map { Int32($0) })
         }
-        inputIds.append(contentsOf: [imEndId, newlineId].map { Int32($0) })
+        inputIds.append(contentsOf: [T.imEndTokenId, T.newlineTokenId].map { Int32($0) })
 
         // <|im_start|>user\n<|audio_start|>
-        inputIds.append(contentsOf: [imStartId, userId, newlineId, audioStartId].map { Int32($0) })
+        inputIds.append(contentsOf: [T.imStartTokenId, T.userTokenId, T.newlineTokenId, T.audioStartTokenId].map { Int32($0) })
 
         // <|audio_pad|> * numAudioTokens (placeholder tokens that will be replaced)
         let audioStartIndex = inputIds.count
         for _ in 0..<numAudioTokens {
-            inputIds.append(Int32(audioPadId))
+            inputIds.append(Int32(T.audioTokenId))
         }
         let audioEndIndex = inputIds.count
 
         // <|audio_end|><|im_end|>\n
-        inputIds.append(contentsOf: [audioEndId, imEndId, newlineId].map { Int32($0) })
+        inputIds.append(contentsOf: [T.audioEndTokenId, T.imEndTokenId, T.newlineTokenId].map { Int32($0) })
 
         // <|im_start|>assistant\n
-        inputIds.append(contentsOf: [imStartId, assistantId, newlineId].map { Int32($0) })
+        inputIds.append(contentsOf: [T.imStartTokenId, T.assistantTokenId, T.newlineTokenId].map { Int32($0) })
 
-        // Add language hint if specified, then always add <|asr_text|> marker.
-        // Without <|asr_text|>, the model doesn't know it should transcribe.
-        // Without language hint, the model auto-detects and prepends "language XX" to output.
+        // Add language hint if specified, then always add <asr_text>. Without
+        // <asr_text>, the model doesn't know it should transcribe. Without a
+        // language hint, the model auto-detects and prepends "language XX".
         if let lang = language, let tokenizer = tokenizer {
             let langPrefix = "language \(lang)"
             let langTokens = tokenizer.encode(langPrefix)
             inputIds.append(contentsOf: langTokens.map { Int32($0) })
         }
-        inputIds.append(Int32(asrTextId))
+        inputIds.append(Int32(T.asrTextTokenId))
 
         // Get text embeddings for all tokens
         let inputIdsTensor = MLXArray(inputIds).expandedDimensions(axis: 0)
@@ -341,6 +514,7 @@ public class Qwen3ASRModel {
         var cache: [(MLXArray, MLXArray)]? = nil
 
         // First pass: process the full input embeddings
+        try checkCancellation()
         let (hiddenStates, newCache) = textDecoder(inputsEmbeds: inputEmbeds, cache: cache)
         cache = newCache
 
@@ -359,19 +533,21 @@ public class Qwen3ASRModel {
         // manipulation, which would defeat the overlap.
         let generatedTokens: [Int32]
         if Self.isGreedyFastPath(decodingOptions) {
-            generatedTokens = Self.generateGreedyAsyncEval(
-                textDecoder: textDecoder,
-                initialLogits: logits,
-                cache: cache!,
-                maxTokens: maxTokens
-            )
-        } else {
-            generatedTokens = Self.generateSlow(
+            generatedTokens = try Self.generateGreedyAsyncEval(
                 textDecoder: textDecoder,
                 initialLogits: logits,
                 cache: cache!,
                 maxTokens: maxTokens,
-                options: decodingOptions
+                checkCancellation: checkCancellation
+            )
+        } else {
+            generatedTokens = try Self.generateSlow(
+                textDecoder: textDecoder,
+                initialLogits: logits,
+                cache: cache!,
+                maxTokens: maxTokens,
+                options: decodingOptions,
+                checkCancellation: checkCancellation
             )
         }
 
@@ -399,6 +575,54 @@ public class Qwen3ASRModel {
             && options.temperature == 0.0
     }
 
+    static func resolveBatchDecodingOptions(
+        language: String?,
+        maxTokens: Int?,
+        context: String?,
+        options: Qwen3DecodingOptions
+    ) -> Qwen3DecodingOptions {
+        var resolved = options
+        if let language {
+            resolved.language = language
+        }
+        if let maxTokens {
+            resolved.maxTokens = maxTokens
+        }
+        if let context {
+            resolved.context = context
+        }
+        return resolved
+    }
+
+    static func isExperimentalBatchedDecodeEnabled() -> Bool {
+        ProcessInfo.processInfo.environment["QWEN3_ASR_EXPERIMENTAL_BATCH_DECODE"] == "1"
+    }
+
+    /// Return input indices grouped by encoder sequence length, bounded by
+    /// `maxBatchSize`. Order within each bucket follows the input order so
+    /// equal-length fixed chunks keep deterministic batching behaviour.
+    static func makeSeqLenBatches(seqLens: [Int], maxBatchSize: Int) -> [[Int]] {
+        guard !seqLens.isEmpty else { return [] }
+        let cappedBatchSize = max(1, maxBatchSize)
+        var bucketsBySeqLen: [Int: [[Int]]] = [:]
+        var orderedSeqLens: [Int] = []
+
+        for (index, seqLen) in seqLens.enumerated() {
+            if bucketsBySeqLen[seqLen] == nil {
+                bucketsBySeqLen[seqLen] = [[]]
+                orderedSeqLens.append(seqLen)
+            }
+            var batches = bucketsBySeqLen[seqLen]!
+            if batches[batches.count - 1].count >= cappedBatchSize {
+                batches.append([])
+            }
+            batches[batches.count - 1].append(index)
+            bucketsBySeqLen[seqLen] = batches
+        }
+
+        return orderedSeqLens.flatMap { bucketsBySeqLen[$0] ?? [] }
+    }
+
     /// Double-buffered greedy decode loop. The key trick is to keep the
     /// "next token" as a lazy 0-D `MLXArray` (the result of `argMax`),
     /// build the *next* step's forward pass on top of it (still lazy),
@@ -410,14 +634,22 @@ public class Qwen3ASRModel {
     /// Greedy correctness invariant: argMax is deterministic, so this
     /// produces the exact same token sequence as the legacy loop on
     /// matching inputs.
+    ///
+    /// Cooperative cancellation: `checkCancellation` runs exactly once
+    /// before each token's decoder work is submitted — here for token 0
+    /// (the first `asyncEval` also forces the prefill), then inside the
+    /// loop before every speculative N+1 graph. A throw abandons the
+    /// in-flight step; nothing further is queued on the GPU.
     static func generateGreedyAsyncEval(
         textDecoder: QuantizedTextModel,
         initialLogits: MLXArray,
         cache initialCache: [(MLXArray, MLXArray)],
-        maxTokens: Int
-    ) -> [Int32] {
+        maxTokens: Int,
+        checkCancellation: () throws -> Void
+    ) rethrows -> [Int32] {
         var generatedTokens: [Int32] = []
         guard maxTokens > 0 else { return generatedTokens }
+        try checkCancellation()
 
         // Stage 0: argmax of the prefill's last logits. Stays lazy until
         // the first `.item()` below.
@@ -448,6 +680,7 @@ public class Qwen3ASRModel {
             var nextTokenArrN1: MLXArray? = nil
             var cacheN1: [(MLXArray, MLXArray)]? = nil
             if step + 1 < maxTokens {
+                try checkCancellation()
                 let nextEmbed = textDecoder.embedTokens(
                     nextTokenArr.expandedDimensions(axis: 0).expandedDimensions(axis: 0)
                 )
@@ -485,6 +718,322 @@ public class Qwen3ASRModel {
         return generatedTokens
     }
 
+    // MARK: - Batched Greedy Decode
+    //
+    // Default path: serial per-row decoder forwards with one batched token
+    // sync per step. This keeps row-level correctness identical to serial
+    // transcribe while removing the naive B scalar `.item()` sync points.
+    //
+    // Experimental path (`QWEN3_ASR_EXPERIMENTAL_BATCH_DECODE=1`): true
+    // [B,1,H] decoder forward with stacked KV cache, bucketed by encoder
+    // sequence length. This is closer to vLLM/SGLang continuous batching but
+    // remains gated until row-level correctness is resolved.
+
+    func generateTextBatchedBulkSync(
+        audioEmbedsBatch: [(embeds: MLXArray, seqLen: Int)],
+        textDecoder: QuantizedTextModel,
+        language: String?,
+        maxTokens: Int,
+        context: String? = nil
+    ) -> [String] {
+        let B = audioEmbedsBatch.count
+        if B == 0 { return [] }
+        if maxTokens <= 0 { return Self.decodeTokenBatch(allTokens: Array(repeating: [], count: B), tokenizer: tokenizer) }
+
+        let (prefixTokenIds, suffixTokenIds) = Self.buildPromptTokenIds(
+            language: language, context: context, tokenizer: tokenizer
+        )
+        let prefixLen = prefixTokenIds.count
+
+        var itemCaches: [[(MLXArray, MLXArray)]] = []
+        var currentItemTokenIds: [MLXArray] = []
+
+        for pair in audioEmbedsBatch {
+            let inputEmbeds = Self.buildInputEmbeds(
+                audioEmbeds: pair.embeds,
+                audioTokenCount: pair.seqLen,
+                prefixTokenIds: prefixTokenIds,
+                suffixTokenIds: suffixTokenIds,
+                audioStartIndex: prefixLen,
+                textDecoder: textDecoder
+            )
+
+            let (hiddenStates, itemCache) = textDecoder(inputsEmbeds: inputEmbeds)
+            let seqLen = hiddenStates.dim(1)
+            let lastHidden = hiddenStates[0..., (seqLen - 1)..<seqLen, 0...]
+            let logits = textDecoder.embedTokens.asLinear(lastHidden)
+            currentItemTokenIds.append(argMax(logits, axis: -1).asType(.int32))
+            itemCaches.append(itemCache)
+        }
+
+        var currentBatchTokenIds = concatenated(currentItemTokenIds, axis: 0)  // [B, 1]
+        asyncEval(currentBatchTokenIds)
+
+        let eosToken = Int32(Qwen3ASRTokens.eosTokenId)
+        var finished = [Bool](repeating: false, count: B)
+        var allTokens: [[Int32]] = (0..<B).map { _ in [] }
+
+        for step in 0..<maxTokens {
+            var nextItemTokenIds: [MLXArray]?
+            var nextItemCaches: [[(MLXArray, MLXArray)]]?
+            var nextBatchTokenIds: MLXArray?
+
+            if step + 1 < maxTokens {
+                var stagedTokens: [MLXArray] = []
+                var stagedCaches: [[(MLXArray, MLXArray)]] = []
+                for b in 0..<B {
+                    if finished[b] {
+                        stagedTokens.append(currentItemTokenIds[b])
+                        stagedCaches.append(itemCaches[b])
+                        continue
+                    }
+
+                    let tokenEmbeds = textDecoder.embedTokens(currentItemTokenIds[b])
+                    let (hiddenStates, newCache) = textDecoder(inputsEmbeds: tokenEmbeds, cache: itemCaches[b])
+                    let lastHidden = hiddenStates[0..., (-1)..., .ellipsis]
+                    let logits = textDecoder.embedTokens.asLinear(lastHidden)
+                    stagedTokens.append(argMax(logits, axis: -1).asType(.int32))
+                    stagedCaches.append(newCache)
+                }
+
+                let stagedBatch = concatenated(stagedTokens, axis: 0)
+                asyncEval(stagedBatch)
+                nextItemTokenIds = stagedTokens
+                nextItemCaches = stagedCaches
+                nextBatchTokenIds = stagedBatch
+            }
+
+            // One CPU synchronization per decode step for the whole batch,
+            // rather than B scalar `.item()` calls. Decoder forwards remain
+            // per-item, so this path preserves serial row correctness while
+            // removing the dominant host sync pattern from naive batching.
+            let tokenValues = currentBatchTokenIds.reshaped([B]).asArray(Int32.self)
+            for b in 0..<B {
+                if finished[b] { continue }
+                let t = tokenValues[b]
+                allTokens[b].append(t)
+                if t == eosToken { finished[b] = true }
+            }
+
+            if finished.allSatisfy({ $0 }) { break }
+            guard let nextItemTokenIds, let nextItemCaches, let nextBatchTokenIds else { break }
+            currentItemTokenIds = nextItemTokenIds
+            itemCaches = nextItemCaches
+            currentBatchTokenIds = nextBatchTokenIds
+        }
+
+        return Self.decodeTokenBatch(allTokens: allTokens, tokenizer: tokenizer)
+    }
+
+    func generateTextBatched(
+        audioEmbedsBatch: [(embeds: MLXArray, seqLen: Int)],
+        textDecoder: QuantizedTextModel,
+        language: String?,
+        maxTokens: Int,
+        context: String? = nil
+    ) -> [String] {
+        let B = audioEmbedsBatch.count
+        if B == 0 { return [] }
+        if maxTokens <= 0 { return Self.decodeTokenBatch(allTokens: Array(repeating: [], count: B), tokenizer: tokenizer) }
+
+        precondition(
+            audioEmbedsBatch.allSatisfy { $0.seqLen == audioEmbedsBatch[0].seqLen },
+            "generateTextBatched currently requires equal-length audio encoder outputs"
+        )
+
+        let eosToken = Int32(Qwen3ASRTokens.eosTokenId)
+
+        // Phase 1: Build prompt token IDs for each item.
+        // All items share the same prefix tokens; only the audio_pad count differs.
+        let (prefixTokenIds, suffixTokenIds) = Self.buildPromptTokenIds(
+            language: language, context: context, tokenizer: tokenizer
+        )
+        let prefixLen = prefixTokenIds.count
+
+        var perItemInputEmbeds: [MLXArray] = []
+
+        for pair in audioEmbedsBatch {
+            let inputEmbeds = Self.buildInputEmbeds(
+                audioEmbeds: pair.embeds,
+                audioTokenCount: pair.seqLen,
+                prefixTokenIds: prefixTokenIds,
+                suffixTokenIds: suffixTokenIds,
+                audioStartIndex: prefixLen,
+                textDecoder: textDecoder
+            )
+            perItemInputEmbeds.append(inputEmbeds.squeezed(axis: 0))
+        }
+
+        // Phase 2: Prefill each chunk independently, then stack the KV cache
+        // into one batched cache. This preserves the exact single-item prefill
+        // semantics while still letting the autoregressive decode loop run as
+        // one [B, 1, H] stream. Batched prefill can be revisited once it has a
+        // bit-exact regression test against the serial path.
+        var itemCaches: [[(MLXArray, MLXArray)]] = []
+        var itemFirstTokenIds: [MLXArray] = []
+        for inputEmbeds in perItemInputEmbeds {
+            let itemInput = inputEmbeds.expandedDimensions(axis: 0)
+            let (hiddenStates, itemCache) = textDecoder(inputsEmbeds: itemInput)
+            let seqLen = hiddenStates.dim(1)
+            let lastHidden = hiddenStates[0..., (seqLen - 1)..<seqLen, 0...]
+            let logits = textDecoder.embedTokens.asLinear(lastHidden)
+            itemFirstTokenIds.append(argMax(logits, axis: -1).asType(.int32))
+            itemCaches.append(itemCache)
+        }
+
+        let batchTokenIds = concatenated(itemFirstTokenIds, axis: 0)  // [B, 1]
+        var batchCache: [(MLXArray, MLXArray)] = []
+        for layerIndex in 0..<itemCaches[0].count {
+            let keys = concatenated(itemCaches.map { $0[layerIndex].0 }, axis: 0)
+            let values = concatenated(itemCaches.map { $0[layerIndex].1 }, axis: 0)
+            batchCache.append((keys, values))
+        }
+
+        var finished = [Bool](repeating: false, count: B)
+        var allTokens: [[Int32]] = (0..<B).map { _ in [] }
+
+        // Phase 4: Batched autoregressive decode.
+        //
+        // Strategy (inspired by vLLM/SGLang continuous batching, simplified):
+        //
+        // We keep the batched KV cache as a single tensor [B, numKVHeads, T, headDim]
+        // and grow it uniformly for ALL items—including finished ones that contribute
+        // pad tokens. This avoids the PagedAttention complexity (variable cache lengths
+        // per item) at the cost of a small amount of wasted compute on pad tokens for
+        // items that already hit EOS. For ASR with equal-length audio chunks, this
+        // waste is near-zero because all items finish within a few tokens of each other.
+        //
+        // The key win: each decode step does ONE batched [B,1,H] forward pass through
+        // all 28 decoder layers. The quantized weight dequant + GEMM (the bottleneck)
+        // is amortised across B items instead of being repeated B times.
+
+        var batchKVCache = batchCache  // [(MLXArray, MLXArray)], each [B, numKVHeads, T, headDim]
+        var currentTokenIds = batchTokenIds  // [B, 1]
+        asyncEval(currentTokenIds, batchKVCache)
+
+        for step in 0..<maxTokens {
+            var nextTokenIdsN1: MLXArray?
+            var cacheN1: [(MLXArray, MLXArray)]?
+
+            if step + 1 < maxTokens {
+                // Embed all B tokens (finished items get re-embedded; their
+                // logits are ignored). Cache grows uniformly.
+                let batchEmbeds = textDecoder.embedTokens(currentTokenIds)  // [B, 1, H]
+
+                // Single batched forward for ALL items.
+                let (hidden, newBatchCache) = textDecoder(inputsEmbeds: batchEmbeds, cache: batchKVCache)
+
+                // Batched LM head on the last position.
+                let lastH = hidden[0..., (-1)..., 0...]  // [B, 1, H]
+                var perItemTokenIds: [MLXArray] = []
+                for b in 0..<B {
+                    let itemHidden = lastH[b..<(b + 1), 0..., 0...]  // [1, 1, H]
+                    let itemLogits = textDecoder.embedTokens.asLinear(itemHidden)  // [1, 1, V]
+                    perItemTokenIds.append(argMax(itemLogits, axis: -1).asType(.int32))
+                }
+                let nextBatchTokenIds = concatenated(perItemTokenIds, axis: 0)  // [B, 1]
+
+                asyncEval(nextBatchTokenIds, newBatchCache)
+                nextTokenIdsN1 = nextBatchTokenIds
+                cacheN1 = newBatchCache
+            }
+
+            // Sync the whole [B, 1] token tensor once. This avoids B separate
+            // scalar host/device sync points and keeps row extraction aligned
+            // with MLX's contiguous flattened layout.
+            let tokenValues = currentTokenIds.reshaped([B]).asArray(Int32.self)
+            for b in 0..<B {
+                if finished[b] { continue }
+                let t = tokenValues[b]
+                allTokens[b].append(t)
+                if t == eosToken { finished[b] = true }
+            }
+
+            if finished.allSatisfy({ $0 }) { break }
+
+            guard let nextTokenIdsN1, let cacheN1 else { break }
+            currentTokenIds = nextTokenIdsN1
+            batchKVCache = cacheN1
+        }
+
+        return Self.decodeTokenBatch(allTokens: allTokens, tokenizer: tokenizer)
+    }
+
+    /// Build the shared prompt prefix token IDs and per-item suffix.
+    /// The prefix is everything up to (not including) the audio_pad tokens.
+    /// The suffix is everything after them.
+    static func buildPromptTokenIds(
+        language: String?,
+        context: String?,
+        tokenizer: Qwen3Tokenizer?
+    ) -> (prefix: [Int32], suffix: [Int32]) {
+        let T = Qwen3ASRTokens.self
+
+        // Prefix: everything before the audio_pad tokens.
+        var prefix: [Int32] = []
+        prefix.append(contentsOf: [T.imStartTokenId, T.systemTokenId, T.newlineTokenId].map { Int32($0) })
+        if let context = context, !context.isEmpty, let tokenizer = tokenizer {
+            let contextTokens = tokenizer.encode(context)
+            prefix.append(contentsOf: contextTokens.map { Int32($0) })
+        }
+        prefix.append(contentsOf: [T.imEndTokenId, T.newlineTokenId].map { Int32($0) })
+        prefix.append(contentsOf: [T.imStartTokenId, T.userTokenId, T.newlineTokenId, T.audioStartTokenId].map { Int32($0) })
+
+        // Suffix: everything after the audio_pad tokens.
+        var suffix: [Int32] = []
+        suffix.append(contentsOf: [T.audioEndTokenId, T.imEndTokenId, T.newlineTokenId].map { Int32($0) })
+        suffix.append(contentsOf: [T.imStartTokenId, T.assistantTokenId, T.newlineTokenId].map { Int32($0) })
+        if let lang = language, let tokenizer = tokenizer {
+            let langPrefix = "language \(lang)"
+            let langTokens = tokenizer.encode(langPrefix)
+            suffix.append(contentsOf: langTokens.map { Int32($0) })
+        }
+        suffix.append(Int32(T.asrTextTokenId))
+
+        return (prefix, suffix)
+    }
+
+    static func buildInputEmbeds(
+        audioEmbeds: MLXArray,
+        audioTokenCount: Int,
+        prefixTokenIds: [Int32],
+        suffixTokenIds: [Int32],
+        audioStartIndex: Int,
+        textDecoder: QuantizedTextModel
+    ) -> MLXArray {
+        var inputIds = prefixTokenIds
+        for _ in 0..<audioTokenCount {
+            inputIds.append(Int32(Qwen3ASRTokens.audioTokenId))
+        }
+        inputIds.append(contentsOf: suffixTokenIds)
+
+        let inputIdsTensor = MLXArray(inputIds).expandedDimensions(axis: 0)
+        var inputEmbeds = textDecoder.embedTokens(inputIdsTensor)
+
+        let audioEmbedsTyped = audioEmbeds.asType(inputEmbeds.dtype)
+        let audioEndIndex = audioStartIndex + audioTokenCount
+        let beforeAudio = inputEmbeds[0..., 0..<audioStartIndex, 0...]
+        let afterAudio = inputEmbeds[0..., audioEndIndex..., 0...]
+        inputEmbeds = concatenated([beforeAudio, audioEmbedsTyped, afterAudio], axis: 1)
+        return inputEmbeds
+    }
+
+    static func decodeTokenBatch(
+        allTokens: [[Int32]],
+        tokenizer: Qwen3Tokenizer?
+    ) -> [String] {
+        guard let tokenizer = tokenizer else {
+            return allTokens.map { $0.map { String($0) }.joined(separator: " ") }
+        }
+        return allTokens.map { tokens in
+            let rawText = tokenizer.decode(tokens: tokens.map { Int($0) })
+            if let range = rawText.range(of: "<asr_text>") {
+                return String(rawText[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+            }
+            return rawText
+        }
+    }
+
     /// Legacy decode loop kept verbatim for the non-greedy slow path.
     /// `pickNextToken` here pulls logits to CPU for repetition penalty,
     /// n-gram masking, and temperature sampling, so there's no benefit
@@ -494,12 +1043,18 @@ public class Qwen3ASRModel {
         initialLogits: MLXArray,
         cache initialCache: [(MLXArray, MLXArray)],
         maxTokens: Int,
-        options: Qwen3DecodingOptions
-    ) -> [Int32] {
+        options: Qwen3DecodingOptions,
+        checkCancellation: () throws -> Void
+    ) rethrows -> [Int32] {
         var generatedTokens: [Int32] = []
         guard maxTokens > 0 else { return generatedTokens }
         var cache: [(MLXArray, MLXArray)]? = initialCache
 
+        // Cooperative cancellation: one checkpoint before each token's
+        // decoder work — here for token 0 (this pick forces the prefill),
+        // then per loop iteration after the EOS exit so natural termination
+        // never runs an extra checkpoint.
+        try checkCancellation()
         var nextToken = Self.pickNextToken(
             logits: initialLogits,
             generatedSoFar: generatedTokens,
@@ -509,6 +1064,7 @@ public class Qwen3ASRModel {
 
         for _ in 1..<maxTokens {
             if nextToken == Int32(Qwen3ASRTokens.eosTokenId) { break }
+            try checkCancellation()
 
             let tokenEmbeds = textDecoder.embedTokens(
                 MLXArray([nextToken]).expandedDimensions(axis: 0)
@@ -659,8 +1215,10 @@ public enum ASRModelSize {
     public func textConfig(bits: Int) -> TextDecoderConfig {
         switch (self, bits) {
         case (.small, 8): return .small8bit
+        case (.small, 5): return .small5bit
         case (.small, _): return .small
         case (.large, 8): return .large8bit
+        case (.large, 5): return .large5bit
         case (.large, _): return .large
         }
     }
@@ -687,6 +1245,9 @@ public enum ASRModelSize {
         let lower = modelId.lowercased()
         if lower.contains("8bit") || lower.contains("8-bit") {
             return 8
+        }
+        if lower.contains("5bit") || lower.contains("5-bit") {
+            return 5
         }
         if lower.contains("4bit") || lower.contains("4-bit") {
             return 4
@@ -718,6 +1279,14 @@ internal enum Qwen3ASRMemory {
         let fourGB = 4 * 1024 * 1024 * 1024
         let quarterRAM = physicalMemoryBytes / 4
         return max(0, min(fourGB, quarterRAM))
+    }
+
+    /// The 0.6B variant needs a smaller scratch pool than 1.7B. Bound it
+    /// to `min(1 GB, 12.5% of physical RAM)` for repeated transcription.
+    static func cacheLimitForSmall(physicalMemoryBytes: Int) -> Int {
+        let oneGB = 1 * 1024 * 1024 * 1024
+        let eighthRAM = physicalMemoryBytes / 8
+        return max(0, min(oneGB, eighthRAM))
     }
 
     /// True when the 1.7B variant should print the soft RAM warning. Total
@@ -811,10 +1380,12 @@ public extension Qwen3ASRModel {
         progressHandler?(0.80, "Loading tokenizer...")
 
         // Create model with appropriate config for detected size and bits
-        let model = Qwen3ASRModel(
-            audioConfig: modelSize.audioConfig,
-            textConfig: modelSize.textConfig(bits: detectedBits)
-        )
+        let model = withThrowawayRandomState {
+            Qwen3ASRModel(
+                audioConfig: modelSize.audioConfig,
+                textConfig: modelSize.textConfig(bits: detectedBits)
+            )
+        }
 
         // Load tokenizer from vocab.json
         let vocabPath = cacheDir.appendingPathComponent("vocab.json")
@@ -839,32 +1410,15 @@ public extension Qwen3ASRModel {
 
         MetalBudget.pinMemory()
 
-        // Bug 4b: cap MLX scratch pool for the 1.7B variant. Default cache
-        // limit tracks `recommendedMaxWorkingSetSize` which on a 16 GB Mac
-        // can grow to several GB during sustained decoding and trigger
-        // swap. Bounding to `min(4 GB, 25% of physical RAM)` leaves enough
-        // headroom for per-token decoder working set while keeping the
-        // total residency under the OS jetsam threshold. 0.6B path is
-        // unchanged.
-        //
-        // Process-global cap leak fix (adversarial review): we save the
-        // prior limit on the model instance and restore it in `unload()`,
-        // so co-loaded models in the same process (e.g. PersonaPlex
-        // loading ASR + LM + TTS) inherit our cap only for the lifetime
-        // of the loaded ASR. Stacks correctly across multiple ASR
-        // instances: each save captures whatever was active when it
-        // loaded, and each unload pops its own saved value.
-        if modelSize == .large {
-            let physical = Int(ProcessInfo.processInfo.physicalMemory)
-            let newCap = Qwen3ASRMemory.cacheLimitForLarge(physicalMemoryBytes: physical)
-            // Only apply the cap if it would lower the current limit —
-            // never raise a limit a caller has already chosen for itself.
-            let currentLimit = MLX.Memory.cacheLimit
-            if newCap > 0 && newCap < currentLimit {
-                model.savedMLXCacheLimit = currentLimit
-                MLX.Memory.cacheLimit = newCap
-            }
-        }
+        // Register both variants in the process-wide budget. The shared
+        // coordinator preserves the tightest live ceiling and the caller's
+        // budget, including when models unload in a different order.
+        let physical = Int(ProcessInfo.processInfo.physicalMemory)
+        let cacheCeiling = modelSize == .large
+            ? Qwen3ASRMemory.cacheLimitForLarge(physicalMemoryBytes: physical)
+            : Qwen3ASRMemory.cacheLimitForSmall(physicalMemoryBytes: physical)
+        model.mlxCacheLimitLease = Qwen3ASRCacheLimitCoordinator.shared.acquire(
+            ceiling: cacheCeiling)
 
         // Bug 4f: post-load memory snapshot. Difference vs `memBeforeLoad`
         // is the model's load-time footprint (weights + activations +

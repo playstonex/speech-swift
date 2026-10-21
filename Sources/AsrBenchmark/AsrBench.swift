@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import MLX
 
 @main
 struct AsrBench: AsyncParsableCommand {
@@ -21,12 +22,24 @@ struct AsrBench: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Optional path to write the JSON report.")
     var output: String?
 
-    @Option(name: .long, help: "ISO language hint passed to engines that accept one (Qwen3/Parakeet).")
+    @Option(name: .long, help: "ISO language hint passed to engines that accept one.")
     var language: String?
 
     @Flag(name: .long,
-          help: "Run each engine in a separate process. The peak RSS column then reflects each engine's true cost instead of the sequential high-water mark.")
+          help: "Run each engine in a separate process so RSS and physical-footprint high-water marks reflect one engine.")
     var isolated: Bool = false
+
+    @Flag(name: .long, help: "Print reference/hypothesis pairs for utterances with WER errors.")
+    var printErrors: Bool = false
+
+    @Option(name: .long, help: "Limit MLX's shared free-buffer cache in MiB for this benchmark (0 disables caching).")
+    var mlxCacheLimitMB: Int?
+
+    mutating func validate() throws {
+        if let limit = mlxCacheLimitMB, !(0...(Int.max / (1024 * 1024))).contains(limit) {
+            throw ValidationError("--mlx-cache-limit-mb must be nonnegative and fit in bytes")
+        }
+    }
 
     mutating func run() async throws {
         // stdout is block-buffered when the process runs with redirected
@@ -37,6 +50,10 @@ struct AsrBench: AsyncParsableCommand {
         if isolated && engines.count > 1 {
             try await runIsolated()
             return
+        }
+        if let limit = mlxCacheLimitMB {
+            Memory.cacheLimit = limit * 1024 * 1024
+            print("MLX free-buffer cache limit: \(limit) MiB")
         }
 
         let datasetURL = URL(fileURLWithPath: dataset)
@@ -76,68 +93,132 @@ struct AsrBench: AsyncParsableCommand {
         var results: [EngineResult] = []
         for engine in engineImpls {
             print("=== \(engine.name) ===")
-            let preLoadRSS = currentRSSBytes()
-            var peakRSS: UInt64 = preLoadRSS
+            let preLoadMemory = currentProcessMemoryUsage()
+            var peakRSS = preLoadMemory.peakResidentBytes
+            var peakPhysicalFootprint = preLoadMemory.peakPhysicalFootprintBytes
             do {
                 try await engine.load(warmupAudio: warmup, sampleRate: 16000)
-                peakRSS = max(peakRSS, currentRSSBytes())
-                print(String(format: "  loaded + warmed in %.1fs (RSS %.0f MB → %.0f MB)",
+                let loadedMemory = currentProcessMemoryUsage()
+                peakRSS = max(peakRSS, loadedMemory.peakResidentBytes)
+                peakPhysicalFootprint = max(
+                    peakPhysicalFootprint,
+                    loadedMemory.peakPhysicalFootprintBytes)
+                print(String(format: "  loaded + warmed in %.1fs (RSS %.0f MB → %.0f MB, footprint %.0f MB)",
                              engine.loadElapsed,
-                             Double(preLoadRSS) / (1024 * 1024),
-                             Double(peakRSS) / (1024 * 1024)))
+                             Double(preLoadMemory.residentBytes) / (1024 * 1024),
+                             Double(peakRSS) / (1024 * 1024),
+                             Double(peakPhysicalFootprint) / (1024 * 1024)))
             } catch {
                 fputs("  load failed: \(error)\n", stderr)
                 continue
             }
 
             var subs = 0, ins = 0, dels = 0, refWords = 0
+            var charErrors = 0, refChars = 0
+            var perFileWERs: [Double] = []
+            var perFileCERs: [Double] = []
             var rtfs: [Double] = []
+            var utteranceResults: [UtteranceResult] = []
             var totalElapsed = 0.0
+            var processedAudioSec = 0.0
             for (idx, item) in decoded.enumerated() {
                 do {
                     let (text, t) = try await engine.transcribe(audio: item.audio, sampleRate: 16000, language: language)
                     let hyp = Normalizer.normalize(text)
                     let ref = Normalizer.normalize(item.utt.reference)
                     let b = WER.compute(reference: ref, hypothesis: hyp)
+                    let c = CER.compute(reference: ref, hypothesis: hyp)
+                    utteranceResults.append(UtteranceResult(
+                        id: item.utt.id, reference: item.utt.reference, hypothesis: text,
+                        audioSeconds: t.audioDuration, elapsedSeconds: t.elapsed,
+                        werPercent: b.wer * 100, firstTokenSeconds: t.firstTokenSeconds,
+                        firstTokenAudioSeconds: t.firstTokenAudioSeconds,
+                        frameLatencyP50Seconds: t.frameLatencyP50Seconds,
+                        frameLatencyP95Seconds: t.frameLatencyP95Seconds,
+                        flushSeconds: t.flushSeconds))
+                    if printErrors && b.totalErrors > 0 {
+                        print(String(format: "  %@ WER=%.2f%% S/I/D=%d/%d/%d",
+                                     item.utt.id as NSString,
+                                     b.wer * 100,
+                                     b.substitutions,
+                                     b.insertions,
+                                     b.deletions))
+                        print("    ref: \(ref)")
+                        print("    hyp: \(hyp)")
+                    }
                     subs += b.substitutions
                     ins += b.insertions
                     dels += b.deletions
                     refWords += b.referenceWords
+                    charErrors += c.editDistance
+                    refChars += c.referenceCharacters
+                    perFileWERs.append(b.wer * 100)
+                    perFileCERs.append(c.cer * 100)
                     rtfs.append(t.rtf)
                     totalElapsed += t.elapsed
-                    // RSS sampling is cheap (one mach call) but only useful
-                    // periodically — peak tends to settle after a few utts.
+                    processedAudioSec += t.audioDuration
+                    // Sample outside the timed transcription interval. Physical
+                    // footprint catches file-backed MLX allocations that RSS can
+                    // miss, and sampling every utterance avoids missing a short
+                    // peak between progress updates.
+                    let memory = currentProcessMemoryUsage()
+                    peakRSS = max(peakRSS, memory.peakResidentBytes)
+                    peakPhysicalFootprint = max(
+                        peakPhysicalFootprint,
+                        memory.peakPhysicalFootprintBytes)
                     if (idx + 1) % 25 == 0 || idx == decoded.count - 1 {
-                        peakRSS = max(peakRSS, currentRSSBytes())
-                        print(String(format: "  [%4d/%4d] rolling WER=%.2f%% RTF=%.3f peakRSS=%.0fMB",
+                        print(String(format: "  [%4d/%4d] rolling WER=%.2f%% RTF=%.3f peakRSS=%.0fMB footprint=%.0fMB",
                                      idx + 1, decoded.count,
                                      Double(subs + ins + dels) / Double(max(refWords, 1)) * 100,
                                      rtfs.reduce(0, +) / Double(rtfs.count),
-                                     Double(peakRSS) / (1024 * 1024)))
+                                     Double(peakRSS) / (1024 * 1024),
+                                     Double(peakPhysicalFootprint) / (1024 * 1024)))
                     }
                 } catch {
                     fputs("  utterance \(item.utt.id) failed: \(error)\n", stderr)
                 }
             }
 
-            let mean = rtfs.isEmpty ? 0 : rtfs.reduce(0, +) / Double(rtfs.count)
-            let throughputXRT = mean > 0 ? 1.0 / mean : 0
+            let meanRTF = mean(rtfs)
+            let medianRTF = median(rtfs)
+            let aggregateWER = Double(subs + ins + dels) / Double(max(refWords, 1)) * 100
+            let aggregateCER = Double(charErrors) / Double(max(refChars, 1)) * 100
+            let throughputMeanXRT = meanRTF > 0 ? 1.0 / meanRTF : 0
+            let throughputMedianXRT = medianRTF > 0 ? 1.0 / medianRTF : 0
+            let throughputOverallXRT = totalElapsed > 0 ? processedAudioSec / totalElapsed : 0
             results.append(EngineResult(
                 engine: engine.name,
                 utterances: rtfs.count,
-                werPercent: Double(subs + ins + dels) / Double(max(refWords, 1)) * 100,
+                werPercent: aggregateWER,
+                werAggregatePercent: aggregateWER,
+                werMeanPercent: mean(perFileWERs),
+                werMedianPercent: median(perFileWERs),
+                cerPercent: aggregateCER,
+                cerAggregatePercent: aggregateCER,
+                cerMeanPercent: mean(perFileCERs),
+                cerMedianPercent: median(perFileCERs),
                 substitutions: subs,
                 insertions: ins,
                 deletions: dels,
                 referenceWords: refWords,
-                rtfMean: mean,
+                characterErrors: charErrors,
+                referenceCharacters: refChars,
+                rtfMean: meanRTF,
+                rtfMedian: medianRTF,
                 rtfFirst: rtfs.first ?? 0,
                 loadElapsedSeconds: engine.loadElapsed,
-                audioSecondsTotal: totalAudioSec,
+                audioSecondsTotal: processedAudioSec,
                 elapsedSecondsTotal: totalElapsed,
                 peakRSSBytes: peakRSS,
-                rssDeltaBytes: Int64(peakRSS) - Int64(preLoadRSS),
-                throughputXRT: throughputXRT
+                rssDeltaBytes: Int64(peakRSS) - Int64(preLoadMemory.residentBytes),
+                peakPhysicalFootprintBytes: peakPhysicalFootprint,
+                physicalFootprintDeltaBytes: Int64(peakPhysicalFootprint)
+                    - Int64(preLoadMemory.physicalFootprintBytes),
+                throughputXRT: throughputMeanXRT,
+                throughputMeanXRT: throughputMeanXRT,
+                throughputMedianXRT: throughputMedianXRT,
+                throughputOverallXRT: throughputOverallXRT,
+                utteranceResults: utteranceResults
             ))
         }
 
@@ -145,7 +226,8 @@ struct AsrBench: AsyncParsableCommand {
             machine: ProcessInfo.processInfo.hostName,
             datasetPath: dataset,
             utterances: decoded.count,
-            results: results
+            results: results,
+            mlxCacheLimitMB: mlxCacheLimitMB
         )
 
         print("\n" + ReportPrinter.table(report))
@@ -157,8 +239,8 @@ struct AsrBench: AsyncParsableCommand {
     }
 
     /// Re-executes the bench once per engine in a child process. Each child
-    /// gets a fresh MLX/CoreML state, so its peak RSS reflects only its own
-    /// allocations — not residual cache from the previous engine.
+    /// gets a fresh MLX/CoreML state, so its process-memory high-water marks
+    /// reflect only its own allocations, not a previous engine's cache.
     private func runIsolated() async throws {
         let selfPath = CommandLine.arguments[0]
         let runID = UUID().uuidString.prefix(8)
@@ -173,6 +255,8 @@ struct AsrBench: AsyncParsableCommand {
             ]
             if let limit { args += ["--limit", "\(limit)"] }
             if let language { args += ["--language", language] }
+            if printErrors { args += ["--print-errors"] }
+            if let mlxCacheLimitMB { args += ["--mlx-cache-limit-mb", "\(mlxCacheLimitMB)"] }
 
             print("\n──── isolated subrun: \(engineName) ────")
             let proc = Process()
@@ -205,7 +289,8 @@ struct AsrBench: AsyncParsableCommand {
             machine: ProcessInfo.processInfo.hostName,
             datasetPath: dataset,
             utterances: uttCount,
-            results: merged
+            results: merged,
+            mlxCacheLimitMB: mlxCacheLimitMB
         )
 
         print("\n" + ReportPrinter.table(report))
@@ -217,4 +302,18 @@ struct AsrBench: AsyncParsableCommand {
             print("Wrote merged JSON report to \(output)")
         }
     }
+}
+
+private func mean(_ values: [Double]) -> Double {
+    values.isEmpty ? 0 : values.reduce(0, +) / Double(values.count)
+}
+
+private func median(_ values: [Double]) -> Double {
+    guard !values.isEmpty else { return 0 }
+    let sorted = values.sorted()
+    let mid = sorted.count / 2
+    if sorted.count.isMultiple(of: 2) {
+        return (sorted[mid - 1] + sorted[mid]) / 2
+    }
+    return sorted[mid]
 }

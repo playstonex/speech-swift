@@ -122,13 +122,13 @@ public final class T5Attention: Module {
         self.numBuckets = config.relativeAttentionNumBuckets
         self.maxDistance = config.relativeAttentionMaxDistance
 
-        self._q = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._q = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             dModel, innerDim, bias: false, groupSize: groupSize, bits: bits))
-        self._k = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._k = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             dModel, innerDim, bias: false, groupSize: groupSize, bits: bits))
-        self._v = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._v = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             dModel, innerDim, bias: false, groupSize: groupSize, bits: bits))
-        self._o = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._o = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             innerDim, dModel, bias: false, groupSize: groupSize, bits: bits))
 
         if hasRelativeAttentionBias {
@@ -292,13 +292,13 @@ public final class T5DenseGatedActDense: Module {
     @ModuleInfo var wo: QuantizedLinear
 
     public init(config: MADLADTranslationConfig, groupSize: Int, bits: Int) {
-        self._wi0 = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._wi0 = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             config.dModel, config.dFf, bias: false, groupSize: groupSize, bits: bits),
             key: "wi_0")
-        self._wi1 = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._wi1 = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             config.dModel, config.dFf, bias: false, groupSize: groupSize, bits: bits),
             key: "wi_1")
-        self._wo = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._wo = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             config.dFf, config.dModel, bias: false, groupSize: groupSize, bits: bits))
         super.init()
     }
@@ -518,7 +518,7 @@ public final class MADLADTranslationModel: Module {
             config: config, isDecoder: true,
             groupSize: groupSize, bits: bits))
 
-        self._lmHead = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._lmHead = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             config.dModel, config.vocabSize, bias: false,
             groupSize: groupSize, bits: bits), key: "lm_head")
 

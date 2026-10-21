@@ -76,11 +76,32 @@ public final class Qwen35MLXChat: @unchecked Sendable {
 
     // MARK: - Factory
 
-    /// Quantization variant.
+    /// Quantization variant. The raw value names a subdirectory in the model repo.
+    ///
+    /// `int4` is retained for local checkpoints exported before INT5 existed. It is no longer
+    /// the default, and the repo's `int4/` directory is being retired — see
+    /// `defaultQuantization` for the measurement that decided it.
     public enum Quantization: String {
         case int4
+        case int5
         case int8
     }
+
+    /// The variant `fromPretrained` loads when the caller does not choose one.
+    ///
+    /// INT5, not INT4. Scored over 32,768 tokens per corpus against the bf16 reference, INT4
+    /// costs +19.90% wikitext perplexity, agrees with bf16 on 78.3% of top-1 tokens, and emits
+    /// valid strict JSON in 18 of 24 attempts — five of those six failures were unbalanced
+    /// braces, which a parser rejects outright rather than merely dislikes. INT5 costs
+    /// +2.19% / 89.6% / 23-of-24 for 90 MB more, so INT4's saving buys nothing this model can
+    /// afford to lose.
+    ///
+    /// INT8 (+0.19% / 97.9% / 24-of-24, 763 MB) is still worth asking for explicitly, because
+    /// INT5's 23-of-24 is roughly a 4% per-pass failure rate and that compounds over a
+    /// sequence of calls: about a 56% chance of at least one unparseable reply across 20
+    /// structured-output passes. Pass `.int8` when every reply has to parse; take the default
+    /// when replies are read rather than parsed.
+    public static let defaultQuantization: Quantization = .int5
 
     /// Load a pre-trained Qwen3.5 chat model from HuggingFace.
     ///
@@ -88,12 +109,13 @@ public final class Qwen35MLXChat: @unchecked Sendable {
     /// Model is loaded into MLX for GPU inference on Apple Silicon.
     ///
     /// - Parameters:
-    ///   - modelId: HuggingFace model ID (repo with int4/ and int8/ subdirs)
-    ///   - quantization: INT4 (404 MB) or INT8 (763 MB)
+    ///   - modelId: HuggingFace model ID (repo with int5/ and int8/ subdirs)
+    ///   - quantization: INT5 (494 MB, default) or INT8 (763 MB). INT4 (404 MB) resolves only
+    ///     against a local checkout — see `Quantization`.
     ///   - progressHandler: Optional callback for download/load progress
     public static func fromPretrained(
         modelId: String = defaultModelId,
-        quantization: Quantization = .int4,
+        quantization: Quantization = defaultQuantization,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
         progressHandler: ((Double, String) -> Void)? = nil
@@ -101,7 +123,7 @@ public final class Qwen35MLXChat: @unchecked Sendable {
         let cacheDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
         let variant = quantization.rawValue
 
-        // Download model files from variant subdirectory (int4/ or int8/)
+        // Download model files from variant subdirectory (int5/ or int8/)
         progressHandler?(0.05, "Downloading \(variant) model...")
         try await HuggingFaceDownloader.downloadWeights(
             modelId: modelId,
@@ -138,7 +160,7 @@ public final class Qwen35MLXChat: @unchecked Sendable {
 
         // Create model
         progressHandler?(0.6, "Creating model...")
-        let model = Qwen35MLXModel(config: config)
+        let model = withThrowawayRandomState { Qwen35MLXModel(config: config) }
 
         // Load weights
         progressHandler?(0.65, "Loading weights...")
@@ -168,7 +190,7 @@ public final class Qwen35MLXChat: @unchecked Sendable {
         let tokenizer = ChatTokenizer()
         try tokenizer.load(from: directory)
 
-        let model = Qwen35MLXModel(config: config)
+        let model = withThrowawayRandomState { Qwen35MLXModel(config: config) }
         try Qwen35WeightLoader.loadWeights(
             into: model, from: directory,
             progressHandler: progressHandler)
@@ -184,6 +206,21 @@ public final class Qwen35MLXChat: @unchecked Sendable {
         metrics = Metrics()
     }
 
+    // MARK: - GPU memory controls
+
+    /// Cap MLX's GPU buffer cache (bytes). MLX keeps freed buffers for reuse; unconstrained, that
+    /// pool can grow to several GB during inference. A modest cap trades a little speed for much
+    /// lower resident memory — important on memory-constrained devices. Call once after loading.
+    public static func setGPUCacheLimit(_ bytes: Int) {
+        MLX.Memory.cacheLimit = bytes
+    }
+
+    /// Release MLX's cached (recyclable) GPU buffers now — e.g. between conversation turns — to
+    /// drop resident memory back toward the model's active footprint.
+    public static func clearGPUCache() {
+        MLX.Memory.clearCache()
+    }
+
     // MARK: - Generation
 
     /// Generate a response from chat messages.
@@ -194,6 +231,7 @@ public final class Qwen35MLXChat: @unchecked Sendable {
         messages: [ChatMessage],
         sampling: ChatSamplingConfig = .default
     ) throws -> String {
+        try sampling.requireNoResponseFormat(backend: "Qwen35MLXChat")
         resetState()
 
         let promptTokens = ChatTemplate.encode(
@@ -218,12 +256,16 @@ public final class Qwen35MLXChat: @unchecked Sendable {
         var logits = extractLastPositionLogits(prefillLogits)
         var generatedTokens: [Int] = []
         var inThinking = false
+        var producedContent = false
         let thinkBudget = 100
 
         // Decode loop
         let decodeStart = CFAbsoluteTimeGetCurrent()
 
         for _ in 0..<(sampling.maxTokens + thinkBudget) {
+            // Don't let the model end the turn before saying anything (empty reply).
+            if !producedContent { suppressEndTokens(&logits) }
+
             let nextToken = ChatSampler.sample(
                 logits: logits,
                 config: sampling,
@@ -239,6 +281,8 @@ public final class Qwen35MLXChat: @unchecked Sendable {
                 inThinking = true
             } else if nextToken == ChatTemplate.thinkEndId {
                 inThinking = false
+            } else if !self.tokenizer.isSpecialToken(nextToken) {
+                producedContent = true
             }
 
             if inThinking && generatedTokens.count > thinkBudget {
@@ -297,6 +341,7 @@ public final class Qwen35MLXChat: @unchecked Sendable {
         AsyncThrowingStream { continuation in
             Task {
                 do {
+                    try sampling.requireNoResponseFormat(backend: "Qwen35MLXChat")
                     self.resetState()
 
                     let promptTokens = ChatTemplate.encode(
@@ -315,8 +360,15 @@ public final class Qwen35MLXChat: @unchecked Sendable {
                     var logits = self.extractLastPositionLogits(prefillLogits)
                     var generatedTokens: [Int] = []
                     var inThinking = false
+                    var producedContent = false
+                    // Byte-level BPE can split one UTF-8 character across tokens, so accumulate
+                    // raw bytes and only emit complete characters (see ChatTokenizer.tokenBytes).
+                    var pending: [UInt8] = []
 
                     for _ in 0..<sampling.maxTokens {
+                        // Don't let the model end the turn before saying anything (empty reply).
+                        if !producedContent { self.suppressEndTokens(&logits) }
+
                         let nextToken = ChatSampler.sample(
                             logits: logits,
                             config: sampling,
@@ -331,10 +383,12 @@ public final class Qwen35MLXChat: @unchecked Sendable {
                             inThinking = true
                         } else if nextToken == ChatTemplate.thinkEndId {
                             inThinking = false
-                        } else if !inThinking,
-                                  let text = self.tokenizer.decodeToken(nextToken),
-                                  !self.tokenizer.isSpecialToken(nextToken) {
-                            continuation.yield(text)
+                        } else if !inThinking, !self.tokenizer.isSpecialToken(nextToken) {
+                            producedContent = true
+                            pending.append(contentsOf: self.tokenizer.tokenBytes(nextToken))
+                            let (text, remainder) = ChatTokenizer.decodeUTF8Prefix(pending)
+                            pending = remainder
+                            if !text.isEmpty { continuation.yield(text) }
                         }
 
                         let tokenArr = MLXArray([Int32(nextToken)])
@@ -346,6 +400,11 @@ public final class Qwen35MLXChat: @unchecked Sendable {
                         logits = self.extractLastPositionLogits(stepLogits)
                     }
 
+                    // Flush any trailing incomplete bytes (lossy — replacement char if invalid).
+                    if !pending.isEmpty {
+                        continuation.yield(String(decoding: pending, as: UTF8.self))
+                    }
+
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -355,6 +414,18 @@ public final class Qwen35MLXChat: @unchecked Sendable {
     }
 
     // MARK: - Helpers
+
+    /// Forbid the end-of-turn tokens by driving their logits to -inf. Used to stop a small
+    /// model from ending a turn before it has produced any visible content (empty replies).
+    private func suppressEndTokens(_ logits: inout [Float]) {
+        let ninf = -Float.greatestFiniteMagnitude
+        if config.eosTokenId >= 0, config.eosTokenId < logits.count {
+            logits[config.eosTokenId] = ninf
+        }
+        if ChatTemplate.imEndId >= 0, ChatTemplate.imEndId < logits.count {
+            logits[ChatTemplate.imEndId] = ninf
+        }
+    }
 
     /// Extract logits for the last sequence position as a Float array.
     private func extractLastPositionLogits(_ logits: MLXArray) -> [Float] {

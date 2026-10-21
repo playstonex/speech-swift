@@ -35,6 +35,7 @@ Converts raw audio to a mel spectrogram `[128, T]` using Accelerate framework.
 - **Prefill** (seqLen > 1): all prompt tokens in one forward pass
 - **Decode** (seqLen = 1): SDPA uses optimized T_q=1 Metal kernel
 - **Greedy fast path** (default options): decode loop is double-buffered via `MLX.asyncEval` — step N+1's forward pass is queued *before* step N's token syncs to CPU, so host-side EOS check and append overlap with GPU work. Bit-identical to the legacy loop (snapshot-tested); ~5 % faster on long-form audio (1.7B-8bit, 71 s clip)
+- **Batched greedy decode** (`transcribeBatch` / `audio transcribe-batch --batch-size N`): the default batch path keeps per-row decoder forwards serial for correctness, but syncs the whole `[B, 1]` token tensor once per decode step instead of doing B scalar `.item()` calls. On repeated 10s chunks with the 0.6B 4-bit model, batch size 6 improved aggregate inference time from 3.95s to 3.55s for 24 chunks (+11.3%). The true `[B,1,H]` MLX decoder forward remains gated behind `QWEN3_ASR_EXPERIMENTAL_BATCH_DECODE=1` until row-level bit-exactness is resolved.
 
 ## Decoder Options
 
@@ -69,6 +70,77 @@ let text = model.transcribe(
 The legacy overload `transcribe(audio:sampleRate:language:maxTokens:context:)`
 remains available and forwards into the new path with default options.
 
+## Batched Chunk Decode
+
+`transcribeBatch(audios:sampleRate:language:maxTokens:context:options:)`
+adds a throughput-oriented API for offline ASR workloads that already split
+long recordings into fixed-duration chunks:
+
+```swift
+let texts = model.transcribeBatch(
+    audios: chunks,
+    sampleRate: 24000,
+    language: "en"
+)
+```
+
+By default this API preserves the same per-chunk greedy semantics as
+`transcribe(audio:)`, while sharing one CPU token synchronization across the
+batch at each decode step.
+
+Non-greedy decoding options always fall back to serial per-chunk
+`transcribe(audio:)` calls because repetition penalty, n-gram masking, and
+temperature sampling each need CPU-side logits at every decode step that the
+batched path doesn't surface. "Non-greedy" means any of:
+
+- `repetitionPenalty != 1.0`
+- `noRepeatNgramSize > 0`
+- `temperature > 0.0`
+
+The gate is `Qwen3ASRModel.isGreedyFastPath`, locked in by unit tests in
+`Tests/Qwen3ASRTests/Qwen3ASRBatchedDecodeTests.swift` (one per non-greedy
+flag) and an E2E `testBatchFallsBackToSerialForNonGreedyOptions` that asserts
+batched output equals per-chunk serial output when non-greedy options are set.
+
+The experimental MLX decoder batch can be enabled with
+`QWEN3_ASR_EXPERIMENTAL_BATCH_DECODE=1` while developing the true
+batched-GEMM scheduler. It currently truncates row 1 at batch size 2 on
+repeated identical chunks; that bug is locked in by
+`E2EQwen3ASRExperimentalBatchedDecodeTests` so the gate is a hard constraint,
+not a soft warning.
+
+The current experimental true-batch path batches only equal-length encoder
+outputs. Mixed-duration inputs are grouped by encoder sequence length, decoded
+bucket by bucket, and returned in the caller's original order. This matches
+fixed-duration chunking and avoids silently leaving padding keys in the KV
+cache during decode.
+
+CLI usage:
+
+```bash
+audio transcribe-batch ./chunks --engine qwen3 --model 1.7B-8bit --batch-size 4
+```
+
+The JSONL output exposes both per-row and per-batch timings:
+
+- `time` / `rtf` — per-row inference time and RTF. The default path runs
+  decoder forwards serially per row, so this is the group elapsed split
+  evenly across rows in the batch. It is an attribution, not a measured
+  per-row wall-clock.
+- `batch_time` / `batch_rtf` — true wall-clock for the whole group; use
+  these when computing aggregate throughput.
+
+Experimental batched decoder run:
+
+```bash
+QWEN3_ASR_EXPERIMENTAL_BATCH_DECODE=1 \
+  audio transcribe-batch ./chunks --engine qwen3 --model 1.7B-8bit --batch-size 4
+```
+
+For mixed speech pipelines, batch Qwen3-ASR within MLX rather than trying to
+run multiple MLX models concurrently in one process. MLX uses a single GPU
+dispatch queue; CoreML-backed models can run on the Neural Engine in parallel,
+but this Qwen3-ASR decoder optimization is specifically an MLX/GPU path.
 ## CoreML Encoder Backend (CoreMLEncoder.swift)
 
 The CoreML port of the audio encoder (`aufklarer/Qwen3-ASR-CoreML`) ships a model exported with the same **chunked block attention** the upstream PyTorch model is trained with (100-frame mel chunks → 13 tokens after 3× stride-2 conv, attention restricted to 800-frame / 8-chunk windows). The export uses a **single fixed mel shape** instead of `EnumeratedShapes` and signals real audio length through a dedicated input/output pair so the downstream consumer can slice the padded embeddings to the un-padded count.
@@ -94,7 +166,23 @@ The 8× conv stride downsamples 3000 mel frames to up to 390 audio tokens. For s
 
 ### Swift consumer
 
-`CoreMLEncoder.encode(_:)` returns `(embeddings: MLXArray, outputLength: Int)`. `CoreMLASRModel.transcribe` uses `outputLength` directly as `numAudioTokens` when chunking the audio prefill into the decoder; this replaces the previous `ceil(realMelFrames / 8)` heuristic with the model-reported truth.
+`CoreMLEncoder.encode(_:)` returns `(embeddings: MLXArray, outputLength: Int)`. `CoreMLASRModel.transcribe` uses `outputLength` directly as `numAudioTokens` when chunking the audio prefill into the decoder; this replaces the previous `ceil(realMelFrames / 8)` heuristic with the model-reported truth. `outputLength` is clamped to the embeddings tensor's own token extent, so a re-export whose in-graph length formula outran its output tensor throws instead of handing callers an out-of-range index.
+
+### Consuming `audio_embeddings`
+
+`audio_embeddings` is **Float16**, and ANE may hand it back with padded row strides. Never read it with `assumingMemoryBound(to: Float.self)` — that walks the buffer at twice the real element stride, which both corrupts every value and runs off the end of the allocation at row 195 of 390 (~15 s of audio). Go through one of:
+
+| Entry point | Use when |
+|---|---|
+| `CoreMLTextDecoder.audioEmbeddingsToFloatArray(_:count:)` | Bulk: the whole audio run at once, for batched prefill. This is what `transcribeWithoutMLX` uses. |
+| `CoreMLTextDecoder.audioEmbeddingFromMultiArray(_:at:)` | A single row. |
+| `CoreMLEncoder.encode(_:)` (MLXArray overload) | The MLX path — `multiArrayToMLXArray` converts. |
+
+All three are dtype- and stride-aware and bounds-check against the tensor's real extent.
+
+### Which path is MLX-free
+
+Only `CoreMLASRModel.transcribeWithoutMLX(...)` (and its wrapper `transcribeBackgroundSafe(...)`) is free of MLXArray operations end to end, so it is the one that is safe under iOS background execution. `CoreMLASRModel.transcribe(...)` dispatches all three models through CoreML but still round-trips through MLXArray for mel extraction and encoder output, both of which evaluate on Metal.
 
 ### Why the rebuild
 
@@ -117,6 +205,41 @@ Qwen3-ASR operates in batch mode only. The entire audio input is processed in a 
 
 For long-form audio (> 15 s) and real-time transcription use cases, use [`StreamingASR.transcribeStream(...)`](https://github.com/soniqo/speech-swift/blob/main/Sources/Qwen3ASR/StreamingASR.swift) — it VAD-segments the input at silence boundaries with a `maxSegmentDuration` force-split safety net (default 10 s), so each segment hits the greedy fast path instead of the slow-path escalation that batch `transcribe(...)` engages on inputs over `longInputThresholdSeconds` (default 15 s). Streaming also avoids the per-segment encoder peak that long batch inputs incur on memory-constrained devices.
 
+## Cooperative Cancellation
+
+`transcribeCheckingCancellation(audio:sampleRate:options:)` is the task-cancellation entry point for the MLX pipeline. It decodes exactly like `transcribe(audio:sampleRate:options:)` but checks Swift task cancellation before feature extraction, before the audio encoder, before decoder prefill, and before every decoder step on both the greedy and the repetition-aware paths. Once cancellation is observed at a checkpoint it throws `CancellationError` instead of returning a partial transcript.
+
+Cancellation latency is bounded by the MLX work already in flight — one encoder/prefill evaluation or one token step; Metal kernels cannot be preempted. The synchronous `transcribe(...)` overloads and `transcribeBatch(...)` retain their non-throwing behavior and are not task-cancellation entry points: a caller that transcribes inside an already-cancelled task still receives the full transcript.
+
+`speech-server` routes Qwen3-ASR requests through the cancellation-aware entry point, so cancelling the task running Qwen3-ASR transcription stops decoding at the next checkpoint instead of continuing to EOS. Disconnect handling must propagate cancellation to that task.
+
+## MLX Cache Budget
+
+Loading an MLX Qwen3-ASR model bounds MLX's process-wide pool of reusable
+Metal buffers. The 0.6B variant uses `min(1 GiB, physical RAM / 8)`; the
+1.7B variant uses `min(4 GiB, physical RAM / 4)`. These ceilings apply to
+cached scratch buffers, not active model weights or the total process
+footprint. Other MLX models in the same process share this pool.
+
+Every loaded Qwen3-ASR instance registers its ceiling. The tightest live
+ceiling and the caller's existing `MLX.Memory.cacheLimit` determine the
+effective limit. Unloading instances in any order preserves the remaining
+models' ceilings; releasing the last instance restores the caller's budget.
+Registrations are also released when instances are destroyed. A tighter
+limit set by the caller while models are loaded is preserved on unload.
+
+Single-input transcription clears reusable MLX buffers when its decoder
+returns or throws, including cancellation inside the decoder. Active arrays
+and model weights remain loaded. `transcribeBatch` shares the same cache
+ceiling; its greedy batch decoder does not clear the pool after each batch.
+No transcription options or CLI flags change.
+
+Clearing the pool reduces retained memory but requires new allocations on
+later requests, so short requests can take longer. Waiting for submitted
+decoder work to finish makes cleanup deterministic, including cancellation.
+See the [cache regression probe](../benchmarks/qwen3-asr.md) for measured
+memory and latency tradeoffs; results depend on hardware, model, and audio.
+
 ## Language Detection
 
 The model automatically detects the spoken language from the audio content. No language hint or locale parameter is required. The text decoder emits a language token at the start of generation, followed by the transcribed text. Supported languages include English, Chinese, Japanese, Korean, and many European languages.
@@ -124,3 +247,10 @@ The model automatically detects the spoken language from the audio content. No l
 ## Model Architecture Reference
 
 See [docs/models/asr-model.md](../models/asr-model.md) for detailed architecture documentation including layer dimensions, weight formats, and quantization details.
+
+## Optional managed inference
+
+Import `Qwen3ASRRuntime` to use `Qwen3ASRDescriptors.small`, `.large`, or
+`.coreML` with serialized loading, inference, cancellation and unloading.
+The CLI MLX/full-CoreML paths and server Qwen3-ASR routes share this adapter.
+The native hybrid API remains available. See [runtime contracts](model-runtime.md).

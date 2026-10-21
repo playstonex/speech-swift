@@ -30,6 +30,10 @@ public enum CosyVoiceTTSError: Error, LocalizedError {
 ///
 /// - Warning: This class is not thread-safe. Create separate instances for concurrent use.
 public final class CosyVoiceTTSModel {
+    /// Default HuggingFace model identifier — the 0.5B bf16 MLX bundle. Single
+    /// SSOT for the registry and other call sites.
+    public static let defaultModelId = "aufklarer/CosyVoice3-0.5B-MLX-bf16"
+
     public let config: CosyVoiceConfig
 
     let llm: CosyVoiceLLM
@@ -54,7 +58,7 @@ public final class CosyVoiceTTSModel {
     /// Downloads three safetensors files: llm.safetensors, flow.safetensors, hifigan.safetensors
     /// Caches to ~/Library/Caches/qwen3-speech/
     public static func fromPretrained(
-        modelId: String = "aufklarer/CosyVoice3-0.5B-MLX-4bit",
+        modelId: String = CosyVoiceTTSModel.defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
         progressHandler: ((Double, String) -> Void)? = nil
@@ -75,6 +79,7 @@ public final class CosyVoiceTTSModel {
                 additionalFiles: [
                     "llm.safetensors", "flow.safetensors", "hifigan.safetensors",
                     "vocab.json", "merges.txt", "tokenizer_config.json", "config.json",
+                    "flow_noise.bin",
                 ],
                 offlineMode: offlineMode
             ) { progress in
@@ -93,13 +98,24 @@ public final class CosyVoiceTTSModel {
            let data = try? Data(contentsOf: configURL),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             if let quant = json["quantization"] as? [String: Any] {
-                // The convert.py emits BOTH `bits` (legacy default = 4) and a
-                // per-component override `llm_bits`. Prefer the LLM-specific value.
-                if let bits = (quant["llm_bits"] as? Int) ?? (quant["bits"] as? Int) {
-                    config.llm.bits = bits
-                }
+                // `bits` is the LLM bit width; `llm_bits` is accepted for
+                // bundles that also carry per-component metadata.
                 if let gs = quant["group_size"] as? Int { config.llm.groupSize = gs }
-                print("  Bundle quantization (LLM): \(config.llm.bits)-bit (group_size \(config.llm.groupSize))")
+                if let bits = (quant["llm_bits"] as? Int) ?? (quant["bits"] as? Int) {
+                    switch bits {
+                    case 8:
+                        config.llm.bits = bits
+                        print("  Bundle quantization (LLM): \(config.llm.bits)-bit (group_size \(config.llm.groupSize))")
+                    case 16:
+                        config.llm.bits = bits
+                        print("  Bundle precision (LLM): 16-bit (plain Linear; no .scales)")
+                    default:
+                        throw CosyVoiceTTSError.modelLoadFailed(
+                            "CosyVoice LLM bundles must be 8-bit quantized or 16-bit/bf16 plain Linear.")
+                    }
+                } else {
+                    print("  Bundle quantization (LLM): \(config.llm.bits)-bit (group_size \(config.llm.groupSize))")
+                }
             } else {
                 print("  Bundle: unquantised (bf16) — LLM + DiT stay in plain Linear form")
             }
@@ -107,9 +123,22 @@ public final class CosyVoiceTTSModel {
             // override the DiT bits without affecting the LLM. The bf16 bundle
             // omits this; the loader will keep DiT as plain Linear.
             if let dit = json["dit_quantization"] as? [String: Any] {
-                if let bits = dit["bits"] as? Int { config.flow.dit.bits = bits }
                 if let gs = dit["group_size"] as? Int { config.flow.dit.groupSize = gs }
-                print("  Bundle quantization (DiT): \(config.flow.dit.bits)-bit (group_size \(config.flow.dit.groupSize))")
+                if let bits = dit["bits"] as? Int {
+                    switch bits {
+                    case 8:
+                        config.flow.dit.bits = bits
+                        print("  Bundle quantization (DiT): \(config.flow.dit.bits)-bit (group_size \(config.flow.dit.groupSize))")
+                    case 16:
+                        config.flow.dit.bits = bits
+                        print("  Bundle precision (DiT): 16-bit (plain Linear; no .scales)")
+                    default:
+                        throw CosyVoiceTTSError.modelLoadFailed(
+                            "CosyVoice DiT bundles must be 8-bit quantized or 16-bit/bf16 plain Linear.")
+                    }
+                } else {
+                    print("  Bundle quantization (DiT): \(config.flow.dit.bits)-bit (group_size \(config.flow.dit.groupSize))")
+                }
             }
         }
         let model = CosyVoiceTTSModel(config: config)
@@ -122,6 +151,32 @@ public final class CosyVoiceTTSModel {
         progressHandler?(0.7, "Loading flow weights...")
         let flowURL = cacheDir.appendingPathComponent("flow.safetensors")
         try CosyVoiceWeightLoader.loadFlow(model.flow, from: flowURL)
+
+        // Fixed flow noise (upstream parity): prefer an explicit
+        // COSY_FIXED_NOISE override, else a bundle-provided flow_noise.bin
+        // (raw float32, upstream's torch-seed-0 rand_noise [1, 80, N]).
+        // Without either, the solver uses a deterministic keyed draw.
+        let envNoise = ProcessInfo.processInfo.environment["COSY_FIXED_NOISE"]
+        let bundleNoisePath = cacheDir.appendingPathComponent("flow_noise.bin").path
+        if envNoise == nil, !FileManager.default.fileExists(atPath: bundleNoisePath) {
+            // Caches created before the bundles shipped flow_noise.bin lack it
+            // (the main download is skipped once weights exist). Fetch it
+            // best-effort — the glob snapshot matches nothing on bundles
+            // without the file, so this cannot fail a load.
+            try? await HuggingFaceDownloader.downloadFiles(
+                modelId: modelId, to: cacheDir,
+                files: ["flow_noise.bin"], offlineMode: offlineMode)
+        }
+        let noisePath = envNoise
+            ?? (FileManager.default.fileExists(atPath: bundleNoisePath) ? bundleNoisePath : nil)
+        if let noisePath {
+            if let noise = ConditionalFlowMatching.loadFixedNoise(path: noisePath) {
+                model.flow.decoder.fixedNoise = noise
+                print("  Fixed flow noise: \(URL(fileURLWithPath: noisePath).lastPathComponent) [1, 80, \(noise.dim(2))]")
+            } else {
+                print("  WARNING: could not load fixed flow noise from \(noisePath); using keyed draw")
+            }
+        }
 
         progressHandler?(0.9, "Loading vocoder weights...")
         let hifiganURL = cacheDir.appendingPathComponent("hifigan.safetensors")
@@ -234,17 +289,31 @@ public final class CosyVoiceTTSModel {
         //    instruction. Upstream: `min_len = (text_len - prompt_text_len) * ratio`.
         let contentTokens = tokenizer.encode(text).map { Int32($0) }
 
-        // For zero-shot voice cloning, upstream's text input is literally
-        //   concat(transcript_tokens + [<|endofprompt|>], content_tokens)
-        // with NO "You are a helpful assistant. " system frame. Adding the
-        // system frame puts the LLM off the training distribution and it
-        // reads back the tail of the transcript instead of synthesising the
-        // user text. So when promptText is set we bypass tokenizeText entirely
-        // and build the sequence directly.
+        // For an unstyled zero-shot clone, upstream CosyVoice3's text input is
+        //   "You are a helpful assistant.<|endofprompt|>" + transcript + content
+        // (example.py passes exactly that as prompt_text; llm.py concatenates
+        // prompt_text + text). Everything after <|endofprompt|> must BEGIN
+        // with the words the prompt audio speaks — placing the marker between
+        // transcript and content makes the model recite the transcript
+        // instead of the content (prompt regurgitation).
+        //
+        // A non-default instruction selects CosyVoice's `instruct2` layout:
+        // the framed instruction becomes the LLM text prefix and the reference
+        // speech tokens are withheld from the LLM. The Flow model still gets
+        // promptToken + promptFeat, retaining the cloned-voice anchor while
+        // allowing the LLM to follow the requested emotion or style.
+        let useInstructionConditionedClone = Self.usesInstructionConditionedClone(
+            promptText: promptText,
+            instruction: instruction
+        )
         let textTokens: [Int32]
-        if let pt = promptText, !pt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if useInstructionConditionedClone {
+            textTokens = tokenizeText(text, language: language, instruction: instruction)
+        } else if let pt = promptText, !pt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let instructionTokens = tokenizer.encode(Self.assistantPrefix).map { Int32($0) }
             let promptTextTokens = tokenizer.encode(pt).map { Int32($0) }
-            textTokens = promptTextTokens + [Self.endOfPromptToken] + contentTokens
+            textTokens = instructionTokens + [Self.endOfPromptToken]
+                + promptTextTokens + contentTokens
         } else {
             textTokens = tokenizeText(text, language: language, instruction: instruction)
         }
@@ -256,9 +325,11 @@ public final class CosyVoiceTTSModel {
         //    the LLM emits "neutral default voice" tokens that conflict with
         //    the flow's prompt_token + prompt_feat anchors and the cloned
         //    output drifts to a different voice (see PR #247).
-        let promptSpeechTokensArr: [Int32]? = promptToken.map { pt in
-            pt.reshaped(-1).asArray(Int32.self)
-        }
+        let promptSpeechTokensArr: [Int32]? = useInstructionConditionedClone
+            ? nil
+            : promptToken.map { pt in
+                pt.reshaped(-1).asArray(Int32.self)
+            }
         // Cap maxTokens proportionally to the content length. With prompt
         // conditioning the LLM is biased to "keep speaking" — a fixed cap of
         // 500 lets a 5-word phrase generate 20 s of repeats. Scale to 10×
@@ -300,20 +371,24 @@ public final class CosyVoiceTTSModel {
         )
         eval(fullMel)
 
-        // Pass the FULL mel (prompt + generation) to HiFi-GAN. Slicing the mel
-        // here means HiFi-GAN's causal convolutions warm up against zero-padded
-        // boundaries, producing a click/transient ~10 mel frames into the
-        // generated audio (the convolutional receptive field). Instead we let
-        // HiFi-GAN render both regions continuously and trim the prompt-region
-        // audio AFTER, where the boundary is smooth.
-        let mel = fullMel
-        let promptAudioSamples: Int
+        // Slice off the prompt region in the MEL domain, exactly like
+        // upstream (`feat = feat[:, :, mel_len1:]`), and vocode only the
+        // generation. Cutting the rendered AUDIO at the prompt boundary
+        // instead leaves a hard, unfaded mid-waveform cut — an audible
+        // click — and re-renders the whole reference through HiFi-GAN for
+        // nothing. The vocoder is causal and trained to start from zero
+        // left-context, so the sliced mel is its in-distribution input.
+        let mel: MLXArray
         if let pf = promptFeat {
             let promptMelLen = pf.dim(2)
-            // mel-rate is 50 Hz, audio sample rate is 24 kHz → 480 samples/mel
-            promptAudioSamples = promptMelLen * (config.sampleRate / 50)
+            let totalMelLen = fullMel.dim(2)
+            if promptMelLen < totalMelLen {
+                mel = fullMel[0..., 0..., promptMelLen...]
+            } else {
+                mel = fullMel
+            }
         } else {
-            promptAudioSamples = 0
+            mel = fullMel
         }
 
         // Optional debug dump of the mel that reaches HiFi-GAN.
@@ -338,16 +413,9 @@ public final class CosyVoiceTTSModel {
             print(String(format: "  HiFi-GAN: %.0fms", (CFAbsoluteTimeGetCurrent() - t0) * 1000))
         }
 
-        // 5. Extract float samples, trimming the prompt-region audio so the
-        //    caller only sees the synthesised content. The boundary inside
-        //    HiFi-GAN's continuous render is smoother than a pre-sliced mel,
-        //    so trimming here removes the slice-boundary click that appeared
-        //    ~10 mel frames into the audio in the old path.
-        var samples = audio.reshaped(-1).asArray(Float.self)
-        if promptAudioSamples > 0 && promptAudioSamples < samples.count {
-            samples = Array(samples[promptAudioSamples...])
-        }
-        return samples
+        // 5. Extract float samples — the mel was already sliced to the
+        //    generation region, so the render is content-only.
+        return audio.reshaped(-1).asArray(Float.self)
     }
 
     /// Synthesize with streaming output.
@@ -395,28 +463,51 @@ public final class CosyVoiceTTSModel {
     /// for it — otherwise the model treats the instruction as content to speak.
     static let assistantPrefix = "You are a helpful assistant."
 
-    /// Format and tokenize text for CosyVoice3 LLM.
-    ///
-    /// Upstream training format: `"You are a helpful assistant. {style}<|endofprompt|>{text}"`.
-    /// Stripping the assistant prefix pushes the model out of distribution and it
-    /// reads the style instruction aloud instead of using it as conditioning.
+    /// Single source of truth for "is a style instruction present?".
+    /// `instruction` defaults to `assistantPrefix`, so anything trimmed-equal to
+    /// that (or empty) means "no style". This is the one place that knows the
+    /// default sentinel — both the clone dispatch and the LLM framing defer to
+    /// it instead of re-comparing the magic string.
+    static func hasCustomStyleInstruction(_ instruction: String) -> Bool {
+        let trimmed = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed != assistantPrefix
+    }
+
+    /// Frame an instruction for the LLM. CosyVoice3 was trained with the
+    /// `"You are a helpful assistant. {style}"` system frame; a bare style is
+    /// read aloud as content, so a custom style is prefixed with the frame while
+    /// the default/empty case collapses to the frame alone.
+    static func framedInstruction(_ instruction: String) -> String {
+        guard hasCustomStyleInstruction(instruction) else { return assistantPrefix }
+        let trimmed = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.hasPrefix(assistantPrefix) ? trimmed : "\(assistantPrefix) \(trimmed)"
+    }
+
+    /// Whether a cloned voice (one carrying a reference transcript) should use
+    /// CosyVoice's `instruct2` layout instead of the transcript-led zero-shot
+    /// path: only when a reference transcript is present *and* a custom style
+    /// instruction was supplied. Otherwise the higher-fidelity transcript-led
+    /// path is kept.
+    static func usesInstructionConditionedClone(
+        promptText: String?,
+        instruction: String
+    ) -> Bool {
+        guard let promptText, !promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+        return hasCustomStyleInstruction(instruction)
+    }
+
+    /// Format and tokenize text for CosyVoice3 LLM: framed instruction, the
+    /// `<|endofprompt|>` boundary, then the content tokens. Framing keeps the
+    /// model in distribution — stripping the assistant prefix makes it read the
+    /// style aloud instead of using it as conditioning.
     func tokenizeText(
         _ text: String, language: String,
         instruction: String = "You are a helpful assistant."
     ) -> [Int32] {
-        let framedInstruction: String
-        let trimmed = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty || trimmed == Self.assistantPrefix {
-            framedInstruction = Self.assistantPrefix
-        } else if trimmed.hasPrefix(Self.assistantPrefix) {
-            framedInstruction = trimmed
-        } else {
-            framedInstruction = "\(Self.assistantPrefix) \(trimmed)"
-        }
-
-        let instructionTokens = tokenizer.encode(framedInstruction).map { Int32($0) }
+        let instructionTokens = tokenizer.encode(Self.framedInstruction(instruction)).map { Int32($0) }
         let textTokens = tokenizer.encode(text).map { Int32($0) }
-
         return instructionTokens + [Self.endOfPromptToken] + textTokens
     }
 }

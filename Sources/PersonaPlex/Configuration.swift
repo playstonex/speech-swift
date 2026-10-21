@@ -190,12 +190,16 @@ public struct MimiConfig: Sendable {
     public let transformer: MimiTransformerConfig
 
     public static func moshiko(numCodebooks: Int = 16) -> MimiConfig {
+        moshiko(numCodebooks: numCodebooks, padMode: .edge)
+    }
+
+    public static func moshiko(numCodebooks: Int = 16, padMode: PadMode) -> MimiConfig {
         let seanet = SeanetConfig(
             dimension: 512, channels: 1, causal: true,
             nFilters: 64, nResidualLayers: 1, ratios: [8, 6, 5, 4],
             kernelSize: 7, residualKernelSize: 3, lastKernelSize: 3,
             dilationBase: 2, trueSkip: true, compress: 2,
-            padMode: .edge
+            padMode: padMode
         )
         let transformer = MimiTransformerConfig(
             dModel: 512, numHeads: 8, numLayers: 8,

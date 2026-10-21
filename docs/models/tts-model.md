@@ -161,15 +161,18 @@ Audio (24kHz) -> SeanetEncoder (Conv1d downsampling, residual blocks)
 
 ## Model Variants
 
-Qwen3-TTS ships in two variants with identical architecture (Talker + Code Predictor + Speech Tokenizer). The difference is fine-tuning and how speaker identity is provided. Both variants are available in 4-bit and 8-bit quantization, and in 0.6B and 1.7B sizes.
+Qwen3-TTS ships in two variants with identical architecture (Talker + Code Predictor + Speech Tokenizer). The difference is fine-tuning and how speaker identity is provided. The 0.6B Base and CustomVoice production floor is **8-bit**; int4 was decommissioned for TTS quality. CustomVoice also ships a validated true-**bf16** bundle; the failed path was an fp16-cast export and should not be published as a production variant. The 1.7B Base ships **8-bit and bf16** — its 4-bit was dropped because it degraded badly (silent or garbled output on some inputs).
 
 | Variant | Size | Quantization | HuggingFace ID | Speaker Selection |
 |---------|------|--------------|----------------|-------------------|
-| **Base** | 0.6B | 4-bit | `aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-4bit` | None (single default voice) |
 | **Base** | 0.6B | 8-bit | `aufklarer/Qwen3-TTS-12Hz-0.6B-Base-MLX-8bit` | None (single default voice) |
-| **Base** | 1.7B | 4-bit | `aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-4bit` | None (single default voice) |
 | **Base** | 1.7B | 8-bit | `aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-8bit` | None (single default voice) |
-| **CustomVoice** | 0.6B | 4-bit | `aufklarer/Qwen3-TTS-12Hz-0.6B-CustomVoice-MLX-4bit` | 9 preset voices + instruction control |
+| **Base** | 1.7B | bf16 | `aufklarer/Qwen3-TTS-12Hz-1.7B-Base-MLX-bf16` | None (single default voice) |
+| **CustomVoice** | 0.6B | bf16 | `aufklarer/Qwen3-TTS-12Hz-0.6B-CustomVoice-MLX-bf16` | 9 preset voices + instruction control (8-bit bundle retired) |
+
+Float bundles load with float16 weights promoted to bfloat16: the talker's
+cached incremental decode is numerically unstable in float16 (prefill is
+fine, step logits degenerate), while upstream runs bfloat16 throughout.
 
 ### CustomVoice Speakers
 

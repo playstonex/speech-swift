@@ -31,12 +31,193 @@ let pipeline = try await PyannoteDiarizationPipeline.fromPretrained(
     cacheBaseDir: appModels)
 // Segmentation → appModels/models/aufklarer/Pyannote-Segmentation-MLX/
 // Embedding    → appModels/models/aufklarer/WeSpeaker-ResNet34-LM-MLX/
-// VAD (opt.)   → appModels/models/aufklarer/Silero-VAD-v5-MLX/
+// VAD (opt.)   → appModels/models/aufklarer/Silero-VAD-v6.2.1-MLX/
 ```
+
+Community-1 is one self-contained bundle, so it uses the regular `cacheDir`
+parameter:
+
+```swift
+let community1 = try await Community1DiarizationPipeline.fromPretrained(
+    cacheDir: appModels.appendingPathComponent("community1"),
+    offlineMode: true
+)
+```
+
+## MLX initialization during checkpoint loading
+
+`MLXCommon` provides two helpers for constructing modules whose initial
+parameters will be replaced by a checkpoint:
+
+- `QuantizedLinear.preQuantized` creates lazy zero placeholders for the packed
+  weight, scales, quantization biases and optional output bias. Loading replaces
+  these arrays, including their dtypes, before inference. It avoids both random
+  weight generation and quantization of weights that will be discarded.
+- `withThrowawayRandomState` gives temporary floating-point initialization its
+  own random key. Discarded random draws therefore do not extend the caller's
+  lazy random-key chain. The caller's state is restored when construction returns
+  or throws.
+
+Composite loaders scope each component, including MAGNeT's T5 encoder and
+EnCodec decoder, Stable Audio 3's T5Gemma encoder and SAME-L decoder, and CSM's
+separately loaded Mimi codec. Scoping only the main network leaves the other
+components' initialization graphs reachable through the caller's random state.
+
+CSM's quantized embeddings still use MLX's `QuantizedEmbedding` initializer;
+they retain its known initialization-graph limitation until an explicit-array
+initializer is available. The helpers do not change checkpoint formats or
+quantization settings.
+
+Regression tests check that loading does not advance the caller's random key,
+including rejected checkpoints. This covers CPU graph retention that
+`Memory.activeMemory`, which measures GPU buffers, does not detect.
+
+## HuggingFace Mirror (`HF_ENDPOINT`)
+
+Downloads default to `https://huggingface.co`. Users in regions where that host is slow or blocked — notably mainland China — can point the downloader at a mirror by setting the `HF_ENDPOINT` environment variable (the same name Python's `huggingface_hub` uses):
+
+```bash
+export HF_ENDPOINT=https://hf-mirror.com
+.build/release/speech transcribe recording.wav   # weights now fetch from hf-mirror.com
+```
+
+Notes:
+- The value must be a full `http(s)://host` URL. A blank or malformed value is ignored and the default endpoint is used.
+- The cache is keyed by repo id, not by host — switching `HF_ENDPOINT` reuses any weights already on disk and never forces a re-download. You can fetch from the mirror once and keep using the cache offline.
+- Applies to every model and CLI command, since all downloads share one downloader.
+
+## Download Behavior
+
+Every model shares one downloader. A repository is resolved once against the
+Hub tree API, which returns each file's size and — for LFS-backed files — its
+SHA-256, in a single request. Transfers then behave the same way for every
+model:
+
+- **Large files transfer as concurrent byte ranges** and record completed
+  chunks alongside the data, so an interrupted download resumes where it
+  stopped instead of restarting the file. This survives process exit: a
+  download interrupted by quitting the app continues on next launch.
+- **Progress is weighted by real transferred bytes**, across the whole file
+  set rather than per file.
+- **LFS-backed weights are checksummed** after transfer. A file whose digest
+  doesn't match is deleted rather than kept, so a corrupted download is
+  refetched instead of being cached permanently and resurfacing later as an
+  unreadable-tensor error. Already-cached files are not re-hashed on load.
+- **Sharded bundles fetch only the shards their index names.** A repository
+  that publishes both a sharded set and a consolidated `model.safetensors`
+  holds the same tensors twice; `model.safetensors.index.json` decides which
+  copy is used.
+
+In-flight files stage under `<cacheDir>/.incomplete/` and are moved into place
+once complete. The directory is removed when empty; anything left in it is a
+resume point for an interrupted transfer and is safe to delete manually if you
+want to force a clean re-download.
+
+### Transfers that outlive the process
+
+The transfers above run inside the process, which is the right answer wherever
+the process keeps running. On iOS it is not: the system suspends an application
+shortly after it leaves the screen, and an in-process transfer stops with it —
+the sockets go down, the retry ladder's timers do not run, and a
+several-hundred-megabyte model freezes at whatever percentage it had reached
+until the application is frontmost again.
+
+Hand the transfer to the system instead by setting a background session
+identifier once, before the first download:
+
+```swift
+HuggingFaceDownloader.backgroundTransfer = BackgroundTransferConfiguration(
+    sessionIdentifier: "com.example.app.models")
+```
+
+and forwarding the completion handler the system supplies when it relaunches
+the process to deliver finished transfers:
+
+```swift
+func application(
+    _ application: UIApplication,
+    handleEventsForBackgroundURLSession identifier: String,
+    completionHandler: @escaping () -> Void
+) {
+    HuggingFaceDownloader.handleBackgroundSessionEvents(
+        identifier: identifier, completionHandler: completionHandler)
+}
+```
+
+Everything else is unchanged: the same ranged chunks, the same staging file and
+sidecar, the same resume point. What changes is who performs the transfer.
+Cancelling the async task that is currently waiting for a background download
+only detaches that waiter; it does not cancel the system-owned requests. A new
+caller or a relaunched process adopts the requests already in flight.
+The adopter reconciles both the staging sidecar and ranges delivered during the
+handoff before it installs its waiter, so a range completed at that boundary
+cannot remain falsely outstanding.
+
+It is opt-in, and `nil` — the default — keeps the in-process session, because
+a background session is not free:
+
+- Only download tasks are allowed, so a range arrives as a file rather than as
+  bytes in memory. That costs a splice per chunk and saves the 128 MB of
+  transient buffers the in-process path holds at the default settings.
+- The system decides when the work runs. `isDiscretionary` is off by default so
+  it starts promptly, but a session created while the application is already in
+  the background is discretionary whatever this says.
+- A completion may be delivered to a process that never asked for it. A range
+  that lands with nobody assembling its file waits beside the staging file and
+  is spliced by whoever asks for that file next, so those bytes are not lost.
+- The stall guard does not apply. Its clock keeps running while the process is
+  suspended, so a transfer the system was performing correctly the whole time
+  would look wedged the moment the process came back. `resourceTimeout` bounds
+  the transfer instead, enforced by the system out of process; it defaults to
+  24 hours, because a large bundle on a slow link legitimately takes hours.
+
+Resolution against the Hub tree API stays an ordinary request either way — it
+is small, and it is the one part that cannot be handed over.
+
+### When the Hub is unreachable
+
+Resolution always goes to the network, so that a re-exported model is picked
+up rather than silently pinned to whatever was cached first. If the Hub cannot
+be reached and **everything the call asked for is already on disk**, the load
+proceeds from cache instead of failing — a dropped connection shouldn't break a
+load that needs no bytes.
+
+That fallback is deliberately narrow:
+
+- It applies only to transport failures (no route, DNS, refused connection,
+  timeout, stall). An HTTP answer is a real answer: a 404 for a model that
+  doesn't exist still fails, and so does a checksum mismatch.
+- The cache must be *complete* — every requested asset present, and for a
+  sharded bundle every shard the index names. A cache with weights but no
+  tokenizer fails, rather than loading and breaking later somewhere less
+  obvious.
+
+Set `offlineMode: true` when you want to guarantee no network calls at all
+rather than relying on this.
+
+### Tuning
+
+| Variable | Default | Effect |
+|---|---|---|
+| `HF_ENDPOINT` | `https://huggingface.co` | Mirror host (see above) |
+| `HF_TOKEN` | — | Bearer token for gated repositories |
+| `HF_DOWNLOAD_STALL_TIMEOUT` | `300` | Seconds without progress before an attempt is abandoned and retried |
+| `HF_DOWNLOAD_RANGE_CONCURRENCY` | `16` | Concurrent range requests per file (capped at 16) |
+| `HF_DOWNLOAD_RANGE_THRESHOLD` | `8388608` (8 MB) | File size at or above which ranged transfer is used |
+| `HF_DOWNLOAD_RANGE_CHUNK` | `8388608` (8 MB) | Bytes per range request |
+
+Each in-flight chunk is buffered whole, so chunk size × concurrency is the
+transient memory a large download costs — 128 MB at the defaults. Lower
+`HF_DOWNLOAD_RANGE_CONCURRENCY` on memory-constrained devices.
+
+Failed downloads retry five times with 5/15/30/60 s backoff. The stall timeout
+is deliberately patient because app users cannot set environment variables and
+flaky networks routinely stall for a minute or two before recovering; CI pins
+it lower to fail fast.
 
 ## Offline Mode
 
-When `offlineMode: true`, the downloader skips network requests if weights already exist on disk:
+When `offlineMode: true`, the downloader never touches the network:
 
 ```swift
 let model = try await Qwen3ASRModel.fromPretrained(offlineMode: true)
@@ -44,9 +225,14 @@ let model = try await Qwen3ASRModel.fromPretrained(offlineMode: true)
 
 Behavior:
 - Weights exist → returns immediately (no HuggingFace API calls)
-- Weights missing → falls through to normal download (will fail if truly offline)
+- Weights missing → throws a cache-miss error naming the directory it checked
 
-This avoids unnecessary network latency on app launch when models are already cached.
+A sharded bundle counts as present only when every shard its index names is on
+disk, so a partially downloaded model is reported missing rather than loaded
+with some tensors absent.
+
+This avoids unnecessary network latency on app launch when models are already
+cached.
 
 ### Combining Both
 
@@ -68,16 +254,25 @@ All models support both parameters:
 | `ParakeetASRModel` | `cacheDir`, `offlineMode` |
 | `CoreMLASRModel` | `cacheDir`, `offlineMode` |
 | `KokoroTTSModel` | `cacheDir`, `offlineMode` |
-| `Qwen3TTSModel` | `cacheDir`, `offlineMode` |
+| `Qwen3TTSModel` | `cacheDir`, `tokenizerCacheDir`, `offlineMode`; or explicit `fromLocal` directories |
 | `Qwen3TTSCoreMLModel` | `cacheDir`, `offlineMode` |
 | `CosyVoiceTTSModel` | `cacheDir`, `offlineMode` |
 | `PersonaPlexModel` | `cacheDir`, `offlineMode` |
 | `SileroVADModel` | `cacheDir`, `offlineMode` |
 | `PyannoteVADModel` | `cacheDir`, `offlineMode` |
 | `FireRedVADModel` | `cacheDir`, `offlineMode` |
+| `SmartTurnModel` | `cacheDir`, `offlineMode` |
 | `WeSpeakerModel` | `cacheDir`, `offlineMode` |
+| `ReDimNet2SpeakerModel` | `cacheDir`, `offlineMode` |
 | `SpeechEnhancer` | `cacheDir`, `offlineMode` |
+| `LocalVQEEchoCanceller` | `cacheDir`, `offlineMode` |
 | `SortformerDiarizer` | `cacheDir`, `offlineMode` |
+| `Community1DiarizationPipeline` | `cacheDir`, `offlineMode` |
 | `PyannoteDiarizationPipeline` | `cacheBaseDir`, `offlineMode` |
 | `Qwen35CoreMLChat` | `cacheDir`, `offlineMode` |
 | `Qwen35MLXChat` | `cacheDir`, `offlineMode` |
+
+For the default ReDimNet2 model, `cacheDir` names the repository root and the
+loader uses a versioned child directory. Use `modelCacheDirectory(in:)` to
+locate its files and `isCached(at:)` to route an offline load. Retired cache
+generations stay intact but do not satisfy the corrected artifact contract.

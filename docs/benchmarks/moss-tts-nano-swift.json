@@ -1,0 +1,39 @@
+{
+  "runtime": "speech release CLI, native Swift/CoreML",
+  "chip": "Apple M5 Pro, 48 GB",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "text": "The weather is nice today.",
+  "reference": "samples/hello-gpu.wav",
+  "reference_seconds": 2.72,
+  "seed": 1,
+  "method": "One request in a fresh process per backend, run sequentially. Reference reading/resampling, encoder loading and encoding included in latency; synthesis model loading excluded. Whole CLI maximum RSS from /usr/bin/time -l, without ASR weights loaded. OS/CoreML disk caches not cleared. These are single-request smoke measurements, not warm medians.",
+  "reports": [
+    {
+      "compute_units": "CPU_ONLY",
+      "first_token_ms": 537,
+      "first_audio_ms": 560,
+      "audio_seconds": 2.96,
+      "request_seconds": 1.38,
+      "peak_rss_mib": 670.65625,
+      "asr_transcript": "The weather is nice today.",
+      "byte_identical_to_asr_checked_audio": true,
+      "waveform_sha256": "d9ad9991c031742dab20d5ac1580d7277a1451e41984f086c8dbdff10cfce604",
+      "real_time_factor": 0.4662162162162162
+    },
+    {
+      "compute_units": "CPU_AND_GPU",
+      "first_token_ms": 570,
+      "first_audio_ms": 645,
+      "audio_seconds": 2.4,
+      "request_seconds": 1.65,
+      "peak_rss_mib": 602.5,
+      "asr_transcript": "The weather is nice today.",
+      "byte_identical_to_asr_checked_audio": true,
+      "waveform_sha256": "7a34eb3680bd7605c44bf31d7663e255921d4bef1b76e8dff423e224bd609644",
+      "real_time_factor": 0.6875
+    }
+  ],
+  "model_repository": "aufklarer/MOSS-TTS-Nano-100M-CoreML",
+  "model_revision": "fdef5dc64de5b68b126d6ff726ff32a02a783e42",
+  "reference_sha256": "6423ed7be69562d33ec73a2ee69d419a8920087b8d33cb695097e33a4b002f04"
+}

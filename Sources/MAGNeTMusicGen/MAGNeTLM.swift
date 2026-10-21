@@ -32,13 +32,13 @@ public final class MAGNeTMultiHeadAttention: Module {
         self.numHeads = numHeads
         self.headDim = dim / numHeads
         self.scale = Float(1.0 / sqrt(Double(self.headDim)))
-        self._qProj = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._qProj = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             dim, dim, bias: false, groupSize: groupSize, bits: bits))
-        self._kProj = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._kProj = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             dim, dim, bias: false, groupSize: groupSize, bits: bits))
-        self._vProj = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._vProj = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             dim, dim, bias: false, groupSize: groupSize, bits: bits))
-        self._outProj = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._outProj = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             dim, dim, bias: false, groupSize: groupSize, bits: bits))
         super.init()
     }
@@ -75,9 +75,9 @@ public final class MAGNeTTransformerBlock: Module {
             dim: hiddenSize, numHeads: numHeads, groupSize: groupSize, bits: bits))
         self._crossAttn = ModuleInfo(wrappedValue: MAGNeTMultiHeadAttention(
             dim: hiddenSize, numHeads: numHeads, groupSize: groupSize, bits: bits))
-        self._linear1 = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._linear1 = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             hiddenSize, ffnDim, bias: false, groupSize: groupSize, bits: bits))
-        self._linear2 = ModuleInfo(wrappedValue: QuantizedLinear(
+        self._linear2 = ModuleInfo(wrappedValue: QuantizedLinear.preQuantized(
             ffnDim, hiddenSize, bias: false, groupSize: groupSize, bits: bits))
         self._norm1 = ModuleInfo(wrappedValue: LayerNorm(dimensions: hiddenSize, eps: eps))
         self._normCross = ModuleInfo(wrappedValue: LayerNorm(dimensions: hiddenSize, eps: eps))

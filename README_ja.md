@@ -9,7 +9,12 @@ Mac・iOS向けのオンデバイス音声認識・合成・理解。Apple Silic
 **[📚 ドキュメント →](https://soniqo.audio/ja)** · **[🤗 HuggingFaceモデル](https://huggingface.co/aufklarer)** · **[📝 ブログ](https://blog.ivan.digital)**
 
 <p align="center">
-  <a href="https://www.producthunt.com/products/speech-swift?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-speech-swift" target="_blank" rel="noopener noreferrer"><img alt="speech-swift -  The whole speech stack, on your laptop. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1151422&amp;theme=light&amp;t=1779261593657"></a>
+  <a href="https://formulae.brew.sh/formula/speech"><img src="https://img.shields.io/homebrew/installs/dm/speech.svg?logo=homebrew&amp;label=Homebrew%20installs&amp;color=FBB040" alt="Homebrew installs"></a>
+  <a href="https://github.com/soniqo/speech-swift#built-with-speech-swift"><img src="https://img.shields.io/badge/verified%20public%20repositories-16-2ea44f?logo=github" alt="Verified public repositories: 15"></a>
+</p>
+
+<p align="center">
+  <a href="https://trendshift.io/repositories/24196?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-24196" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/24196/daily?language=Swift" alt="soniqo%2Fspeech-swift | Trendshift" width="250" height="55"/></a>
 </p>
 
 <p align="center">
@@ -21,36 +26,87 @@ Mac・iOS向けのオンデバイス音声認識・合成・理解。Apple Silic
 
 **ユースケース：** [音声エージェント](https://soniqo.audio/ja/voice-agents) · [文字起こし](https://soniqo.audio/ja/transcription) · [音声合成](https://soniqo.audio/ja/speech-generation)
 
+## Speech Swift で構築
+
+Speech Swift パッケージへの参照を公開ソースで確認できる 16 個のリポジトリです。
+
+[AnythingLLM](https://github.com/Mintplex-Labs/anything-llm) · [Palmier Pro](https://github.com/palmier-io/palmier-pro) · [Anarlog](https://github.com/fastrepl/anarlog) · [ClawdHome](https://github.com/ThinkInAIXYZ/clawdhome) · [Jabber](https://github.com/rselbach/jabber) · [Ora](https://github.com/wuwangzhang1216/ora) · [VoxFlow](https://github.com/xingbofeng/VoxFlow) · [LokalBot](https://github.com/stevyhacker/lokalbot) · [Voicey](https://github.com/jonathanKingston/voicey) · [HushType](https://github.com/felixfu824/HushType) · [DexDictate macOS](https://github.com/westkitty/DexDictate_MacOS) · [Watchtower](https://github.com/aiwatchtowers/watchtower) · [Wishper App](https://github.com/irangareddy/wishper-app) · [FriSpeak](https://github.com/KSubedi/FriSpeak) · [Scribe](https://github.com/itchat/Scribe) · [VoicePen](https://github.com/dot-sk/VoicePen)
+
+**機能グループ：** STT / ASR · アラインメント · TTS · LLM と翻訳 · Speech-to-Speech · 強化 / 復元 · 音源分離 · 音楽 / オーディオ生成 · ウェイクワード、VAD、話者分離、話者識別
+
+**STT / ASR**
+
 - **[Qwen3-ASR](https://soniqo.audio/ja/guides/transcribe)** — 音声認識（自動音声認識、52言語、MLX + CoreML）
+- **[WhisperASR](docs/models/whisper-asr.md)** — Whisper Large-v3 Turbo speech-to-text via native CoreML runtime (ANE, multilingual)
+- **[MOSS Transcribe Diarize](https://soniqo.audio/ja/guides/moss)** — ネイティブ CoreML/MLX のオフライン文字起こし。モデル生成の話者ラベルとタイムスタンプ（MLX は 128K コンテキスト、INT5/INT8）
 - **[Parakeet TDT](https://soniqo.audio/ja/guides/parakeet)** — CoreMLによる音声認識（Neural Engine、NVIDIA FastConformer + TDTデコーダー、25言語）
 - **[Omnilingual ASR](https://soniqo.audio/ja/guides/omnilingual)** — 音声認識（Meta wav2vec2 + CTC、**1,672言語**、32文字体系、CoreML 300M + MLX 300M/1B/3B/7B）
+- **[Cohere Transcribe 2B](https://soniqo.audio/ja/guides/cohere-transcribe)** — ネイティブ MLX 音声認識（14言語、FP16/INT5/INT8）
+- **[Kyutai STT](https://soniqo.audio/ja/guides/kyutai-stt)** — ネイティブ MLX ストリーミング音声認識（1B 英語・フランス語、2.6B 英語構成、24 kHz Mimi、FP16/INT4/INT8 エクスポート） · [INT8](https://huggingface.co/aufklarer/Kyutai-STT-1B-MLX-8bit) (標準) · [INT4](https://huggingface.co/aufklarer/Kyutai-STT-1B-MLX-4bit) · [FP16](https://huggingface.co/aufklarer/Kyutai-STT-1B-MLX-FP16)
+- **[Voxtral Mini 3B](https://soniqo.audio/ja/guides/voxtral)** — ネイティブ MLX 音声認識（8言語、FP16/INT5/INT8）— M5 Pro で RTF 0.074
 - **[ストリーミングディクテーション](https://soniqo.audio/ja/guides/dictate)** — 部分結果と発話終端検出付きのリアルタイムディクテーション（Parakeet-EOU-120M）
 - **[Nemotron ストリーミング (多言語)](https://soniqo.audio/ja/guides/nemotron)** — ネイティブな句読点と大文字化を備えた低レイテンシストリーミングASR（NVIDIA Nemotron-3.5-ASR-Streaming-0.6B、CoreML + MLX、**40言語ロケール**）
 - **[Nemotron ストリーミング (英語)](https://soniqo.audio/guides/nemotron)** — ネイティブな句読点と大文字化を備えた低レイテンシストリーミングASR （NVIDIA Nemotron-Speech-Streaming-0.6B、CoreML、英語のみ、多言語版より小型・高速）
+
+**アラインメント**
+
 - **[Qwen3-ForcedAligner](https://soniqo.audio/ja/guides/align)** — 単語レベルのタイムスタンプ整列（音声 + テキスト → タイムスタンプ）
+
+**TTS / 音声生成**
+
 - **[Qwen3-TTS](https://soniqo.audio/ja/guides/speak)** — 音声合成（最高品質、ストリーミング、カスタムスピーカー、10言語）
 - **[CosyVoice TTS](https://soniqo.audio/ja/guides/cosyvoice)** — 音声クローン、マルチスピーカー対話、感情タグを備えたストリーミングTTS（9言語）
-- **[VoxCPM2](https://soniqo.audio/ja/speech-generation)** — 48 kHz スタジオ品質の TTS。音声クローンと指示ベースのボイスデザインに対応（2B、MLX bf16/int8/int4、30言語）
+- **[VoxCPM2](https://soniqo.audio/ja/speech-generation)** — 48 kHz スタジオ品質の TTS。音声クローンと指示ベースのボイスデザインに対応（2B、MLX bf16/int8、30言語）
+- **[IndexTTS2](docs/models/indextts2.md)** — Native MLX voice cloning from a reference voice (IndexTeam IndexTTS-2, 1.5B-class fp16 bundle, speaker/emotion/pause controls)
+- **[F5-TTS](docs/models/f5-tts.md)** — Zero-shot voice cloning from a short reference clip + transcript (SWivid F5-TTS v1 Base, DiT flow matching + Vocos, MLX fp16, 24 kHz, English + Mandarin; non-commercial license)
+- **[Higgs TTS 3](docs/models/higgs-tts.md)** — Conversational TTS with zero-shot voice cloning and inline emotion/style/SFX/prosody tags (Boson Higgs TTS 3, Qwen3-4B backbone, MLX bf16, 24 kHz, 100+ languages; research/non-commercial license)
 - **[Kokoro TTS](https://soniqo.audio/ja/guides/kokoro)** — オンデバイスTTS（82M、CoreML/Neural Engine、54ボイス、iOS対応、10言語）
 - **[VibeVoice TTS](https://soniqo.audio/ja/guides/vibevoice)** — 長尺・マルチスピーカーTTS（Microsoft VibeVoice Realtime-0.5B + 1.5B、MLX、最長90分のポッドキャスト／オーディオブック生成、EN/ZH）
-- **[Magpie TTS](https://soniqo.audio/ja/guides/magpie)** — 多言語 TTS（NVIDIA Magpie-TTS Multilingual 357M、MLX INT4 247 MB / INT8 411 MB または CoreML INT8 342 MB、9 言語、5 つの組み込みスピーカー、MLX でストリーミング）
-- **[Qwen3.5-Chat](https://soniqo.audio/ja/guides/chat)** — オンデバイスLLMチャット（0.8B、MLX INT4 + CoreML INT8、DeltaNetハイブリッド、ストリーミングトークン）
+- **[Magpie TTS](https://soniqo.audio/ja/guides/magpie)** — 多言語 TTS（NVIDIA Magpie-TTS Multilingual 357M、MLX INT8 411 MB または CoreML INT8 342 MB、9 言語、5 つの組み込みスピーカー、MLX でストリーミング）
+- **[MOSS-TTS-Nano](https://soniqo.audio/guides/moss-tts-nano)** — ストリーミング音声合成と文字起こし不要の音声クローン（CoreML、48 kHz ステレオ、80 ms チャンク、コンパイル済みモデル 367.6 MB、macOS 15+ / iOS 18+）
+- **[Supertonic TTS](https://soniqo.audio/guides/supertonic)** — オンデバイスのフローマッチングTTS（Supertone Supertonic-3 99M、CoreML/Neural Engine、31言語、10ボイス、G2P-free、44.1 kHz）
+- **[Chatterbox TTS](https://huggingface.co/aufklarer/Chatterbox-Multilingual-MLX-fp16)** — ゼロショット音声クローン対応の多言語TTS（Resemble AI Chatterbox Multilingual、MLX fp16 ~1.3 GB、23ランタイム言語、ヘブライ語はニクダーが必要、MIT）
+- **[OmniVoice TTS](https://huggingface.co/aufklarer/OmniVoice-MLX-fp16)** — ゼロショット音声クローンに対応した非自己回帰拡散TTS（k2-fsa OmniVoice、Qwen3バックボーン、MLX fp16デフォルト / int8利用可、600+言語、Apache-2.0）
+- **[Indic-Mio](docs/models/indic-mio-tts.md)** — Hindi/Indic TTS with inline emotion markers and optional reference-voice cloning (MLX, 24 kHz)
+- **[CSM (Conversational Speech Model)](docs/models/csm.md)** — リファレンスクリップ + トランスクリプトからのゼロショット音声クローンに対応した対話型TTS（Sesame CSM-1B、Llama-1Bバックボーン + Mimiコーデック、MLX int8/fp16、24 kHz、英語、Apache-2.0）
+
+**LLM と翻訳**
+
+- **[Qwen3Chat](https://soniqo.audio/ja/guides/chat)** — オンデバイスLLMチャット（Qwen3.5-0.8BのMLX/CoreMLに加え、dense Qwen3 4BとGemma 4 E2B/E4BのMLXバックエンド、ストリーミングトークン）
+- **[FunctionGemma](https://soniqo.audio/ja/guides/function-calls)** — オンデバイスの構造化された関数 / ツール呼び出し用 LLM（Gemma 3 270M、CoreML 8-bit パレタイズ、Neural Engine、約 252 tok/s）
 - **[MADLAD-400](https://soniqo.audio/ja/guides/translate)** — 400+言語間の多対多翻訳（3B、MLX INT4 + INT8、T5 v1.1、Apache 2.0）
+- **[GLiNER2.5-Decide](https://soniqo.audio/ja/guides/gliner)** - 指定ラベルによるローカルのテキスト分類とエンティティ抽出（DeBERTa-v3-large エンコーダ、MLX、INT8/FP16/FP32、開発プレビュー、Apache 2.0）
+- **[Clef-flash](docs/models/clef.md)** — テキストと候補の回答からローカルで判断（9B、MLX 4ビット、開発プレビュー、Apache 2.0）
+
+**Speech-to-Speech と音声エージェント**
+
 - **[Hibiki Zero-3B](https://soniqo.audio/guides/audio-translate)** — ストリーミング音声間翻訳（FR/ES/PT/DE → EN、MLX INT4 + INT8、Kyutai Moshi/Mimi スタック、CC-BY-4.0）
 - **[PersonaPlex](https://soniqo.audio/ja/guides/respond)** — 全二重音声間会話（7B、音声入力 → 音声出力、18種類のボイスプリセット）
+- **[VoiceChat 11B](docs/models/voicechat.md)** — 音声を連続入力し、テキスト/関数チャンネルと EAR-TTS からニューラルコーデック音声を直接生成するネイティブ MLX 全二重 speech-to-speech（INT5/INT8）
+- **[Audio2Face-3D](docs/models/audio2face3d.md)** — 音声駆動のアバター表情アニメーション（NVIDIA Audio2Face-3D v2.3 Mark、顔係数 301 次元、MLX）
+
+**強化、分離、オーディオ生成**
+
 - **[DeepFilterNet3](https://soniqo.audio/ja/guides/denoise)** — リアルタイムノイズ抑制（2.1Mパラメーター、48 kHz）。60 s のシングルショット上限を超える長尺音声は crossfade 付きで自動チャンク化 — `enhanceChunked(...)` を参照
+- **[LocalVQE v1.4-AEC](https://soniqo.audio/ja/guides/echo-cancellation)** — 分離・同期されたマイクと再生リファレンスのストリームを使うストリーミング音響エコーキャンセル（Core ML + ネイティブ適応フィルター、16 kHz、アルゴリズム遅延 16 ms）
 - **[音源分離](https://soniqo.audio/ja/guides/separate)** — HTDemucs (Demucs v4) + Open-Unmix による音楽音源分離（UMX-HQ / UMX-L、4 ステム：ボーカル／ドラム／ベース／その他、44.1 kHz ステレオ）
-- **[MAGNeT](https://soniqo.audio/ja/guides/compose)** — テキスト→音楽生成（Meta MAGNeT Small 300M / Medium 1.5B、MLX INT4/INT8、30 秒 32 kHz モノラル、マスク並列デコーディング）
+- **[MAGNeT](https://soniqo.audio/ja/guides/compose)** — テキスト→音楽生成（Meta MAGNeT Small 300M / Medium 1.5B、MLX INT8、30 秒 32 kHz モノラル、マスク並列デコーディング）
+- **[Stable Audio 3](docs/models/stable-audio-3.md)** — Text-to-audio/music generation (Stable Audio 3 Medium, MLX INT8/INT4, 44.1 kHz stereo, variable length)
 - **[FlashSR](https://soniqo.audio/ja/guides/upsample)** — オーディオ超解像（FlashSR ICASSP 2025、MLX、48 kHz モノラル、1ステップ蒸留拡散、INT4 363 MB / INT8 720 MB）
+
+**ターン検出、話者分離、話者識別**
+
 - **[ウェイクワード](https://soniqo.audio/ja/guides/wake-word)** — オンデバイスのキーワード検出（KWS Zipformer 3M、CoreML、リアルタイムの26倍、キーワードリスト設定可能）
 - **[VAD](https://soniqo.audio/ja/guides/vad)** — 音声区間検出（Sileroストリーミング、Pyannoteオフライン、FireRedVAD 100以上の言語）
-- **[話者ダイアライゼーション](https://soniqo.audio/ja/guides/diarize)** — 誰がいつ話したか（Pyannoteパイプライン、Neural Engine上のエンドツーエンドSortformer）
-- **[話者埋め込み](https://soniqo.audio/ja/guides/embed-speaker)** — WeSpeaker ResNet34（256次元）、CAM++（192次元）
+- **[Smart Turn](docs/models/smart-turn-v3.md)** — 音声からの発話終了検出（Pipecat Smart Turn v3.2、CoreML、8M、23言語；Silero VADの無音を確認し、文の途中の間で発話が終了しないようにする）
+- **[話者ダイアライゼーション](https://soniqo.audio/ja/guides/diarize)** — 誰がいつ話したか（Pyannoteパイプライン、Neural Engine上のエンドツーエンドSortformer） — インクリメンタルなストリーミングセッションに対応（話者 ID は安定、480 ミリ秒ごとに更新）
+- **[話者埋め込み](https://soniqo.audio/ja/guides/embed-speaker)** — WeSpeaker ResNet34（256次元）、ReDimNet2-B6による名前付き音声識別（192次元）、CAM++（192次元）
 
 論文：[Qwen3-ASR](https://arxiv.org/abs/2601.21337) (Alibaba) · [Qwen3-TTS](https://arxiv.org/abs/2601.15621) (Alibaba) · [Omnilingual ASR](https://arxiv.org/abs/2511.09690) (Meta) · [Parakeet TDT](https://arxiv.org/abs/2304.06795) (NVIDIA) · [CosyVoice 3](https://arxiv.org/abs/2505.17589) (Alibaba) · [Kokoro](https://arxiv.org/abs/2301.01695) (StyleTTS 2) · [PersonaPlex](https://arxiv.org/abs/2602.06053) (NVIDIA) · [Mimi](https://arxiv.org/abs/2410.00037) (Kyutai) · [Hibiki](https://arxiv.org/abs/2502.03382) (Kyutai) · [Sortformer](https://arxiv.org/abs/2409.06656) (NVIDIA)
 
 ## ニュース
 
+- **2026年9月10日** — [Apple Silicon上のNVIDIA Nemotron VoiceChat — ツール呼び出しに対応した全二重音声対話](https://blog.ivan.digital/nvidia-nemotron-voicechat-on-apple-silicon-full-duplex-speech-with-tools-6165625d55c4)
 - **2026年4月19日** — [Apple SiliconにおけるMLXとCoreML — 正しいバックエンドを選ぶための実践ガイド](https://blog.ivan.digital/mlx-vs-coreml-on-apple-silicon-a-practical-guide-to-picking-the-right-backend-and-why-you-should-f77ddea7b27a)
 - **2026年3月20日** — [600MモデルだけでMac上でWhisper Large v3を超えた](https://blog.ivan.digital/we-beat-whisper-large-v3-with-a-600m-model-running-entirely-on-your-mac-20e6ce191174)
 - **2026年2月26日** — [Apple Silicon上の話者ダイアライゼーションと音声区間検出 — ネイティブSwift + MLX](https://blog.ivan.digital/speaker-diarization-and-voice-activity-detection-on-apple-silicon-native-swift-with-mlx-92ea0c9aca0f)
@@ -115,7 +171,7 @@ struct DictateView: View {
 
 `SpeechUI` には `TranscriptionView`（確定 + 部分）と `TranscriptionStore`（ストリーミングASRアダプター）のみが含まれます。音声の可視化や再生には AVFoundation をお使いください。
 
-利用可能なSPMプロダクト：`Qwen3ASR`、`Qwen3TTS`、`Qwen3TTSCoreML`、`ParakeetASR`、`ParakeetStreamingASR`、`NemotronStreamingASR`、`OmnilingualASR`、`KokoroTTS`、`VibeVoiceTTS`、`CosyVoiceTTS`、`VoxCPM2TTS`、`MagpieTTS`、`MagpieTTSCoreML`、`MAGNeTMusicGen`、`FlashSR`、`PersonaPlex`、`HibikiTranslate`、`SpeechVAD`、`SpeechEnhancement`、`SourceSeparation`、`Qwen3Chat`、`SpeechCore`、`SpeechUI`、`AudioCommon`。
+利用可能なSPMプロダクト：`Qwen3ASR`, `WhisperASR`, `MossTranscribe`, `Qwen3TTS`, `Qwen3TTSCoreML`, `ParakeetASR`, `ParakeetStreamingASR`, `NemotronStreamingASR`, `OmnilingualASR`, `CohereTranscribeASR`, `KyutaiSTT`, `VoxtralASR`, `KokoroTTS`, `SupertonicTTS`, `VibeVoiceTTS`, `CosyVoiceTTS`, `VoxCPM2TTS`, `IndexTTS2TTS`, `F5TTS`, `HiggsTTS`, `ChatterboxTTS`, `OmniVoiceTTS`, `IndicMioTTS`, `FishAudioTTS`, `MagpieTTS`, `MagpieTTSCoreML`, `MAGNeTMusicGen`, `StableAudio3MusicGen`, `FlashSR`, `PersonaPlex`, `VoiceChat`, `CSM`, `Audio2Face3D`, `HibikiTranslate`, `MADLADTranslation`, `GLiNER`, `Clef`, `SpeechVAD`, `SpeechLanguageID`, `SpeechWakeWord`, `SpeechEnhancement`, `SpeechRestoration`, `SourceSeparation`, `Qwen3Chat`, `FunctionGemma`, `SpeechCore`, `SpeechUI`, `AudioCommon`。
 
 ## モデル
 
@@ -124,33 +180,62 @@ struct DictateView: View {
 | モデル | タスク | バックエンド | サイズ | 言語 |
 |-------|------|----------|-------|-----------|
 | [Qwen3-ASR](https://soniqo.audio/ja/guides/transcribe) | 音声 → テキスト | MLX、CoreML（ハイブリッド） | 0.6B、1.7B | 52 |
+| [WhisperASR](docs/models/whisper-asr.md) | Speech → Text | CoreML (ANE) | Large-v3 Turbo | Multi |
+| [MOSS Transcribe Diarize](https://soniqo.audio/ja/guides/moss) | 音声 → テキスト + 話者タイムスタンプ | CoreML / MLX | 0.9B (MLX INT5/INT8、CoreML INT8/FP16) | 多言語 |
 | [Parakeet TDT](https://soniqo.audio/ja/guides/parakeet) | 音声 → テキスト | CoreML (ANE) | 0.6B | 25欧州言語 |
 | [Parakeet EOU](https://soniqo.audio/ja/guides/dictate) | 音声 → テキスト（ストリーミング） | CoreML (ANE) | 120M | 25欧州言語 |
 | [Nemotron Streaming (多言語)](https://soniqo.audio/ja/guides/nemotron) | 音声 → テキスト（ストリーミング、句読点付き） | CoreML (ANE), MLX | 0.6B | **40** |
 | [Nemotron Streaming (英語)](https://soniqo.audio/guides/nemotron) | 音声 → テキスト（ストリーミング、句読点付き） | CoreML (ANE) | 0.6B | EN |
 | [Omnilingual ASR](https://soniqo.audio/ja/guides/omnilingual) | 音声 → テキスト | CoreML (ANE)、MLX | 300M / 1B / 3B / 7B | **[1,672](https://github.com/facebookresearch/omnilingual-asr/blob/main/src/omnilingual_asr/models/wav2vec2_llama/lang_ids.py)** |
+| [Cohere Transcribe 2B](https://soniqo.audio/ja/guides/cohere-transcribe) | 音声 → テキスト | MLX | 2B (FP16 / INT5 / INT8) | 14 |
+| [Kyutai STT](docs/models/kyutai-stt.md) | 音声 → テキスト（ストリーミング） | MLX | 1B (FP16 / INT4 / INT8) | EN/FR |
+| [Voxtral Mini 3B](https://soniqo.audio/ja/guides/voxtral) | 音声 → テキスト | MLX | 3B (FP16 / INT5 / INT8) | 8 |
 | [Qwen3-ForcedAligner](https://soniqo.audio/ja/guides/align) | 音声 + テキスト → タイムスタンプ | MLX、CoreML | 0.6B | 多言語 |
 | [Qwen3-TTS](https://soniqo.audio/ja/guides/speak) | テキスト → 音声 | MLX、CoreML | 0.6B、1.7B | 10 |
 | [CosyVoice3](https://soniqo.audio/ja/guides/cosyvoice) | テキスト → 音声 | MLX | 0.5B | 9 |
-| [VoxCPM2](https://soniqo.audio/ja/speech-generation) | テキスト → 音声 (48 kHz、ボイスデザイン + クローン) | MLX | 2B (bf16/int8/int4) | 30 |
+| [VoxCPM2](https://soniqo.audio/ja/speech-generation) | テキスト → 音声 (48 kHz、ボイスデザイン + クローン) | MLX | 2B (bf16/int8) | 30 |
+| [IndexTTS2](docs/models/indextts2.md) | Text → Speech (zero-shot voice cloning) | MLX | 1.5B-class (fp16) | EN/ZH |
+| [F5-TTS](docs/models/f5-tts.md) | Text → Speech (zero-shot voice cloning) | MLX | 336M (fp16) | EN/ZH |
+| [Higgs TTS 3](docs/models/higgs-tts.md) | Text → Speech (conversational, zero-shot voice cloning) | MLX | 4B (bf16) | 100+ |
 | [Kokoro-82M](https://soniqo.audio/ja/guides/kokoro) | テキスト → 音声 | CoreML (ANE) | 82M | 10 |
+| [Supertonic-3](https://soniqo.audio/guides/supertonic) | テキスト → 音声（44.1 kHz、フローマッチング、G2P-free） | CoreML (ANE) | 99M | 31 |
 | [VibeVoice Realtime-0.5B](https://soniqo.audio/ja/guides/vibevoice) | テキスト → 音声（長尺・マルチスピーカー） | MLX | 0.5B | EN/ZH |
 | [VibeVoice 1.5B](https://soniqo.audio/ja/guides/vibevoice) | テキスト → 音声（最長90分のポッドキャスト） | MLX | 1.5B | EN/ZH |
-| [Magpie-TTS Multilingual](https://soniqo.audio/ja/guides/magpie) | テキスト → 音声（5 つの組み込みスピーカー、ストリーミング） | MLX / CoreML | 357M (MLX INT4/INT8, CoreML INT8) | 9（CoreML は日本語を除く） |
-| [Qwen3.5-Chat](https://soniqo.audio/ja/guides/chat) | テキスト → テキスト（LLM） | MLX、CoreML | 0.8B | 多言語 |
+| [Magpie-TTS Multilingual](https://soniqo.audio/ja/guides/magpie) | テキスト → 音声（5 つの組み込みスピーカー、ストリーミング） | MLX / CoreML | 357M (MLX INT8, CoreML INT8) | 9（CoreML は日本語を除く） |
+| [Chatterbox Multilingual](https://huggingface.co/aufklarer/Chatterbox-Multilingual-MLX-fp16) | テキスト → 音声（ゼロショットクローン） | MLX | 0.8B (fp16) | 23（HEはニクダー必須） |
+| [OmniVoice](https://huggingface.co/aufklarer/OmniVoice-MLX-fp16) | テキスト → 音声（NAR 拡散、ゼロショットクローン） | MLX | 0.8B (fp16デフォルト / int8) | **600+** |
+| [Indic-Mio](docs/models/indic-mio-tts.md) | Text → Speech (Hindi/Indic, emotion tags, voice cloning) | MLX | fp16 | Hindi / Indic |
+| [Fish Audio S2 Pro](docs/models/fish-audio-s2-pro.md) | テキスト → 音声（ゼロショットクローン、明示的スタイルマーカー） | MLX | 0.5B-class (fp16) | 多言語 |
+| [CSM](docs/models/csm.md) | テキスト → 音声（対話型、ゼロショットクローン） | MLX | 1B (int8 / fp16) | EN |
+| [Qwen3.5 Chat](docs/models/qwen35-chat.md) | Text → Text (LLM) | MLX, CoreML | 0.8B | Multi |
+| [Qwen3 Dense Chat](docs/models/qwen3-dense-chat.md) | Text → Text (LLM) | MLX | 4B | Multi |
+| [Gemma 4 Chat](docs/models/gemma4-chat.md) | Text → Text (LLM) | MLX | E2B / E4B (4-bit) | Multi |
+| [FunctionGemma](https://soniqo.audio/ja/guides/function-calls) | テキスト → ツール呼び出し（LLM） | CoreML | 270M | 英語主体 |
 | [MADLAD-400](https://soniqo.audio/ja/guides/translate) | テキスト → テキスト（翻訳） | MLX | 3B | **400+** |
+| [GLiNER2.5-Decide](docs/models/gliner.md) | テキスト → ラベル + スパン（分類、エンティティ抽出） | MLX | 340M | EN |
+| [Clef-flash](docs/models/clef.md) | テキスト → 候補の回答の確率 | MLX | 9B (4-bit) | 英語で検証 |
 | [Hibiki Zero-3B](https://soniqo.audio/guides/audio-translate) | 音声 → 音声（翻訳） | MLX | 3B | FR/ES/PT/DE → EN |
 | [PersonaPlex](https://soniqo.audio/ja/guides/respond) | 音声 → 音声 | MLX | 7B | EN |
+| [VoiceChat 11B](docs/models/voicechat.md) | 音声 → 音声 + テキスト | MLX | 11B (INT5 / INT8) | EN |
+| [Audio2Face-3D](docs/models/audio2face3d.md) | 音声 → 表情アニメーション | MLX | v2.3 Mark | 言語非依存 |
 | [Silero VAD](https://soniqo.audio/ja/guides/vad) | 音声区間検出 | MLX、CoreML | 309K | 言語非依存 |
+| [Smart Turn v3.2](https://huggingface.co/aufklarer/Smart-Turn-v3.2-CoreML) | 発話終了検出 | CoreML | 8M | 23言語 |
+| [KWS Zipformer](docs/models/kws-zipformer.md) | Audio → Wake word | CoreML (ANE) | 3M | EN/custom keywords |
 | [Pyannote](https://soniqo.audio/ja/guides/diarize) | VAD + ダイアライゼーション | MLX | 1.5M | 言語非依存 |
-| [Sortformer](https://soniqo.audio/ja/guides/diarize) | ダイアライゼーション（E2E） | CoreML (ANE) | — | 言語非依存 |
+| [Pyannote Community-1](https://huggingface.co/aufklarer/Pyannote-Community-1-CoreML) | ダイアライゼーション + 話者embedding | CoreML (ANE) + Swift VBx | 8.35M | 言語非依存 |
+| [Sortformer](https://huggingface.co/aufklarer/Sortformer-Diarization-CoreML) | [ダイアライゼーション（E2E）, インクリメンタルストリーミング](https://soniqo.audio/ja/guides/diarize) | CoreML (ANE) | 117M | 言語非依存 |
+| [Nemotron 3](docs/models/nemotron3-diarization.md) | 話者ダイアライゼーション（最大8話者） | CoreML / MLX (INT8) | 100M | 言語非依存 |
 | [DeepFilterNet3](https://soniqo.audio/ja/guides/denoise) | 音声強調 | CoreML | 2.1M | 言語非依存 |
+| [LocalVQE v1.4-AEC](https://soniqo.audio/ja/guides/echo-cancellation) | 音響エコーキャンセル | CoreML + C++ | 200K + 2,742 | 言語非依存 |
 | [Sidon](https://soniqo.audio/ja/guides/restore) | 音声修復（ノイズ抑制 + 残響除去、48 kHz） | CoreML | w2v-BERT 2.0 + DAC (fp16/int8) | 言語非依存 |
 | [HTDemucs (Demucs v4)](https://soniqo.audio/ja/guides/separate) | 音源分離 | MLX | 168M | Agnostic |
 | [Open-Unmix](https://soniqo.audio/ja/guides/separate) | 音源分離 | MLX | 8.6M | Agnostic |
 | [MAGNeT](https://soniqo.audio/ja/guides/compose) | テキスト → 音楽 (30 秒 @ 32 kHz) | MLX | 300M / 1.5B (int4/int8) | 英語プロンプト |
+| [Stable Audio 3](docs/models/stable-audio-3.md) | Text → Music/audio (44.1 kHz stereo) | MLX | Medium 1.4B (int4/int8) | EN prompts |
 | [FlashSR](https://soniqo.audio/ja/guides/upsample) | オーディオ超解像 (48 kHz) | MLX | 363 MB / 720 MB (int4/int8) | 言語非依存 |
 | [WeSpeaker](https://soniqo.audio/ja/guides/embed-speaker) | 話者埋め込み | MLX、CoreML | 6.6M | 言語非依存 |
+| [SpeechBrain ECAPA VoxLingua107](https://soniqo.audio/ja/guides/language-id) | 言語識別 | MLX、CoreML | 21.25M | 107言語 |
+| [ReDimNet2-B6](https://huggingface.co/aufklarer/ReDimNet2-B6-CoreML) | 名前付き音声識別 | CoreML | 12.3M | 言語非依存 |
 
 ## インストール
 
@@ -166,9 +251,17 @@ brew install speech
 
 ```bash
 speech transcribe recording.wav
+speech transcribe recording.wav --engine cohere
+speech transcribe recording.wav --engine voxtral
+speech transcribe recording.wav --engine moss
+speech transcribe meeting.wav --engine moss --backend mlx
 speech speak "Hello world"
+speech csm "Nice to meet you" --ref-audio voice.wav --ref-text "reference transcript"
 speech translate "Hello, how are you?" --to es
+speech gliner classify "Remind me to call Dad at six PM." --labels create_reminder,send_message,other
+speech clef decide request.json
 speech respond --input question.wav --transcript
+speech voice-chat
 speech-server --port 8080            # ローカル HTTP / WebSocket サーバー（OpenAI 互換 /v1/realtime + /v1/audio/transcriptions）
 ```
 
@@ -186,18 +279,29 @@ dependencies: [
 
 ```swift
 import Qwen3ASR             // 音声認識 (MLX)
+import WhisperASR           // Whisper Large-v3 Turbo (CoreML)
+import MossTranscribe       // MOSS transcription with timestamps + speaker labels (CoreML + MLX)
 import ParakeetASR          // 音声認識 (CoreML、バッチ)
 import ParakeetStreamingASR // 部分結果 + EOU付きストリーミングディクテーション
 import NemotronStreamingASR // 多言語ストリーミングASR、ネイティブ句読点付き（0.6B、40言語）
 import OmnilingualASR       // 1,672言語 (CoreML + MLX)
+import CohereTranscribeASR  // Cohere Transcribe 2B (MLX、14言語)
+import VoxtralASR           // Voxtral Mini 3B (MLX、8言語)
 import Qwen3TTS             // 音声合成
 import CosyVoiceTTS         // 音声クローン付き音声合成
 import VoxCPM2TTS           // 48 kHz TTS、音声クローン + ボイスデザイン (2B)
+import IndexTTS2TTS         // Native MLX voice cloning from reference audio
+import F5TTS                // Zero-shot voice cloning (DiT flow matching + Vocos)
+import HiggsTTS             // Conversational TTS + cloning (Qwen3 backbone, control tags)
+import CSM                  // Conversational Speech Model — text→audio + voice cloning (Sesame CSM-1B, MLX)
 import KokoroTTS            // 音声合成 (iOS対応)
 import VibeVoiceTTS         // 長尺・マルチスピーカーTTS（EN/ZH）
 import MagpieTTS            // 多言語 TTS（NVIDIA Magpie 357M、MLX、9 言語）
 import MagpieTTSCoreML      // Magpie CoreML バックエンド(CoreML + MLX のハイブリッド、8 言語)
+import FishAudioTTS         // 音声クローン対応の実験的 Fish Audio S2 Pro ランタイム
 import Qwen3Chat            // オンデバイスLLMチャット
+import FunctionGemma    // オンデバイスの関数 / ツール呼び出しLLM
+import Clef                // テキストからローカルで判断
 import MADLADTranslation    // 400+ 言語間の多対多翻訳
 import HibikiTranslate      // ストリーミング音声間翻訳（FR/ES/PT/DE → EN）
 import PersonaPlex          // 全二重音声間変換
@@ -235,9 +339,18 @@ make build
 - **[DictateDemo](Examples/DictateDemo/)**（[ドキュメント](https://soniqo.audio/ja/guides/dictate)）— macOSメニューバーのストリーミングディクテーション。ライブ部分結果、VADベースの発話終端検出、ワンクリックコピー付き。バックグラウンドagentとして動作（Parakeet-EOU-120M + Silero VAD）。
 - **[iOSEchoDemo](Examples/iOSEchoDemo/)** — iOSエコーデモ（Parakeet ASR + Kokoro TTS）。実機・シミュレーター対応。
 - **[PersonaPlexDemo](Examples/PersonaPlexDemo/)** — マイク入力、VAD、マルチターンコンテキスト付きの対話型音声アシスタント。macOS。M2 MaxでRTF約0.94（リアルタイムより高速）。
+- **[Soniqo VoiceChat CLI](docs/inference/voicechat.md)**（[ガイド](https://soniqo.audio/ja/guides/speech-to-speech)）— ライブ RNN-T 字幕、モデル駆動のターン制御、適応型 EAR-TTS 詳細度、任意の MCP ツールを備えたネイティブ全二重 Nemotron 11B ターミナルアシスタントです。同梱の Apple Reminders 設定は作成・一覧・更新だけを公開します。
 - **[SpeechDemo](Examples/SpeechDemo/)** — タブ形式インターフェース上でのディクテーションとTTS合成。macOS。
 
-各デモのREADMEにビルド手順があります。
+release ビルド後に VoiceChat のリマインダーデモを実行します。
+
+```bash
+./.build/release/speech voice-chat \
+  --model /path/to/voicechat-mlx-int5 \
+  --mcp-config Examples/VoiceChatMCP/apple-reminders.json
+```
+
+`--debug-timeline` を追加すると、発話、生成音声の発音終了、モデルがデコードしたツールのライフサイクル時刻を確認できます。ツール引数が表示される場合があるため、共有ログでは使用しないでください。ビルドと実行の詳細は各アプリの README または上記ガイドを参照してください。
 
 ## コード例
 
@@ -252,7 +365,7 @@ let model = try await Qwen3ASRModel.fromPretrained()
 let text = model.transcribe(audio: audioSamples, sampleRate: 16000)
 ```
 
-代替バックエンド：[Parakeet TDT](https://soniqo.audio/ja/guides/parakeet)（CoreML、32×リアルタイム）、[Omnilingual ASR](https://soniqo.audio/ja/guides/omnilingual)（1,672言語、CoreMLまたはMLX）、[ストリーミングディクテーション](https://soniqo.audio/ja/guides/dictate)（ライブ部分結果）。
+代替バックエンド：[WhisperASR](docs/inference/whisper-asr-inference.md)（Whisper Large-v3 Turbo、native CoreML）、[Parakeet TDT](https://soniqo.audio/ja/guides/parakeet)（CoreML、32×リアルタイム）、[Omnilingual ASR](https://soniqo.audio/ja/guides/omnilingual)（1,672言語、CoreMLまたはMLX）、[ストリーミングディクテーション](https://soniqo.audio/ja/guides/dictate)（ライブ部分結果）。
 
 ### 強制整列 — [完全ガイド →](https://soniqo.audio/ja/guides/align)
 
@@ -281,7 +394,7 @@ let audio = model.synthesize(text: "Hello world", language: "english")
 try WAVWriter.write(samples: audio, sampleRate: 24000, to: outputURL)
 ```
 
-代替TTSエンジン：[CosyVoice3](https://soniqo.audio/ja/guides/cosyvoice)（ストリーミング + 音声クローン + 感情タグ）、[Kokoro-82M](https://soniqo.audio/ja/guides/kokoro)（iOS対応、54ボイス）、[VibeVoice](https://soniqo.audio/ja/guides/vibevoice)（長尺ポッドキャスト・マルチスピーカー、EN/ZH）、[音声クローン](https://soniqo.audio/ja/guides/voice-cloning)。
+代替TTSエンジン：[CosyVoice3](https://soniqo.audio/ja/guides/cosyvoice)（ストリーミング + 音声クローン + 感情タグ）、[Kokoro-82M](https://soniqo.audio/ja/guides/kokoro)（iOS対応、54ボイス）、[VibeVoice](https://soniqo.audio/ja/guides/vibevoice)（長尺ポッドキャスト・マルチスピーカー、EN/ZH）、[Fish Audio S2 Pro](docs/inference/fish-audio-s2-pro.md)（実験的ゼロショットクローン + 角括弧スタイルマーカー）、[音声クローン](https://soniqo.audio/ja/guides/voice-cloning)。
 
 ### 音声間変換 — [完全ガイド →](https://soniqo.audio/ja/guides/respond)
 
@@ -297,12 +410,35 @@ let responseAudio = model.respond(userAudio: userSamples)
 
 ```swift
 import Qwen3Chat
+import FunctionGemma
 
 let chat = try await Qwen35MLXChat.fromPretrained()
 chat.chat(messages: [(.user, "Explain MLX in one sentence")]) { token, isFinal in
     print(token, terminator: "")
 }
 ```
+
+### Clef-flash によるローカルの判断
+
+Clef にテキストと回答の候補を渡します。各回答を評価し、アプリが次の処理を選べるようにします。選択式、真偽の質問、順序付きの評価に対応します。`Clef` SPM 製品を追加してライブラリを使います。
+
+```swift
+import Clef
+
+let model = try await Clef.fromPretrained()
+let result = try model.decide(
+    state: "Please turn the kitchen lights on.",
+    questions: [
+        ClefQuestion(id: "action", instructions: "Which action was requested?",
+            kind: .choice(["on": "Turn lights on", "off": "Turn lights off", "other": "Other request"]))
+    ])
+print(result.decisions[0].selectedOption)
+print(result.decisions[0].probabilities)
+```
+
+Apple Silicon と macOS 15+ が必要です。初回は約 5.3 GB をダウンロードし、実行時には追加のメモリが必要です。1つのインスタンスを読み込んだまま、順番に呼び出してください。
+
+[モデル](https://huggingface.co/aufklarer/Clef-flash-9B-MLX-4bit) · [使い方](docs/inference/clef.md) · [実測のレイテンシとメモリ](docs/benchmarks/clef.md)
 
 ### 翻訳 — [完全ガイド →](https://soniqo.audio/ja/guides/translate)
 
@@ -357,6 +493,18 @@ let denoiser = try await DeepFilterNet3Model.fromPretrained()
 let clean = try denoiser.enhance(audio: noisySamples, sampleRate: 48000)
 ```
 
+### 音響エコーキャンセル — [完全ガイド →](https://soniqo.audio/ja/guides/echo-cancellation)
+
+```swift
+import SpeechEnhancement
+
+let aec = try await LocalVQEEchoCanceller.fromPretrained()
+let cleanMicrophone = try aec.processFrame(
+    microphone: microphoneFrame,
+    reference: playbackReferenceFrame
+)
+```
+
 ### 音声修復 — [完全ガイド →](https://soniqo.audio/ja/guides/restore)
 
 [Sidon](https://arxiv.org/abs/2509.17052)（w2v-BERT 2.0 予測器 + DAC ボコーダー、Core ML）によるノイズ抑制**と**残響除去の同時処理。汎用のノイズサプレッサーと異なり、Sidon は話者の同一性を保持するよう訓練されているため、TTS の前にノイズや残響のある音声クローン用リファレンスをクリーンにする用途に適しています。入力は 16 kHz、出力は 48 kHz モノラルです。
@@ -404,6 +552,10 @@ speech-server --port 8080
 
 HTTP REST + WebSocketエンドポイントですべてのモデルを公開します。OpenAI 互換 API として `/v1/realtime` の Realtime WebSocket と `/v1/audio/transcriptions` の文字起こし REST エンドポイントを含みます。[`Sources/AudioServer/`](Sources/AudioServer/) を参照してください。
 
+## 論文
+
+- [SALM-Duplex: Efficient and Direct Duplex Modeling for Speech-to-Speech Language Model](https://arxiv.org/abs/2505.15670) — VoiceChat 11B のアーキテクチャ参照（Interspeech 2025）。
+
 ## アーキテクチャ
 
 speech-swift はモデルごとに1つのSPMターゲットに分割されており、利用者はインポートした分だけコストを負担します。共有インフラは `AudioCommon`（プロトコル、音声I/O、HuggingFaceダウンローダー、`SentencePieceModel`）と `MLXCommon`（ウェイトローディング、`QuantizedLinear` ヘルパー、`SDPA` マルチヘッドアテンションヘルパー）にあります。
@@ -411,13 +563,16 @@ speech-swift はモデルごとに1つのSPMターゲットに分割されてお
 **[バックエンド、メモリ表、モジュールマップ付きの完全なアーキテクチャ図 → soniqo.audio/architecture](https://soniqo.audio/ja/architecture)** · **[APIリファレンス → soniqo.audio/api](https://soniqo.audio/ja/api)** · **[ベンチマーク → soniqo.audio/benchmarks](https://soniqo.audio/ja/benchmarks)**
 
 ローカルドキュメント（リポジトリ内）：
-- **モデル：** [Qwen3-ASR](docs/models/asr-model.md) · [Qwen3-TTS](docs/models/tts-model.md) · [CosyVoice](docs/models/cosyvoice-tts.md) · [Kokoro](docs/models/kokoro-tts.md) · [VibeVoice](docs/models/vibevoice.md) · [Parakeet TDT](docs/models/parakeet-asr.md) · [Parakeet Streaming](docs/models/parakeet-streaming-asr.md) · [Nemotron Streaming](docs/models/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/models/omnilingual-asr.md) · [PersonaPlex](docs/models/personaplex.md) · [Hibiki](docs/models/hibiki.md) · [FireRedVAD](docs/models/fireredvad.md) · [Source Separation](docs/models/source-separation.md) · [HTDemucs](docs/models/htdemucs.md) · [MAGNeT](docs/models/magnet-music-gen.md) · [FlashSR](docs/models/flashsr.md)
-- **推論：** [Qwen3-ASR](docs/inference/qwen3-asr-inference.md) · [Parakeet TDT](docs/inference/parakeet-asr-inference.md) · [Parakeet Streaming](docs/inference/parakeet-streaming-asr-inference.md) · [Nemotron Streaming](docs/inference/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/inference/omnilingual-asr-inference.md) · [TTS](docs/inference/qwen3-tts-inference.md) · [VibeVoice](docs/inference/vibevoice-inference.md) · [Hibiki](docs/inference/hibiki-inference.md) · [Forced Aligner](docs/inference/forced-aligner.md) · [Silero VAD](docs/inference/silero-vad.md) · [話者ダイアライゼーション](docs/inference/speaker-diarization.md) · [音声強調](docs/inference/speech-enhancement.md) · [MAGNeT](docs/inference/magnet-music-gen.md) · [FlashSR](docs/inference/flashsr.md)
+- **モデル：** [Qwen3-ASR](docs/models/asr-model.md) · [WhisperASR](docs/models/whisper-asr.md) · [MOSS Transcribe Diarize](docs/models/moss-transcribe-diarize.md) · [Qwen3-TTS](docs/models/tts-model.md) · [CosyVoice](docs/models/cosyvoice-tts.md) · [Kokoro](docs/models/kokoro-tts.md) · [VoxCPM2](docs/models/voxcpm2-tts.md) · [IndexTTS2](docs/models/indextts2.md) · [F5-TTS](docs/models/f5-tts.md) · [Higgs TTS 3](docs/models/higgs-tts.md) · [VibeVoice](docs/models/vibevoice.md) · [Supertonic](docs/models/supertonic-tts.md) · [Chatterbox](docs/models/chatterbox-tts.md) · [Indic-Mio](docs/models/indic-mio-tts.md) · [Fish Audio S2 Pro](docs/models/fish-audio-s2-pro.md) · [Magpie TTS](docs/models/magpie-tts.md) · [Parakeet TDT](docs/models/parakeet-asr.md) · [Parakeet Streaming](docs/models/parakeet-streaming-asr.md) · [Nemotron Streaming](docs/models/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/models/omnilingual-asr.md) · [PersonaPlex](docs/models/personaplex.md) · [VoiceChat](docs/models/voicechat.md) · [CSM](docs/models/csm.md) · [Hibiki](docs/models/hibiki.md) · [MADLAD-400](docs/models/madlad-translation.md) · [GLiNER](docs/models/gliner.md) · [Clef-flash](docs/models/clef.md) · [FunctionGemma](docs/models/function-gemma.md) · [Qwen3.5 Chat](docs/models/qwen35-chat.md) · [Gemma 4 Chat](docs/models/gemma4-chat.md) · [Qwen3 Dense Chat](docs/models/qwen3-dense-chat.md) · [FireRedVAD](docs/models/fireredvad.md) · [Smart Turn v3.2](docs/models/smart-turn-v3.md) · [KWS Zipformer](docs/models/kws-zipformer.md) · [Sidon](docs/models/sidon.md) · [Source Separation](docs/models/source-separation.md) · [HTDemucs](docs/models/htdemucs.md) · [MAGNeT](docs/models/magnet-music-gen.md) · [Stable Audio 3](docs/models/stable-audio-3.md) · [FlashSR](docs/models/flashsr.md) · [Audio2Face-3D](docs/models/audio2face3d.md)
+- **推論：** [Qwen3-ASR](docs/inference/qwen3-asr-inference.md) · [WhisperASR](docs/inference/whisper-asr-inference.md) · [MOSS Transcribe Diarize](docs/inference/moss-transcribe-diarize.md) · [Parakeet TDT](docs/inference/parakeet-asr-inference.md) · [Parakeet Streaming](docs/inference/parakeet-streaming-asr-inference.md) · [Nemotron Streaming](docs/inference/nemotron-asr-streaming.md) · [Omnilingual ASR](docs/inference/omnilingual-asr-inference.md) · [TTS](docs/inference/qwen3-tts-inference.md) · [VoxCPM2](docs/inference/voxcpm2-inference.md) · [IndexTTS2](docs/inference/indextts2.md) · [F5-TTS](docs/inference/f5-tts.md) · [Higgs TTS 3](docs/inference/higgs-tts.md) · [VibeVoice](docs/inference/vibevoice-inference.md) · [Fish Audio S2 Pro](docs/inference/fish-audio-s2-pro.md) · [Magpie TTS](docs/inference/magpie-tts.md) · [CSM](docs/inference/csm.md) · [Hibiki](docs/inference/hibiki-inference.md) · [MADLAD-400](docs/inference/madlad-translation.md) · [MAGNeT](docs/inference/magnet-music-gen.md) · [Stable Audio 3](docs/inference/stable-audio-3.md) · [FlashSR](docs/inference/flashsr.md) · [Forced Aligner](docs/inference/forced-aligner.md) · [Silero VAD](docs/inference/silero-vad.md) · [Smart Turn](docs/inference/smart-turn.md) · [FireRedVAD](docs/inference/fireredvad.md) · [Wake-word](docs/inference/wake-word.md) · [Speaker Diarization](docs/inference/speaker-diarization.md) · [Speech Enhancement](docs/inference/speech-enhancement.md) · [Sidon](docs/inference/sidon.md) · [Cache/offline](docs/inference/cache-and-offline.md)
+- **エコーキャンセル：** [LocalVQE AEC](docs/inference/echo-cancellation.md)
 - **リファレンス：** [共有プロトコル](docs/shared-protocols.md)
 
 ## キャッシュ設定
 
 モデルの重みは初回使用時にHuggingFaceからダウンロードされ、`~/Library/Caches/qwen3-speech/` にキャッシュされます。`QWEN3_CACHE_DIR`（CLI）または `cacheDir:`（Swift API）で上書き可能です。すべての `fromPretrained()` エントリーポイントは `offlineMode: true` を受け付け、重みがすでにキャッシュされている場合はネットワークをスキップします。
+
+中国本土のユーザー（または `huggingface.co` が遅い・ブロックされている地域）は、`HF_ENDPOINT` を設定することでミラーからダウンロードできます。例: `export HF_ENDPOINT=https://hf-mirror.com`。
 
 iOSサンドボックスコンテナのパスを含む詳細は [`docs/inference/cache-and-offline.md`](docs/inference/cache-and-offline.md) を参照してください。
 

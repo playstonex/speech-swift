@@ -1,0 +1,4 @@
+English SentencePiece tokenizer from Kyutai Pocket TTS, CC BY 4.0.
+Source: FluidInference/pocket-tts-coreml, revision 91748676fe3c8b2eb3007b3125253bcd898202c3,
+v2.1/english/constants_bin/tokenizer.model.
+Token ID fixtures generated with sentencepiece 0.2.1.

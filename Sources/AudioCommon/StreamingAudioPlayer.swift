@@ -100,7 +100,7 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
     private var format: AVAudioFormat?
     private let lock = NSLock()
 
-    private var ringBuffer: AudioSampleRingBuffer?
+    private var ringBuffer: PlaybackSampleBuffer?
     private var playbackStarted = false
     private var generationComplete = false
     private var isFirstChunk = true
@@ -110,6 +110,14 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
     /// Number of samples written for external diagnostics.
     public var totalWrittenSamples: Int { totalWritten }
     private var totalRead: Int = 0
+    private var underflowEvents: Int = 0
+
+    /// Number of render callbacks that had to output silence while playback was active.
+    public var underflowCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return underflowEvents
+    }
 
     public private(set) var isPlaying = false
     private var playbackFinishedFired = false
@@ -118,10 +126,23 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
     /// Default 1.0s — sufficient for streaming TTS at RTF < 0.6.
     public var preBufferDuration: Double = 1.0
 
+    /// Optional silence prepended to the first audible chunk so CoreAudio starts from a stable zero signal.
+    /// Default 0 preserves existing playback latency for models that already start cleanly.
+    public var startupPrerollDuration: Double = 0
+
+    /// Fade-in applied to the first audible chunk to avoid a discontinuity from silence to waveform.
+    /// Default 5 ms preserves the previous first-chunk fade behavior.
+    public var startupFadeInDuration: Double = 0.005
+
+    /// Skip near-silent initial codec warmup chunks. Disable for streams whose
+    /// leading silence is part of the utterance and must be preserved.
+    public var skipInitialSilence: Bool = true
+
     /// Callback when all audio has finished playing.
     public var onPlaybackFinished: (() -> Void)?
 
-    /// Ring buffer capacity in seconds. Default 30s — enough for any TTS response.
+    /// Ring capacity in seconds. Larger or faster-produced chunks retain their
+    /// overflow until playback drains it, preserving the complete waveform.
     public var ringBufferDuration: Double = 30
 
     public init() {}
@@ -203,14 +224,15 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
             var sumSq: Float = 0
             for s in samples { sumSq += s * s }
             let rms = sqrt(sumSq / Float(samples.count))
-            if rms < 0.005 { return }  // Only drop near-silence (codec init noise)
+            if skipInitialSilence && rms < 0.005 { return }
             isFirstChunk = false
-            // 5ms fade-in to prevent pop
+            // Start from explicit silence and fade in the first real waveform to prevent pops/clicks.
             if let fmt = format {
-                let fadeFrames = min(samples.count, Int(fmt.sampleRate * 0.005))
-                for i in 0..<fadeFrames {
-                    output[i] *= Float(i) / Float(fadeFrames)
-                }
+                output = Self.startupDeclick(
+                    samples,
+                    sampleRate: fmt.sampleRate,
+                    prerollDuration: startupPrerollDuration,
+                    fadeInDuration: startupFadeInDuration)
             }
         }
 
@@ -227,6 +249,30 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
             playbackStarted = true
         }
         lock.unlock()
+    }
+
+    static func startupDeclick(
+        _ samples: [Float],
+        sampleRate: Double,
+        prerollDuration: Double = 0,
+        fadeInDuration: Double = 0.005
+    ) -> [Float] {
+        guard !samples.isEmpty, sampleRate > 0 else { return samples }
+        var conditioned = samples
+        let fadeFrames = min(
+            conditioned.count,
+            max(2, Int((sampleRate * max(0, fadeInDuration)).rounded(.up))))
+        for i in 0..<fadeFrames {
+            let x = Float(i) / Float(max(fadeFrames - 1, 1))
+            let gain = x * x * (3 - 2 * x)
+            conditioned[i] *= gain
+        }
+        let prerollFrames = max(0, Int((sampleRate * max(0, prerollDuration)).rounded(.up)))
+        guard prerollFrames > 0 else { return conditioned }
+        var output = [Float](repeating: 0, count: prerollFrames)
+        output.reserveCapacity(prerollFrames + conditioned.count)
+        output.append(contentsOf: conditioned)
+        return output
     }
 
     /// Write samples with resampling from sourceSampleRate to the player's rate.
@@ -280,6 +326,7 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
             guard !playbackFinishedFired else { return }
             playbackFinishedFired = true
             isPlaying = false
+            ringBuffer?.reclaimConsumed()
             onPlaybackFinished?()
             return
         }
@@ -341,6 +388,7 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
                 guard !self.playbackFinishedFired else { return }
                 self.playbackFinishedFired = true
                 self.isPlaying = false
+                self.ringBuffer?.reclaimConsumed()
                 self.onPlaybackFinished?()
             }
         }
@@ -361,6 +409,7 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
         isFirstChunk = true
         totalWritten = 0
         totalRead = 0
+        underflowEvents = 0
         ringBuffer?.reset()
         lock.unlock()
     }
@@ -380,6 +429,7 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
         isFirstChunk = true
         totalWritten = 0
         totalRead = 0
+        underflowEvents = 0
         ringBuffer?.reset()
         lock.unlock()
         isPlaying = false
@@ -404,6 +454,7 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
         isFirstChunk = true
         totalWritten = 0
         totalRead = 0
+        underflowEvents = 0
         ringBuffer?.reset()
         lock.unlock()
         isPlaying = false
@@ -413,7 +464,7 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
 
     private func setupSourceNode(engine: AVAudioEngine, format: AVAudioFormat) {
         let bufferCapacity = Int(format.sampleRate * ringBufferDuration)
-        let rb = AudioSampleRingBuffer(capacity: bufferCapacity)
+        let rb = PlaybackSampleBuffer(capacity: bufferCapacity)
         self.ringBuffer = rb
         self.preBufferSamples = Int(format.sampleRate * preBufferDuration)
 
@@ -443,6 +494,11 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
                 // Zero-fill remainder if not enough
                 if read < frames {
                     dst.advanced(by: read).update(repeating: 0, count: frames - read)
+                    if !complete {
+                        self.lock.lock()
+                        self.underflowEvents += 1
+                        self.lock.unlock()
+                    }
                 }
                 self.lock.lock()
                 self.totalRead += read
@@ -453,11 +509,17 @@ public final class StreamingAudioPlayer: @unchecked Sendable {
                 dst.update(repeating: 0, count: frames)
                 DispatchQueue.main.async {
                     self.isPlaying = false
+                    self.ringBuffer?.reclaimConsumed()
                     self.onPlaybackFinished?()
                 }
             } else {
                 // Underflow — output silence, keep waiting for more data
                 dst.update(repeating: 0, count: frames)
+                if !complete {
+                    self.lock.lock()
+                    self.underflowEvents += 1
+                    self.lock.unlock()
+                }
             }
 
             return noErr

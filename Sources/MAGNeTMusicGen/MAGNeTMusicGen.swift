@@ -110,17 +110,19 @@ public final class MAGNeTMusicGen {
         let encWeights = try loadSafetensors(paths.encodecDir.appendingPathComponent("model.safetensors"))
 
         // Build modules.
-        let lm = MAGNeTLM(config: cfg)
+        let lm = withThrowawayRandomState { MAGNeTLM(config: cfg) }
         var lmStripped: [String: MLXArray] = [:]
         for (k, v) in bundleWeights where k.hasPrefix("lm.") {
             lmStripped[String(k.dropFirst("lm.".count))] = v
         }
         try lm.loadWeights(lmStripped)
 
-        let t5 = T5Encoder(config: t5Cfg)
+        let t5 = withThrowawayRandomState { T5Encoder(config: t5Cfg) }
         try t5.loadSanitizedWeights(t5Weights)
 
-        let encodec = EncodecModelMLX(config: encCfg, numQuantizers: cfg.nQ)
+        let encodec = withThrowawayRandomState {
+            EncodecModelMLX(config: encCfg, numQuantizers: cfg.nQ)
+        }
         try loadFlatWeights(into: encodec, mapping: encWeights)
 
         // text_conditioner.output_proj

@@ -1,6 +1,7 @@
 import Foundation
 import MLX
 import MLXNN
+import MLXCommon
 
 /// Stack of pre-norm wav2vec2 transformer encoder layers followed by a final
 /// layer norm. Tensor names match fairseq2 / the published Omnilingual MLX
@@ -32,7 +33,7 @@ public class CTCHead: Module {
     @ModuleInfo public var proj: QuantizedLinear
 
     public init(config: OmnilingualMLXConfig) {
-        self._proj.wrappedValue = QuantizedLinear(
+        self._proj.wrappedValue = QuantizedLinear.preQuantized(
             config.modelDim, config.vocabSize,
             bias: true, groupSize: config.groupSize, bits: config.bits)
         super.init()

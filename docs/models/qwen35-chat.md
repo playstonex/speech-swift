@@ -1,8 +1,16 @@
-# Qwen3.5-0.8B Chat Model
+# Qwen3Chat Models
 
-On-device LLM for chat using the Qwen3.5-0.8B hybrid architecture (DeltaNet + GatedAttention).
+On-device text generation backends exposed by the `Qwen3Chat` target. The module covers:
+
+- `Qwen35MLXChat` / `Qwen35CoreMLChat`: Qwen3.5-0.8B hybrid chat for low-memory agents.
+- `Qwen3DenseChat`: standard dense Qwen3 instruct checkpoints such as Qwen3-4B.
+- `Gemma4Chat`: Gemma 4 text checkpoints such as E2B and E4B, including Gemma's native turn template and reasoning-channel filtering. See [`gemma4-chat.md`](gemma4-chat.md) for dedicated Gemma 4 notes.
+
+All three use the same streaming backend surface used by `Qwen35PipelineLLM`, so voice-agent code can swap models without changing the pipeline wrapper.
 
 ## Architecture
+
+### Qwen3.5-0.8B Hybrid
 
 Qwen3.5-0.8B is a **hybrid recurrent-attention** model with 24 transformer layers:
 
@@ -76,23 +84,53 @@ Standard multi-head attention with these specifics:
 
 ## Weight Formats
 
-### MLX (Mac GPU)
+### Qwen3.5 MLX (Mac GPU)
 
-Repo: `aufklarer/Qwen3.5-0.8B-Chat-MLX` with `int4/` and `int8/` subdirectories.
+Repo: `aufklarer/Qwen3.5-0.8B-Chat-MLX` with `int5/` and `int8/` subdirectories.
 
-| Variant | Size | Group size |
-|---------|------|-----------|
-| INT4 | 404 MB | 64 |
-| INT8 | 763 MB | 64 |
+| Variant | Size | Group size | Wikitext PPL | Top-1 agreement | Strict JSON |
+|---------|------|-----------|--------------|-----------------|-------------|
+| INT5 (default) | 494 MB | 64 | +2.19% | 89.6% | 23 / 24 |
+| INT8 | 763 MB | 64 | +0.19% | 97.9% | 24 / 24 |
+
+Quality columns are measured against the bf16 reference over 32,768 scored tokens per corpus.
+
+**INT5 is the floor, and INT4 is retired.** INT4 measured +19.90% perplexity, 78.3% top-1
+agreement, and 18-of-24 strict JSON at 404 MB; five of those six JSON failures were unbalanced
+braces, which a parser rejects outright rather than merely dislikes. INT5 buys all of that back
+for 90 MB. `Quantization.int4` still exists so a local pre-INT5 checkpoint loads, but nothing
+defaults to it and the repo's `int4/` directory is being removed.
+
+Prefer `.int8` when every reply has to parse. INT5's 23-of-24 is roughly a 4% per-pass failure
+rate, which compounds across a sequence — about a 56% chance of at least one unparseable reply
+over 20 structured-output passes.
 
 Weights are in safetensors format with quantized linear layers (`weight` uint32, `scales` bfloat16, `biases` bfloat16).
+
+**Bit width comes from the checkpoint, not from the code.** `Qwen35MLXModel` builds every
+`QuantizedLinear` and the `PreQuantizedEmbedding` from `Qwen3ChatConfig.quantBits` /
+`quantGroupSize`, resolved in this order:
+
+1. `quantization_bits` / `quantization_group_size` — the explicit numeric fields
+2. `"quantization"` — either the label form (`"int8"`, which names a width but no group size)
+   or the mlx-community object form (`{"bits": 8, "group_size": 32}`)
+3. INT4 / group size 64, for checkpoints that state nothing
+
+`ChatQuantization` owns that rule; `Qwen3DenseConfig` and `Gemma4DenseConfig` resolve through the
+same helper, so all three chat configs read a given `config.json` the same way.
+
+The loader then compares each checkpoint tensor against that declaration — a packed weight is
+`[rows, columns · bits / 32]` and its scales are `[rows, columns / group_size]` — and throws
+`QuantizedWeightMismatch` when they disagree. This check has to be explicit: mlx-swift's
+`Module.update(parameters:)` verifies nothing, so a tensor of the wrong packed width is
+installed silently and the layer dequantizes garbage instead of failing.
 
 Key naming:
 - DeltaNet: `layers.{i}.linear_attn.{in_proj_qkv, in_proj_z, in_proj_a, in_proj_b, conv1d, out_proj, norm, dt_bias, A_log}`
 - GatedAttention: `layers.{i}.self_attn.{q_proj, k_proj, v_proj, o_proj, q_norm, k_norm}`
 - MLP: `layers.{i}.mlp.{gate_proj, up_proj, down_proj}`
 
-### CoreML (iOS Neural Engine)
+### Qwen3.5 CoreML (iOS Neural Engine)
 
 Repo: `aufklarer/Qwen3.5-0.8B-Chat-CoreML` with `int4/` and `int8/` subdirectories.
 
@@ -101,13 +139,47 @@ Split into two pre-compiled models (shipped as `.mlmodelc`; the legacy
 - `embedding.mlmodelc` — token embedding lookup
 - `decoder.mlmodelc` — full transformer with stateful DeltaNet (MLState) and KV cache
 
+### Dense Qwen3 MLX
+
+Repo examples:
+
+- `aufklarer/Qwen3-4B-Instruct-2507-MLX-5bit`
+- `aufklarer/Qwen3-4B-Instruct-2507-MLX-4bit`
+
+`Qwen3DenseChat` loads standard MLX safetensors with `model.`-prefixed keys. It implements the normal dense Qwen3 transformer:
+
+- grouped-query attention with per-head Q/K RMSNorm
+- full RoPE
+- SwiGLU MLP blocks
+- tied or untied LM head
+- ChatML `<|im_start|>...<|im_end|>` prompting
+
+### Gemma 4 MLX
+
+Repo examples:
+
+- `aufklarer/gemma-4-E4B-it-MLX-4bit`
+- `aufklarer/gemma-4-E2B-it-MLX-4bit`
+
+`Gemma4Chat` loads the text tower from Gemma 4 multimodal-style MLX exports. The Swift model mirrors the Gemma 4 text architecture:
+
+- per-layer embeddings
+- sandwich RMSNorm blocks
+- dual/proportional RoPE for sliding and full-attention layers
+- KV sharing across later layers
+- double-wide MLP on shared-KV layers
+- final logit softcap
+- SentencePiece byte-fallback tokenizer
+
+Gemma 4 uses a `<|turn>role\n...<turn|>` chat template, not ChatML. The streaming backend filters the optional `<|channel>thought ... <channel|>` reasoning channel and yields only assistant-visible answer text.
+
 ## Swift API
 
 ```swift
 import Qwen3Chat
 
-// MLX (Mac)
-let model = try await Qwen35MLXChat.fromPretrained(quantization: .int4)
+// MLX (Mac) — defaults to .int5; pass .int8 when replies must parse as JSON
+let model = try await Qwen35MLXChat.fromPretrained()
 let response = try model.generate(
     messages: [
         ChatMessage(role: .system, content: "You are a helpful assistant."),
@@ -120,6 +192,14 @@ let response = try model.generate(
 for try await chunk in model.generateStream(messages: messages) {
     print(chunk, terminator: "")
 }
+
+// Dense Qwen3 MLX (larger on-device chat)
+let qwen4b = try await Qwen3DenseChat.fromPretrained(
+    modelId: "aufklarer/Qwen3-4B-Instruct-2507-MLX-5bit")
+
+// Gemma 4 MLX
+let gemma = try await Gemma4Chat.fromPretrained(
+    modelId: "aufklarer/gemma-4-E4B-it-MLX-4bit")
 ```
 
 ## Token IDs
@@ -140,5 +220,5 @@ By default, generation uses `enableThinking: false` which injects an empty `<thi
 
 ## Conversion
 
-- **MLX**: `scripts/convert_qwen35_chat_mlx.py` — quantizes FP16 HuggingFace weights to INT4/INT8 using MLX native quantization
+- **MLX**: `scripts/convert_qwen35_chat_mlx.py` — quantizes FP16 HuggingFace weights to INT5/INT8 using MLX native quantization
 - **CoreML**: `scripts/convert_qwen35_chat_coreml.py` — converts FP16 HuggingFace weights to CoreML with INT4/INT8 quantization

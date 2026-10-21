@@ -9,12 +9,13 @@
 
 The `asr-bench` tool runs each engine in a separate child process (`--isolated`) so the peak RSS column is the **real per-engine** allocation rather than a cumulative high-water mark across a sequential run. WER computed via a Whisper-style normalizer + Levenshtein on whitespace tokens.
 
-**Machine**: Apple M5 Pro, 48 GB, macOS 25.5, release build with compiled metallib. LibriSpeech test-clean, first 200 utterances (~30 min audio).
+**Machine**: Apple M5 Pro, 48 GB, release build with compiled metallib. LibriSpeech test-clean, first 200 utterances (~30 min audio). The Whisper rows were refreshed on macOS 26.5.2 on 2026-07-16; the remaining rows were recorded on macOS 25.5.
 
-| Engine | Backend | Quant | WER% | RTF | xRT | Peak RSS | Cold load |
+| Engine | Backend | Quant | WER% | RTF | xRT | Peak RSS | Cached load |
 |---|---|---|---|---|---|---|---|
 | Qwen3-ASR 1.7B | MLX (GPU) | 8-bit | **1.52** | 0.033 | 30.5x | 2 706 MB | 2.5s |
-| WhisperKit Large-v3 Turbo | CoreML (ANE) | FP16 | 1.71 | 0.084 | 11.9x | 428 MB | 5.9s |
+| WhisperKit Large-v3 Turbo | CoreML (ANE) | FP16 | 1.71 | 0.084 | 11.9x | 427 MB | 7.2s |
+| WhisperASR native Large-v3 Turbo | CoreML (ANE) | FP16 | 1.73 | 0.077 | 13.1x | 445 MB | **1.3s** |
 | Qwen3-ASR 0.6B | MLX (GPU) | 8-bit | 1.82 | 0.015 | 66.0x | 1 306 MB | 2.2s |
 | Qwen3-ASR 0.6B | MLX (GPU) | 4-bit | 2.20 | 0.012 | 85.6x | 1 022 MB | 2.1s |
 | Parakeet TDT 0.6B v3 | CoreML (ANE) | INT8 | 2.37 | 0.009 | **117.4x** | 897 MB | 3.1s |
@@ -25,7 +26,8 @@ The `asr-bench` tool runs each engine in a separate child process (`--isolated`)
 
 **Headline picks:**
 - **Best WER**: Qwen3-ASR MLX 1.7B 8-bit at 1.52% — beats WhisperKit Large-v3 Turbo (1.71%) and runs 2.6x faster, at a 6x memory cost.
-- **Best WER under WhisperKit memory**: WhisperKit Large-v3 Turbo itself (1.71%, 428 MB) and Qwen3-ASR MLX 0.6B 4-bit (2.20%, 1 022 MB) for the next size class.
+- **Fastest Whisper path**: native WhisperASR — 9% lower mean RTF and 5.5x faster cached loading than direct WhisperKit, with one additional word error across the matched 200-utterance fixture.
+- **Best WER under WhisperKit memory**: WhisperKit Large-v3 Turbo itself (1.71%, 427 MB) and Qwen3-ASR MLX 0.6B 4-bit (2.20%, 1 022 MB) for the next size class.
 - **Fastest English**: Parakeet TDT v3 INT8 — 117x real-time at 897 MB, English-only (25 European languages).
 - **Multilingual throughput leader**: Omnilingual MLX 300M 4-bit — 222x real-time, 384 MB peak, 1 672 languages, 4.26% WER on English test-clean.
 - **Streaming**: Nemotron at 2.82% on whole-utterance batch (post-PR #304 vocab fix that strips `<en-US>`/`<ar-AR>` language tags from decoded output) — competitive with offline engines while retaining 160 ms streaming chunks with 1-chunk right context.
@@ -35,6 +37,59 @@ The `asr-bench` tool runs each engine in a separate child process (`--isolated`)
 ### Qwen3-ASR CoreML encoder rebuild
 
 The Qwen3-ASR-CoreML row in the table above is the **rebuilt** encoder (chunked block-attention export, [`aufklarer/Qwen3-ASR-CoreML`](https://huggingface.co/aufklarer/Qwen3-ASR-CoreML)). The previous export ran unmasked global self-attention over the zero-padded mel input under `EnumeratedShapes`; padding-derived audio tokens contaminated the real ones via attention, causing the text decoder to emit `<|im_end|>` right after the first sentence-final period — **24.88% WER** on the same n=200 fixture. The rebuilt encoder mirrors upstream's 100-frame chunks + 800-frame attention windows (in-graph block-attention bias from a new `mel_length` input; outputs `(audio_embeddings, output_length)`); encoder time also drops from 113 ms to 24 ms per call.
+
+### WhisperASR native runtime comparison
+
+The `whisper-asr-turbo` engine loads the published `aufklarer/Whisper-Large-v3-Turbo-CoreML` bundle through speech-swift's native `WhisperASRModel` CoreML runtime. It no longer calls WhisperKit for inference. The direct WhisperKit baseline remains in the benchmark harness as an external comparison via `WhisperKitConfig(model: "openai_whisper-large-v3-v20240930_turbo")`.
+
+Current native runtime scope: fixed 30 s CoreML mel input, CoreML encoder, CoreML decoder prefill, explicit KV-cache updates, WhisperKit-style CoreML compute placement (mel on CPU/GPU; encoder/decoder on CPU/Neural Engine), greedy no-timestamp decoding, byte-level tokenizer decode, optional language detection, and a narrow repeated-word stop guard for greedy hallucination loops. Timestamp decoding, word timestamps, VAD/chunk seeking, and temperature fallback heuristics are not yet parity with WhisperKit.
+
+Matched LibriSpeech test-clean run on Apple M5 Pro, 48 GB, macOS 26.5.2, release build, 2026-07-16. Each engine ran in a fresh child process over the same first 200 utterances (~30 minutes of audio). The displayed run starts with WhisperKit; a reverse-order replication is summarized below.
+
+```bash
+.build/release/asr-bench \
+  --dataset ~/datasets/LibriSpeech/test-clean \
+  --engines whisperkit-large-v3-turbo whisper-asr-turbo \
+  --isolated \
+  --limit 200
+```
+
+| Engine | WER% | CER% | Mean RTF | Median RTF | Overall xRT | Load | Peak RSS | RSS Delta |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| WhisperASR native | 1.73 | 0.63 | **0.077** | **0.064** | **17.6x** | **1.3s** | 445 MB | +304 MB |
+| Direct WhisperKit | **1.71** | **0.53** | 0.084 | 0.072 | 16.0x | 7.2s | **427 MB** | +286 MB |
+
+Native WhisperASR is the faster Whisper implementation here: mean RTF is 9.4% lower, overall throughput is 10.2% higher, and a complete cached bundle loads 5.5x faster because the loader no longer revalidates and recopies the 1.2 GB snapshot. Accuracy and memory are effectively tied at this scale: WhisperKit makes 80 word errors versus native WhisperASR's 81, while native peak RSS is 18 MB higher. The first run after a model or compute-unit change can still pay CoreML specialization time. Remaining errors are mostly decoding-policy/normalization-sensitive variants (`10` vs `ten`, `ardor` vs `ardour`, `st` vs `saint`, name spellings).
+
+The reverse-order replication reproduced the speed result: native mean RTF was 0.077 versus WhisperKit's 0.085, with 17.6x versus 16.0x overall throughput. Native cached load remained 1.3s; WhisperKit took 13.2s in that run, so the 7.2s value in the displayed comparison is the more conservative loading baseline. Peak RSS remained 18 MB apart (442 MB native versus 424 MB WhisperKit).
+
+### MOSS native CoreML runtime
+
+The `moss-coreml-int8` and `moss-coreml-fp16` engines load the published MOSS
+Transcribe Diarize 0.9B bundles through speech-swift's native
+`MossTranscribe` runtime. The matched 80-clip English HF/FLEURS fixture was run
+twice in isolated, reversed model order on the same M5 Pro. Both variants
+produced 8.16% aggregate WER and 5.90% CER. Pooled across both runs, INT8
+recorded 0.070 RTF (14.3x realtime) versus FP16's 0.079 (12.6x), with
+2,382–2,399 MB versus 3,689–3,735 MB sampled peak RSS.
+
+The full methodology, per-run variance, exact round-trip assertion, and
+reproduction commands are recorded in
+[MOSS CoreML Native Runtime Benchmark](moss-coreml.md).
+
+### MOSS long-context MLX runtime
+
+The matched self-exported `moss-mlx-int5` and `moss-mlx-int8` bundles use the
+same FP16 audio/VQ weights and FP16 KV cache; only decoder weight precision
+changes. On the same 80-clip, 759.56-second English FLEURS fixture, INT5
+recorded 8.55% aggregate WER, 6.36% CER, and 0.028 overall RTF. INT8 recorded
+8.27% WER, 5.98% CER, and 0.032 RTF. Peak RSS was 1,196 MiB for INT5 and
+1,407 MiB for INT8.
+
+The separate five-file VoxConverse comparison measured 28.05% DER for INT5
+and 28.02% for INT8. See
+[MOSS MLX INT5 vs INT8 Benchmark](moss-mlx.md) for the long-context
+diarization results, weight sizes, caveats, and reproduction commands.
 
 ## Comparison with published models
 
@@ -137,6 +192,11 @@ Available engine IDs (see `Sources/AsrBenchmark/Engine.swift::EngineID`):
 - `nemotron` — Nemotron Streaming ASR
 - `omnilingual` — Omnilingual CTC 300M CoreML INT8
 - `omnilingual-mlx-{300m,1b,3b,7b}-4bit` — Omnilingual CTC MLX variants
+- `whisper-asr-turbo` — speech-swift native WhisperASR CoreML runtime over `aufklarer/Whisper-Large-v3-Turbo-CoreML`
+- `moss-coreml-int8` — native MOSS CoreML runtime with an FP16 audio encoder and block-32 INT8 decoder
+- `moss-coreml-fp16` — native MOSS CoreML FP16 reference
+- `moss-mlx-int5` — long-context MOSS MLX runtime with FP16 audio/VQ weights and an affine group-64 INT5 decoder
+- `moss-mlx-int8` — long-context MOSS MLX quality reference with an affine group-64 INT8 decoder
 - `whisperkit-large-v3-turbo` / `whisperkit-large-v3` / `whisperkit-distil-large-v3` — Argmax WhisperKit
 
 Without `--isolated`, peak RSS reflects the sequential high-water mark across the whole run (MLX/CoreML caches don't release between engines). With `--isolated`, each engine runs in a child process and its peak RSS is its own.

@@ -44,17 +44,47 @@ enum DiarizationHelpers {
         return merged
     }
 
-    /// Remap speaker IDs to contiguous 0-based range, preserving order of first appearance.
+    /// Remap speaker IDs to a contiguous 0-based range in ascending original-ID order.
     static func compactSpeakerIds(_ segments: [DiarizedSegment]) -> [DiarizedSegment] {
+        compactSpeakerIdsWithMapping(segments).segments
+    }
+
+    /// Remap speaker IDs and their centroid embeddings together.
+    ///
+    /// Clustering can produce a centroid that has no surviving segment after
+    /// center-zone clipping and minimum-duration filtering. Compacting only the
+    /// segments would then shift their IDs while leaving the centroid array in
+    /// the old coordinate space. This helper keeps both outputs aligned.
+    static func compactSpeakerIdsAndEmbeddings(
+        _ segments: [DiarizedSegment],
+        speakerEmbeddings: [[Float]],
+        missingEmbeddingDimension: Int = 256
+    ) -> (segments: [DiarizedSegment], speakerEmbeddings: [[Float]]) {
+        let compacted = compactSpeakerIdsWithMapping(segments)
+        let dimension = speakerEmbeddings.first(where: { !$0.isEmpty })?.count
+            ?? missingEmbeddingDimension
+        let zeroEmbedding = [Float](repeating: 0, count: max(0, dimension))
+        let compactedEmbeddings = compacted.originalSpeakerIds.map { speakerId in
+            speakerEmbeddings.indices.contains(speakerId)
+                ? speakerEmbeddings[speakerId]
+                : zeroEmbedding
+        }
+        return (compacted.segments, compactedEmbeddings)
+    }
+
+    private static func compactSpeakerIdsWithMapping(
+        _ segments: [DiarizedSegment]
+    ) -> (segments: [DiarizedSegment], originalSpeakerIds: [Int]) {
         let usedIds = Set(segments.map(\.speakerId)).sorted()
         let idMap = Dictionary(uniqueKeysWithValues: usedIds.enumerated().map { ($1, $0) })
-        return segments.map {
+        let compacted = segments.map {
             DiarizedSegment(
                 startTime: $0.startTime,
                 endTime: $0.endTime,
                 speakerId: idMap[$0.speakerId] ?? $0.speakerId
             )
         }
+        return (compacted, usedIds)
     }
 
     /// Resample audio via AVAudioConverter (delegates to AudioFileLoader).
@@ -100,6 +130,21 @@ enum DiarizationHelpers {
         var clusterWindows = items.map { Set([$0.windowIndex]) }
         var active = Set(0..<n)
 
+        // Memoized pairwise distances (flat n*n, symmetric). Constrained pairs
+        // are stored as +inf. A pair's distance (and its constraint state) only
+        // changes when one side merges, and the merged cluster's row/column is
+        // recomputed below — so the cache is always exact and the merge order
+        // is identical to the original recompute-every-iteration loop, at
+        // O(n^2) total distance work instead of O(n^3).
+        var dist = [Float](repeating: .infinity, count: n * n)
+        for i in 0..<n {
+            for j in (i + 1)..<n where items[i].windowIndex != items[j].windowIndex {
+                let d = cosineDistance(centroids[i], centroids[j])
+                dist[i * n + j] = d
+                dist[j * n + i] = d
+            }
+        }
+
         while active.count > 1 {
             // Find closest unconstrained pair
             var bestDist: Float = Float.greatestFiniteMagnitude
@@ -109,15 +154,9 @@ enum DiarizationHelpers {
             for ai in 0..<activeList.count {
                 for aj in (ai + 1)..<activeList.count {
                     let ci = activeList[ai], cj = activeList[aj]
-
-                    // Same-window constraint: if clusters share any window, skip
-                    if !clusterWindows[ci].isDisjoint(with: clusterWindows[cj]) {
-                        continue
-                    }
-
-                    let dist = cosineDistance(centroids[ci], centroids[cj])
-                    if dist < bestDist {
-                        bestDist = dist
+                    let d = dist[ci * n + cj]
+                    if d < bestDist {
+                        bestDist = d
                         bestI = ci
                         bestJ = cj
                     }
@@ -148,6 +187,16 @@ enum DiarizationHelpers {
             clusterWindows[bestI].formUnion(clusterWindows[bestJ])
 
             active.remove(bestJ)
+
+            // Refresh the merged cluster's cached distances (its centroid and
+            // window set both changed); everything else is untouched.
+            for other in active where other != bestI {
+                let d: Float = clusterWindows[bestI].isDisjoint(with: clusterWindows[other])
+                    ? cosineDistance(centroids[bestI], centroids[other])
+                    : .infinity
+                dist[bestI * n + other] = d
+                dist[other * n + bestI] = d
+            }
         }
 
         // Build final compact assignment
@@ -160,6 +209,93 @@ enum DiarizationHelpers {
         let assignment = (0..<n).map { clusterMap[clusterOf[$0]]! }
         let finalCentroids = activeSorted.map { centroids[$0] }
 
+        return (assignment, finalCentroids)
+    }
+
+    /// Agglomerative clustering with centroid linkage and cosine distance.
+    ///
+    /// Unlike ``constrainedAgglomerativeClustering(items:threshold:)``, this
+    /// first estimates global speaker clusters without applying a transitive
+    /// same-window cannot-link constraint. This mirrors the reference
+    /// pyannote pipeline, which clusters globally and only constrains the later
+    /// per-window assignment step. A false local track can therefore merge
+    /// back into its real speaker instead of forcing a new global identity.
+    static func agglomerativeClustering(
+        items: [ClusterItem],
+        threshold: Float
+    ) -> (clusterAssignment: [Int], centroids: [[Float]]) {
+        guard !items.isEmpty else { return ([], []) }
+        if items.count == 1 {
+            return ([0], [items[0].embedding])
+        }
+
+        let n = items.count
+        let dim = items[0].embedding.count
+        var clusterOf = Array(0..<n)
+        var centroids = items.map(\.embedding)
+        var clusterMembers = (0..<n).map { [$0] }
+        var active = Set(0..<n)
+
+        var dist = [Float](repeating: .infinity, count: n * n)
+        for i in 0..<n {
+            for j in (i + 1)..<n {
+                let d = cosineDistance(centroids[i], centroids[j])
+                dist[i * n + j] = d
+                dist[j * n + i] = d
+            }
+        }
+
+        while active.count > 1 {
+            var bestDist = Float.greatestFiniteMagnitude
+            var bestI = -1
+            var bestJ = -1
+
+            let activeList = active.sorted()
+            for ai in 0..<activeList.count {
+                for aj in (ai + 1)..<activeList.count {
+                    let ci = activeList[ai]
+                    let cj = activeList[aj]
+                    let d = dist[ci * n + cj]
+                    if d < bestDist {
+                        bestDist = d
+                        bestI = ci
+                        bestJ = cj
+                    }
+                }
+            }
+
+            guard bestDist < threshold && bestI >= 0 else { break }
+
+            let sizeI = clusterMembers[bestI].count
+            let sizeJ = clusterMembers[bestJ].count
+            let totalSize = Float(sizeI + sizeJ)
+            var newCentroid = [Float](repeating: 0, count: dim)
+            for d in 0..<dim {
+                newCentroid[d] = (
+                    centroids[bestI][d] * Float(sizeI)
+                        + centroids[bestJ][d] * Float(sizeJ)
+                ) / totalSize
+            }
+            centroids[bestI] = newCentroid
+
+            for member in clusterMembers[bestJ] {
+                clusterOf[member] = bestI
+            }
+            clusterMembers[bestI].append(contentsOf: clusterMembers[bestJ])
+            active.remove(bestJ)
+
+            for other in active where other != bestI {
+                let d = cosineDistance(centroids[bestI], centroids[other])
+                dist[bestI * n + other] = d
+                dist[other * n + bestI] = d
+            }
+        }
+
+        let activeSorted = active.sorted()
+        let clusterMap = Dictionary(
+            uniqueKeysWithValues: activeSorted.enumerated().map { ($1, $0) })
+        let assignment = (0..<n).map { clusterMap[clusterOf[$0]]! }
+        let finalCentroids = activeSorted.map { centroids[$0] }
         return (assignment, finalCentroids)
     }
 
