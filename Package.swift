@@ -238,7 +238,11 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/ml-explore/mlx-swift", from: "0.32.3"),
+        // Pin mlx-swift EXACT (not `from:`) so it can never float ahead of
+        // MinerUKit's pin. Both get dlopen'd into the host app as separate
+        // frameworks each embedding MLX; divergent versions cause ObjC
+        // duplicate-class "first wins" crashes. Must equal MinerUKit's 0.32.3.
+        .package(url: "https://github.com/ml-explore/mlx-swift", exact: "0.32.3"),
         // Generic LLM runtime (loads standard HF MLX models: Qwen3, Gemma, Llama, …) — backs the
         // larger on-device chat model. The MLXLLM/MLXLMCommon libraries moved here from
         // mlx-swift-examples. Pins mlx-swift .upToNextMinor(0.32.3), compatible with ours.
