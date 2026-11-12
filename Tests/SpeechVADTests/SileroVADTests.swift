@@ -1,4 +1,7 @@
 import XCTest
+#if canImport(CoreML)
+import CoreML
+#endif
 import MLX
 @testable import SpeechVAD
 import AudioCommon
@@ -304,6 +307,38 @@ final class SileroVADTests: XCTestCase {
             XCTAssertGreaterThan(seg.duration, 1.0,
                                  "Speech segment should be at least 1s")
         }
+    }
+
+    // MARK: - CoreML output decoding (requires a local .mlmodelc)
+
+    /// The CoreML model outputs a float16 probability even when inputs are float32.
+    /// Reading it as Float32 returned ~1e-41 on macOS, so no speech was ever detected.
+    /// Set SILERO_COREML_MODEL to a silero_vad.mlmodelc directory to run.
+    func testCoreMLProbabilityIsDecodedFromFloat16Output() throws {
+        guard let path = ProcessInfo.processInfo.environment["SILERO_COREML_MODEL"] else {
+            throw XCTSkip("Set SILERO_COREML_MODEL to a silero_vad.mlmodelc directory")
+        }
+        let mlModel = try MLModel(contentsOf: URL(fileURLWithPath: path))
+        let model = SileroVADModel(coremlModel: mlModel)
+
+        // 2 s of a voiced-like signal: 150 Hz harmonics, amplitude-modulated at 4 Hz.
+        let sampleRate: Float = 16000
+        let signal: [Float] = (0..<32000).map { i in
+            let t = Float(i) / sampleRate
+            var v: Float = 0
+            for k in 1...8 { v += sin(2 * .pi * 150 * Float(k) * t) / Float(k) }
+            return 0.3 * v * (0.6 + 0.4 * sin(2 * .pi * 4 * t))
+        }
+
+        var maxProb: Float = 0
+        var offset = 0
+        while offset + SileroVADModel.chunkSize <= signal.count {
+            let p = model.processChunk(Array(signal[offset..<offset + SileroVADModel.chunkSize]))
+            XCTAssertTrue((0...1).contains(p), "probability out of range: \(p)")
+            maxProb = max(maxProb, p)
+            offset += SileroVADModel.chunkSize
+        }
+        XCTAssertGreaterThan(maxProb, 0.5, "voiced signal should cross the default onset (got \(maxProb))")
     }
 
     // MARK: - CoreML E2E Tests (requires CoreML weights)

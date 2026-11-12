@@ -44,9 +44,11 @@ extension SileroVADModel {
             coremlH = result.featureValue(for: "h_out")!.multiArrayValue!
             coremlC = result.featureValue(for: "c_out")!.multiArrayValue!
 
+            // The model outputs float16 whatever input type is used above. Read the scalar through
+            // the type-aware subscript: binding the pointer to Float reinterpreted the float16 bytes
+            // as a ~1e-41 Float32 on macOS, so speech was never detected.
             let probArray = result.featureValue(for: "probability")!.multiArrayValue!
-            let probPtr = probArray.dataPointer.assumingMemoryBound(to: CoreMLFloat.self)
-            return Float(probPtr[0])
+            return probArray[0].floatValue
         }
     }
 
