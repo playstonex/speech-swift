@@ -25,6 +25,10 @@ struct WhisperGenerationConfig: Sendable {
         3
     }
 
+    func decoderPrefix(languageToken: Int) -> [Int] {
+        [startOfTranscriptToken, languageToken, transcribeToken]
+    }
+
     static func load(from modelFolder: URL) throws -> WhisperGenerationConfig {
         let url = modelFolder.appendingPathComponent("generation_config.json")
         let raw: RawGenerationConfig

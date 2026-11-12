@@ -218,6 +218,8 @@ private final class Nemotron3MLXNetwork: Module {
 }
 
 final class Nemotron3MLXBackend: Nemotron3InferenceBackend {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     private let network: Nemotron3MLXNetwork
     let learnedSilenceEmbedding: [Float]
 
@@ -319,6 +321,7 @@ public extension Nemotron3Diarizer {
         modelId: String = defaultMLXModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Nemotron3Diarizer {
         let directory = try cacheDir
@@ -329,6 +332,7 @@ public extension Nemotron3Diarizer {
             to: directory,
             additionalFiles: ["model.safetensors", "config.json"],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { fraction in
                 progressHandler?(fraction * 0.8, "Downloading Nemotron 3 MLX bundle...")
             }

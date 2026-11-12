@@ -50,7 +50,7 @@ encode(text="Hello, how are you?", target="es")
 
 ## Weight key layout
 
-Direct 1:1 with HF safetensors except for one rename. The conversion script at `speech-models/models/madlad-translation/export/convert_mlx.py` handles it:
+Direct 1:1 with HF safetensors except for one rename, which the conversion script handles:
 
 | Swift module path | HF key | Notes |
 |---|---|---|

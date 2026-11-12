@@ -7,7 +7,7 @@ import XCTest
 /// ``SpeechEnhancer.defaultModelId`` and downloads only the pre-compiled
 /// ``.mlmodelc`` bundle — ``MLModel.compileModel`` must never be reached at
 /// runtime (the CoreML compile path drifts per runtime and caused garbage
-/// audio on the iOS simulator, see the speech-models issue #4 history).
+/// audio on the iOS simulator).
 final class DeepFilterNet3E2ETests: XCTestCase {
 
     /// Verify the migration to `.mlmodelc/**` globs actually resolves at

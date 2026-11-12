@@ -11,8 +11,7 @@ used about 36% less sampled peak RSS.
 - Machine: Apple M5 Pro, 48 GB
 - OS: macOS 26.5.2
 - Build: release
-- Dataset: 80 English FLEURS clips from the speech-bench-data Hugging Face
-  fixture
+- Dataset: 80 English FLEURS clips from a fixed local fixture
 - Audio: 759.56 seconds total
 - Reference: 1,813 words
 - Execution: one fresh child process per variant with `--isolated`

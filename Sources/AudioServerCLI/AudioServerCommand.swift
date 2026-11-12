@@ -18,6 +18,9 @@ struct AudioServerCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Load all models on startup (slower start, faster first request)")
     var preload: Bool = false
 
+    @Option(name: .long, help: "Local native inference manifest (loads Gemma, VoxCPM2 FP16, full Whisper Large-v3 and Silero offline)")
+    var inferenceManifest: String?
+
     func run() async throws {
         if let argv0 = CommandLine.arguments.first,
            (argv0 as NSString).lastPathComponent == "audio-server" {
@@ -26,7 +29,13 @@ struct AudioServerCommand: AsyncParsableCommand {
             ))
         }
 
-        let server = AudioServer(host: host, port: port)
+        let inference: NativeInferenceService?
+        if let inferenceManifest {
+            print("Loading native inference models from local directories...")
+            let configuration = try NativeInferenceConfiguration.load(from: URL(fileURLWithPath: inferenceManifest))
+            inference = try await NativeInferenceService(configuration: configuration)
+        } else { inference = nil }
+        let server = AudioServer(host: host, port: port, inference: inference)
 
         if preload {
             print("Preloading models...")

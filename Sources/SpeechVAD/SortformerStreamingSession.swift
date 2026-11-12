@@ -1,3 +1,4 @@
+import AudioCommon
 #if canImport(CoreML)
 import CoreML
 import Foundation
@@ -73,6 +74,7 @@ public final class SortformerStreamingSession {
         offlineMode: Bool = false,
         config: SortformerConfig = .streaming,
         computeUnits: MLComputeUnits = .cpuAndNeuralEngine,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> SortformerStreamingSession {
         let diarizer = try await SortformerDiarizer.fromPretrained(
@@ -81,6 +83,7 @@ public final class SortformerStreamingSession {
             offlineMode: offlineMode,
             config: config,
             computeUnits: computeUnits,
+            downloadOptions: downloadOptions,
             progressHandler: progressHandler)
         return diarizer.makeStreamingSession()
     }

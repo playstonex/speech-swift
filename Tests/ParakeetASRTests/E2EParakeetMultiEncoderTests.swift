@@ -5,8 +5,7 @@ import XCTest
 
 /// E2E coverage for the multi-encoder layout shipped by
 /// `aufklarer/Parakeet-TDT-v3-CoreML-INT8` after the M5-ANE fix
-/// (speech-models commit "parakeet-asr: bump CoreML deployment target to
-/// iOS18 …"; issue #313).
+/// (the CoreML deployment target moved to iOS 18; issue #313).
 ///
 /// The legacy `-INT8` repo can't ship EnumeratedShapes anymore — iOS18's
 /// MIL validator rejects the dynamic `tile` reps the FastConformer

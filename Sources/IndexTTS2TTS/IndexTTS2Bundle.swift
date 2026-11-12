@@ -158,6 +158,7 @@ public enum IndexTTS2BundleLoader {
         requiredFiles: [String],
         cacheDir: URL?,
         offlineMode: Bool,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)?
     ) async throws -> URL {
         let directory = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
@@ -165,7 +166,8 @@ public enum IndexTTS2BundleLoader {
             modelId: modelId,
             to: directory,
             files: requiredFiles,
-            offlineMode: offlineMode
+            offlineMode: offlineMode,
+            downloadOptions: downloadOptions
         ) { progress in
             progressHandler?(progress * 0.85, "Downloading \(modelId)")
         }

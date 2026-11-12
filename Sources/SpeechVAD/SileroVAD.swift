@@ -37,6 +37,7 @@ public enum SileroVADEngine: String, Sendable {
 /// let segments = vad.detectSpeech(audio: samples, sampleRate: 16000)
 /// ```
 public final class SileroVADModel {
+    var mlxCacheLimitLease: MLXCacheLimitCoordinator.Lease?
 
     /// The inference engine in use.
     public let engine: SileroVADEngine
@@ -84,6 +85,8 @@ public final class SileroVADModel {
     public static let sampleRate = 16000
 
     init(network: SileroVADNetwork) {
+        mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
         self.engine = .mlx
         self.network = network
         self.context = [Float](repeating: 0, count: Self.contextSize)
@@ -106,6 +109,11 @@ public final class SileroVADModel {
     /// - Parameter samples: exactly 512 PCM Float32 samples at 16kHz
     /// - Returns: speech probability in `[0, 1]`
     public func processChunk(_ samples: [Float]) -> Float {
+        (try? processChunkThrowing(samples)) ?? 0
+    }
+
+    /// Streaming inference that propagates model errors to the caller.
+    public func processChunkThrowing(_ samples: [Float]) throws -> Float {
         precondition(samples.count == Self.chunkSize,
                      "Chunk must be \(Self.chunkSize) samples, got \(samples.count)")
 
@@ -120,7 +128,20 @@ public final class SileroVADModel {
             return processChunkMLX(fullSamples)
         case .coreml:
             #if canImport(CoreML)
-            return (try? processChunkCoreML(fullSamples)) ?? 0.0
+            return try processChunkCoreML(fullSamples)
+            #else
+            fatalError("CoreML not available on this platform")
+            #endif
+        }
+    }
+
+    /// Share immutable model weights while keeping each stream's state separate.
+    public func makeIndependentStream() -> SileroVADModel {
+        switch engine {
+        case .mlx: return SileroVADModel(network: network!)
+        case .coreml:
+            #if canImport(CoreML)
+            return SileroVADModel(coremlModel: coremlModel!)
             #else
             fatalError("CoreML not available on this platform")
             #endif
@@ -231,6 +252,7 @@ public final class SileroVADModel {
         engine: SileroVADEngine = .mlx,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> SileroVADModel {
         let resolvedModelId = modelId ?? (engine == .coreml ? defaultCoreMLModelId : defaultModelId)
@@ -241,10 +263,13 @@ public final class SileroVADModel {
 
         switch engine {
         case .mlx:
+            let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+            defer { loadingCacheLimit?.release() }
             try await HuggingFaceDownloader.downloadWeights(
                 modelId: resolvedModelId,
                 to: cacheDir,
                 offlineMode: offlineMode,
+                downloadOptions: downloadOptions,
                 progressHandler: { progress in
                     progressHandler?(progress * 0.8, "Downloading weights...")
                 }
@@ -265,6 +290,7 @@ public final class SileroVADModel {
                 to: cacheDir,
                 additionalFiles: ["silero_vad.mlmodelc/**", "config.json"],
                 offlineMode: offlineMode,
+                downloadOptions: downloadOptions,
                 progressHandler: { progress in
                     progressHandler?(progress * 0.8, "Downloading CoreML model...")
                 }

@@ -38,6 +38,7 @@ public enum Audio2Face3DDownloader {
         modelId: String = Audio2Face3DConfiguration.defaultModelId,
         to directory: URL,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, Int64, Int64, String) -> Void)? = nil
     ) async throws {
         try await HuggingFaceDownloader.downloadFilesByteWeighted(
@@ -46,6 +47,7 @@ public enum Audio2Face3DDownloader {
             files: requiredFiles,
             expectedSizes: expectedSizesByModelId[modelId],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: progressHandler)
     }
 

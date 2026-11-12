@@ -338,6 +338,7 @@ public class ParakeetASRModel {
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
         encoderVariant: String? = nil,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> ParakeetASRModel {
         let effectiveModelId: String
@@ -378,7 +379,8 @@ public class ParakeetASRModel {
                     "vocab.json",
                     "config.json",
                 ],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             ) { fraction in
                 progressHandler?(fraction * 0.7, "Downloading model...")
             }

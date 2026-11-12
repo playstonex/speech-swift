@@ -3,10 +3,13 @@ import Foundation
 import MLX
 import MLXNN
 import PersonaPlex
+import MLXCommon
 
 /// Native delayed-stream speech recognition. Use each model from one task at a time.
 /// Original upstream bundles and exported FP16/INT4/INT8 bundles use the same API.
 public final class KyutaiSTTModel: SpeechRecognitionModel {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public static let defaultModelId = KyutaiSTTVariant.int8.modelId
     public static let upstreamModelId = "kyutai/stt-1b-en_fr"
     public static let englishModelId = "kyutai/stt-2.6b-en"
@@ -26,6 +29,9 @@ public final class KyutaiSTTModel: SpeechRecognitionModel {
     }
 
     public static func fromDirectory(_ directory: URL) throws -> KyutaiSTTModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let config = try JSONDecoder().decode(
             KyutaiSTTConfig.self, from: Data(contentsOf: directory.appendingPathComponent("config.json")))
         let vocabulary = try SentencePieceModel(contentsOf: directory.appendingPathComponent(config.tokenizerName))
@@ -49,8 +55,12 @@ public final class KyutaiSTTModel: SpeechRecognitionModel {
         _ modelPath: String = defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double) -> Void)? = nil
     ) async throws -> KyutaiSTTModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         var isDirectory: ObjCBool = false
         if FileManager.default.fileExists(atPath: modelPath, isDirectory: &isDirectory), isDirectory.boolValue {
             return try fromDirectory(URL(fileURLWithPath: modelPath, isDirectory: true))
@@ -59,13 +69,14 @@ public final class KyutaiSTTModel: SpeechRecognitionModel {
         // Read the configuration first: original and exported bundles name Mimi differently.
         try await HuggingFaceDownloader.downloadFiles(
             modelId: modelPath, to: directory, files: ["config.json"],
-            offlineMode: offlineMode)
+            offlineMode: offlineMode,
+            downloadOptions: downloadOptions)
         let config = try JSONDecoder().decode(
             KyutaiSTTConfig.self, from: Data(contentsOf: directory.appendingPathComponent("config.json")))
         try await HuggingFaceDownloader.downloadWeights(
             modelId: modelPath, to: directory,
             additionalFiles: ["model.safetensors", config.mimiName, config.tokenizerName],
-            offlineMode: offlineMode, progressHandler: progressHandler)
+            offlineMode: offlineMode, downloadOptions: downloadOptions, progressHandler: progressHandler)
         return try fromDirectory(directory)
     }
 

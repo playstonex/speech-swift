@@ -30,6 +30,8 @@ private struct CodePredictorFrameCompileKey: Hashable {
 ///
 /// - Warning: This class is not thread-safe. Create separate instances for concurrent use.
 public class Qwen3TTSModel {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     /// Default HuggingFace model identifier — the 12 Hz 1.7B Base bf16 MLX bundle
     /// (the production model; int4 was decommissioned for TTS). Single SSOT for the
     /// registry and other call sites.
@@ -1831,8 +1833,12 @@ public extension Qwen3TTSModel {
         tokenizerCacheDir: URL? = nil,
         offlineMode: Bool = false,
         wiredMemoryPolicy: Qwen3TTSWiredMemoryPolicy = .pin(fraction: 0.9),
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Qwen3TTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         progressHandler?(0.05, "Preparing download...")
 
         // The model ID is a size fallback for legacy bundles that omit architecture metadata.
@@ -1854,6 +1860,7 @@ public extension Qwen3TTSModel {
                 to: mainCacheDir,
                 additionalFiles: ["merges.txt", "tokenizer_config.json", "vocab.json"],
                 offlineMode: offlineMode,
+                downloadOptions: downloadOptions,
                 progressHandler: { progress in
                     progressHandler?(0.1 + progress * 0.3, "Downloading TTS model weights...")
                 })
@@ -1868,6 +1875,7 @@ public extension Qwen3TTSModel {
                 modelId: tokenizerModelId,
                 to: resolvedTokenizerCacheDir,
                 offlineMode: offlineMode,
+                downloadOptions: downloadOptions,
                 progressHandler: { progress in
                     progressHandler?(0.4 + progress * 0.2, "Downloading speech tokenizer...")
                 })
@@ -1908,6 +1916,9 @@ public extension Qwen3TTSModel {
         wiredMemoryPolicy: Qwen3TTSWiredMemoryPolicy = .none,
         progressHandler: ((Double, String) -> Void)? = nil
     ) throws -> Qwen3TTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         progressHandler?(0.05, "Validating local model bundles...")
         try validateLocalBundle(
             modelDirectory: modelDirectory,

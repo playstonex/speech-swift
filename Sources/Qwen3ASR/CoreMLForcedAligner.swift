@@ -10,7 +10,7 @@ import AudioCommon
 /// MLX dependency at runtime):
 ///
 ///   audio → mel (Accelerate) → audio_encoder.mlpackage → audio embeddings
-///   text  → tokenizer → <ts> word <ts> slots
+///   text  → tokenizer → word <ts> <ts> slots (start, then end)
 ///   tokens → embedding.mlpackage → token embeddings
 ///   embeddings (token slots + audio slot) → text_decoder.mlpackage (single pass)
 ///   logits at <ts> positions → argmax → LIS correction → ``[AlignedWord]``
@@ -54,7 +54,7 @@ public final class CoreMLForcedAligner {
     public static func fromDirectory(
         _ directory: URL,
         encoderComputeUnits: MLComputeUnits = CoreMLComputeUnitsResolver.resolved(default: .cpuAndNeuralEngine),
-        decoderComputeUnits: MLComputeUnits = CoreMLComputeUnitsResolver.resolved(default: .all)
+        decoderComputeUnits: MLComputeUnits = CoreMLComputeUnitsResolver.resolved(default: .cpuAndGPU)
     ) throws -> CoreMLForcedAligner {
         let enc = try CoreMLForcedAlignerEncoder.load(
             from: directory, computeUnits: encoderComputeUnits)
@@ -89,12 +89,15 @@ public final class CoreMLForcedAligner {
     public static func fromPretrained(
         modelId: String = "aufklarer/Qwen3-ForcedAligner-0.6B-CoreML-FP16",
         encoderComputeUnits: MLComputeUnits = CoreMLComputeUnitsResolver.resolved(default: .cpuAndNeuralEngine),
-        decoderComputeUnits: MLComputeUnits = CoreMLComputeUnitsResolver.resolved(default: .all),
+        decoderComputeUnits: MLComputeUnits = CoreMLComputeUnitsResolver.resolved(default: .cpuAndGPU),
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> CoreMLForcedAligner {
         let dir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
+        let decoderName = CoreMLForcedAlignerDecoder.downloadedBundleName(
+            modelId: modelId, computeUnits: decoderComputeUnits)
 
         progressHandler?(0.0, "Downloading CoreML aligner...")
         try await HuggingFaceDownloader.downloadWeights(
@@ -102,16 +105,17 @@ public final class CoreMLForcedAligner {
             to: dir,
             additionalFiles: [
                 "audio_encoder.mlpackage/**",
-                "text_decoder.mlpackage/**",
+                "\(decoderName).mlpackage/**",
                 "audio_encoder.mlmodelc/**",
-                "text_decoder.mlmodelc/**",
+                "\(decoderName).mlmodelc/**",
                 "embed_tokens.fp16.bin",
                 "config.json",
                 "vocab.json",
                 "merges.txt",
                 "tokenizer_config.json",
             ],
-            offlineMode: offlineMode
+            offlineMode: offlineMode,
+            downloadOptions: downloadOptions
         ) { fraction in
             progressHandler?(fraction * 0.8, "Downloading CoreML aligner...")
         }
@@ -612,23 +616,51 @@ public final class CoreMLForcedAlignerEmbedding {
 
 // MARK: - Text decoder + classify head bundle
 
+/// Defaults to `.cpuAndGPU` to avoid the Neural Engine path that `.all` can select.
+/// GPU execution retains the original decoder graph. Explicit `.cpuOnly`
+/// execution prefers `text_decoder_cpu_v1`, whose RMS normalization uses
+/// Float32 to avoid the legacy graph's all-zero output on older CPU runtimes.
 public final class CoreMLForcedAlignerDecoder {
+    /// A separate, immutable bundle name prevents an older cached decoder
+    /// from masking the Float32-normalization CPU repair.
+    static let cpuCompatibleBundleName = "text_decoder_cpu_v1"
+
+    private static let publishedModelIds: Set<String> = [
+        "aufklarer/Qwen3-ForcedAligner-0.6B-CoreML-INT8",
+        "aufklarer/Qwen3-ForcedAligner-0.6B-CoreML-FP16",
+    ]
+
     private let model: MLModel
     public let fixedT: Int
+    private var temporaryCompiledURL: URL?
 
     public init(model: MLModel, fixedT: Int = 768) {
         self.model = model
         self.fixedT = fixedT
     }
 
+    deinit {
+        if let temporaryCompiledURL {
+            try? FileManager.default.removeItem(at: temporaryCompiledURL)
+        }
+    }
+
     public static func load(
         from directory: URL,
-        computeUnits: MLComputeUnits = CoreMLComputeUnitsResolver.resolved(default: .all)
+        computeUnits: MLComputeUnits = CoreMLComputeUnitsResolver.resolved(default: .cpuAndGPU)
     ) throws -> CoreMLForcedAlignerDecoder {
-        let url = try CoreMLForcedAlignerEncoder.resolveURL(in: directory, name: "text_decoder")
+        let url = try resolveBundleURL(in: directory, computeUnits: computeUnits)
+        let compiledURL = url.pathExtension == "mlpackage"
+            ? try MLModel.compileModel(at: url) : url
         let cfg = MLModelConfiguration()
         cfg.computeUnits = computeUnits
-        let model = try MLModel(contentsOf: url, configuration: cfg)
+        let model: MLModel
+        do {
+            model = try MLModel(contentsOf: compiledURL, configuration: cfg)
+        } catch {
+            if compiledURL != url { try? FileManager.default.removeItem(at: compiledURL) }
+            throw error
+        }
         // Read fixedT from the model's declared input shape so a runtime
         // override (T=512 / T=1024) doesn't need a separate code path.
         var fixedT = 768
@@ -637,7 +669,32 @@ public final class CoreMLForcedAlignerDecoder {
             let shape = constraint.shape.map { $0.intValue }
             if shape.count == 3 && shape[1] > 0 { fixedT = shape[1] }
         }
-        return CoreMLForcedAlignerDecoder(model: model, fixedT: fixedT)
+        let decoder = CoreMLForcedAlignerDecoder(model: model, fixedT: fixedT)
+        if compiledURL != url { decoder.temporaryCompiledURL = compiledURL }
+        return decoder
+    }
+
+    static func downloadedBundleName(modelId: String, computeUnits: MLComputeUnits) -> String {
+        computeUnits == .cpuOnly && publishedModelIds.contains(modelId)
+            ? cpuCompatibleBundleName : "text_decoder"
+    }
+
+    static func resolveBundleURL(in directory: URL, computeUnits: MLComputeUnits) throws -> URL {
+        if computeUnits == .cpuOnly {
+            let fm = FileManager.default
+            let hasCompatibleBundle = ["mlmodelc", "mlpackage"].contains { suffix in
+                fm.fileExists(atPath: directory.appendingPathComponent(
+                    "\(cpuCompatibleBundleName).\(suffix)", isDirectory: true).path)
+            }
+            if hasCompatibleBundle {
+                return try CoreMLForcedAlignerEncoder.resolveURL(
+                    in: directory, name: cpuCompatibleBundleName)
+            }
+        }
+        // Preserve local/custom bundles, including the pinned legacy controls
+        // used by the compatibility diagnostic. GPU execution retains its
+        // existing exported graph and compute placement.
+        return try CoreMLForcedAlignerEncoder.resolveURL(in: directory, name: "text_decoder")
     }
 
     public func warmUp() throws {

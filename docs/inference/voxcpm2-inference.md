@@ -69,6 +69,7 @@ speech speak "This is an ultimate cloning demo." \
 - If `--voxcpm2-prompt-audio` is set, `--voxcpm2-prompt-text` must be provided too
 - The HF snapshot includes `tokenization_voxcpm2.py` and `tokenizer_config.json` with `VoxCPM2Tokenizer`; the Swift backend refreshes stale tokenizer snapshots and mirrors the upstream multi-character Chinese token split before encoding
 - On Apple Silicon, the Swift backend promotes VoxCPM2 parameters to `float32` by default to match the upstream MPS safety policy, and the `AudioVAE` decode path always receives `float32` latents
+- While a VoxCPM2 model is loaded, MLX's reusable-buffer cache is capped at `min(2 GiB, 25% of physical RAM)`, from weight loading onward. Every line has a different length, so without the cap a long-lived model collects buffers of new sizes: eight lines of 1–8 s on a 48 GB Mac grew the process from 12.7 GB to 33.9 GB, against about 13 GB with the cap, with the same audio. A lower caller `MLX.Memory.cacheLimit` is kept; the cap follows the [shared MLX memory policy](mlx-memory.md), and the last model to unload restores the caller's limit
 
 ## Swift API
 
@@ -99,6 +100,28 @@ let audio = try await model.generateVoxCPM2(
     instruct: "Young female voice, warm and gentle"
 )
 ```
+
+## Explicit FP16 loading and incremental audio
+
+`fromPretrained(weightPrecision: .float16)` requires an unquantized checkpoint
+and stores the main network parameters in Float16. AudioVAE parameters and
+decoding remain Float32, and diffusion arithmetic can promote to Float32.
+The `.automatic` default preserves the existing loading policy.
+
+`generateVoxCPM2` accepts an optional `InferenceCancellationToken`, a `seed`,
+`streamingChunkPatches` (default 4), and `onAudioChunk`. The callback receives
+new 48 kHz Float32 samples from causal-prefix decoding, including the final
+tail. Decoding retains bounded left context derived from the AudioVAE's causal
+receptive field. A separate decoder random state preserves diffusion sampling across
+buffered and incremental generation. Cancellation is checked between patches.
+Calls on one model instance must be serialized.
+
+`fromPretrained(tokenizerDirectory: ...)` uses an explicitly staged compatible
+tokenizer, rejects an incomplete snapshot, and leaves its files unchanged.
+Omitting it preserves the existing shared tokenizer cache behavior.
+
+The [native inference service](native-inference-server.md) exposes this mode
+with streamed PCM16 output, cancellation, and actual parameter dtype counts.
 
 ## Implementation Checklist
 

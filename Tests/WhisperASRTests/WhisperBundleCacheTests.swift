@@ -43,6 +43,15 @@ final class WhisperBundleCacheTests: XCTestCase {
         XCTAssertFalse(WhisperASRModel.hasCompleteCachedBundle(in: temporaryDirectory))
     }
 
+    func testFullLargeBundleMayOmitPrefillButStillRequiresDecoderPayload() throws {
+        try createCompleteBundle()
+        try FileManager.default.removeItem(at: temporaryDirectory.appendingPathComponent("TextDecoderContextPrefill.mlmodelc"))
+        XCTAssertFalse(WhisperASRModel.hasCompleteCachedBundle(in: temporaryDirectory))
+        XCTAssertTrue(WhisperASRModel.hasCompleteCachedBundle(in: temporaryDirectory, requiresPrefill: false))
+        try FileManager.default.removeItem(at: temporaryDirectory.appendingPathComponent("TextDecoder.mlmodelc/weights/weight.bin"))
+        XCTAssertFalse(WhisperASRModel.hasCompleteCachedBundle(in: temporaryDirectory, requiresPrefill: false))
+    }
+
     private func createCompleteBundle() throws {
         for relativePath in WhisperASRModel.requiredBundleFiles {
             let fileURL = temporaryDirectory.appendingPathComponent(relativePath)

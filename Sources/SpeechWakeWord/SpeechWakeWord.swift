@@ -167,6 +167,7 @@ public final class WakeWordDetector {
     public static func fromPretrained(
         modelId: String? = nil,
         keywords: [KeywordSpec],
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> WakeWordDetector {
         let effectiveModelId = modelId ?? defaultModelId
@@ -187,7 +188,8 @@ public final class WakeWordDetector {
                 "config.json",
                 "commands_small.txt",
                 "commands_large.txt"
-            ]
+            ],
+            downloadOptions: downloadOptions
         ) { fraction in progressHandler?(fraction * 0.7, "Downloading model...") }
 
         progressHandler?(0.70, "Loading configuration...")

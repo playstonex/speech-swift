@@ -23,8 +23,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Test Metal build script
-        run: python3 scripts/test_build_mlx_metallib.py
+      - name: Test build helpers
+        run: |
+          python3 scripts/test_build_mlx_metallib.py
+          python3 scripts/profiling/test_build_breeze_profile.py
 
       - name: Cache SwiftPM
         uses: actions/cache@v5

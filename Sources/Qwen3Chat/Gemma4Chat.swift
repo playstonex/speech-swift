@@ -12,6 +12,8 @@ import MLXCommon
 ///   • a reasoning *channel* `<|channel>thought\n…\n<channel|>` is emitted before the answer; for a
 ///     voice assistant we suppress it and stream only the post-channel answer text.
 public final class Gemma4Chat: @unchecked Sendable {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     /// Gemma-4 architecture config (used by the model + parity harness).
     public let denseConfig: Gemma4DenseConfig
     let model: Gemma4Model
@@ -58,6 +60,9 @@ public final class Gemma4Chat: @unchecked Sendable {
     public static func fromDirectory(
         _ directory: URL, progressHandler: ((Double, String) -> Void)? = nil
     ) throws -> Gemma4Chat {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let config = try Gemma4DenseConfig.load(from: directory.appendingPathComponent("config.json"))
         let gemmaTok = Gemma4Tokenizer()
         try gemmaTok.load(from: directory)
@@ -73,8 +78,12 @@ public final class Gemma4Chat: @unchecked Sendable {
         modelId: String = "aufklarer/gemma-4-E4B-it-MLX-4bit",
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Gemma4Chat {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let cacheDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
         try await HuggingFaceDownloader.downloadWeights(
             modelId: modelId,
@@ -84,6 +93,7 @@ public final class Gemma4Chat: @unchecked Sendable {
                 "generation_config.json", "model.safetensors", "model.safetensors.index.json",
             ],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progressHandler?($0 * 0.6, "Downloading...") })
         return try fromDirectory(cacheDir) { p, m in progressHandler?(0.6 + p * 0.4, m) }
     }
@@ -91,6 +101,32 @@ public final class Gemma4Chat: @unchecked Sendable {
     // MARK: - State
 
     public func resetState() { state = .initial(config: denseConfig) }
+
+    /// Generate text or native tool calls from complete, isolated role history.
+    /// Calls on one model instance must be serialized by its owner.
+    public func generateResponse(
+        messages: [Gemma4ConversationMessage],
+        tools: [Gemma4Tool] = [],
+        sampling: ChatSamplingConfig = .default,
+        cancellation: InferenceCancellationToken? = nil
+    ) throws -> Gemma4Response {
+        try cancellation?.checkCancellation()
+        defer { resetState() }
+        let prompt = try Gemma4ToolCodec.prompt(messages: messages, tools: tools)
+        let tokens = gemmaTokenizer.encode(prompt)
+        guard tokens.count + sampling.maxTokens <= denseConfig.maxPositionEmbeddings else {
+            throw Gemma4ToolError.malformed("conversation exceeds the model context")
+        }
+        var generated: [Int] = []
+        decode(promptTokens: tokens, sampling: sampling,
+               prefillChunkSize: 256,
+               shouldContinue: { cancellation?.isCancelled != true && !Task.isCancelled },
+               onToken: { generated.append($0) }, onText: { _ in })
+        try cancellation?.checkCancellation()
+        try Task.checkCancellation()
+        return try Gemma4ToolCodec.response(
+            gemmaTokenizer.decodeWithSpecialTokens(generated), generatedTokens: generated.count)
+    }
 
     // MARK: - Generation
 
@@ -219,6 +255,7 @@ public final class Gemma4Chat: @unchecked Sendable {
         promptTokens: [Int],
         reusablePrefix: Int = 0,
         sampling: ChatSamplingConfig,
+        prefillChunkSize: Int? = nil,
         shouldContinue: () -> Bool = { true },
         constraint: (any TokenDecodeConstraint)? = nil,
         onToken: (Int) -> Void = { _ in },
@@ -226,7 +263,26 @@ public final class Gemma4Chat: @unchecked Sendable {
     ) -> ChatResponseFormatError? {
         // Prefill. Only the final position is sampled, so the lm_head runs on that row alone —
         // over a long prompt the discarded rows are gigabytes of 262k-wide logits.
-        var logits = prefill(promptTokens, reusablePrefix: reusablePrefix)
+        guard shouldContinue() else { return nil }
+        var logits: MLXArray
+        if let prefillChunkSize {
+            resetState()
+            let chunkSize = max(1, prefillChunkSize)
+            var chunkLogits: MLXArray?
+            for offset in stride(from: 0, to: promptTokens.count, by: chunkSize) {
+                guard shouldContinue() else { return nil }
+                let end = min(offset + chunkSize, promptTokens.count)
+                let input = MLXArray(promptTokens[offset..<end].map { Int32($0) })
+                    .expandedDimensions(axis: 0)
+                let value = model.lastTokenLogits(inputIds: input, state: &state)
+                eval(value)
+                chunkLogits = value
+            }
+            guard let chunkLogits else { return nil }
+            logits = chunkLogits
+        } else {
+            logits = prefill(promptTokens, reusablePrefix: reusablePrefix)
+        }
 
         var history = promptTokens
         var produced = false

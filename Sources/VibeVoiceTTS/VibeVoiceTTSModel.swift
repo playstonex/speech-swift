@@ -2,6 +2,7 @@ import AudioCommon
 import Foundation
 import MLX
 import Tokenizers
+import MLXCommon
 
 /// Top-level speech-swift wrapper around the VibeVoice streaming model.
 ///
@@ -15,6 +16,8 @@ import Tokenizers
 /// let pcm = try await tts.generate(text: "Hello world.", language: nil)
 /// ```
 public final class VibeVoiceTTSModel {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     /// Default HuggingFace model identifier — the 0.5B INT4 Realtime bundle.
     public static let defaultModelId = "aufklarer/VibeVoice-Realtime-0.5B-MLX-INT4"
 
@@ -79,8 +82,12 @@ public final class VibeVoiceTTSModel {
         configuration: Configuration = Configuration(),
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> VibeVoiceTTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let modelCacheDir = try cacheDir
             ?? HuggingFaceDownloader.getCacheDirectory(for: configuration.modelId)
         if !HuggingFaceDownloader.weightsExist(in: modelCacheDir) {
@@ -89,7 +96,8 @@ public final class VibeVoiceTTSModel {
                 modelId: configuration.modelId,
                 to: modelCacheDir,
                 additionalFiles: ["config.json", "preprocessor_config.json", "quantization.json"],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             ) { fraction in
                 progressHandler?(fraction * 0.7, "Downloading model...")
             }
@@ -111,7 +119,8 @@ public final class VibeVoiceTTSModel {
                     "special_tokens_map.json",
                     "added_tokens.json",
                 ],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             )
         }
 

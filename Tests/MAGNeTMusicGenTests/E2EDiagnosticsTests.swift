@@ -135,7 +135,7 @@ final class E2EDiagnosticsTests: XCTestCase {
     /// `applyQuantizedLinearWeights` without raising and leaves the
     /// construction-time random init in place).
     ///
-    /// Python ground truth from speech-models/models/magnet/export, harness
+    /// Python ground truth from the MAGNeT export, harness
     /// in `scripts/probe_magnet_logits.py`, bundle
     /// `aufklarer/MAGNeT-Medium-30secs-MLX-8bit`:
     ///   cond_logits[0,0,0,:8]   = [-0.7593, -3.0587, -2.6864, -0.8878, 0.0120, -1.4776, -1.7772, -6.5137]

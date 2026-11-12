@@ -306,11 +306,11 @@ docs/
 
 **Keep local docs in sync when making code changes.**
 
-### Documentation site (soniqo-web)
+### Documentation site (soniqo.audio)
 
-The public documentation is hosted at **https://soniqo.audio** (Firebase Hosting) and lives in a separate private repository: **soniqo-web**.
+The public documentation is hosted at **https://soniqo.audio** and maintained outside this repository.
 
-**Whenever code changes are made in this repo, both local docs AND the soniqo-web site must be updated.**
+**Whenever code changes are made in this repo, both local docs AND the documentation site must be updated.**
 
 ### What requires a docs update
 
@@ -324,9 +324,10 @@ The public documentation is hosted at **https://soniqo.audio** (Firebase Hosting
 
 ### Documentation site structure
 
+Pages on the site, by URL path:
+
 ```
-soniqo-web/public/
-  index.html                Landing page (feature grid, performance stats)
+/                           Landing page (feature grid, performance stats)
   getting-started/          Installation, build instructions, quick start
   guides/
     transcribe/             Qwen3-ASR guide
@@ -352,7 +353,7 @@ Translated READMEs live in the repo root: `README_zh.md`, `README_ja.md`, `READM
 
 ### Mapping: code changes → docs pages
 
-| Code change | Local docs | soniqo-web page(s) |
+| Code change | Local docs | soniqo.audio page(s) |
 |---|---|---|
 | CLI flag added/changed | Relevant inference doc | `/cli/index.html` + relevant guide |
 | New model/module | New model + inference doc | Landing page + new guide + architecture |

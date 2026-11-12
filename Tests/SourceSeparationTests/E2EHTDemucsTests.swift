@@ -3,14 +3,16 @@ import MLX
 import MLXRandom
 @testable import SourceSeparation
 
-/// Dev parity/smoke tests for the HTDemucs (Demucs v4) port. Uses the weights
-/// exported locally by speech-models. Skips if they aren't present.
+/// Dev parity/smoke tests for the HTDemucs (Demucs v4) port. Uses locally exported
+/// weights under `HTDEMUCS_EXPORT_DIR`. Skips if they aren't present.
 final class E2EHTDemucsTests: XCTestCase {
 
-    static var weightsDir: URL {
-        URL(fileURLWithPath: NSHomeDirectory())
-            .appendingPathComponent("repos/speech-models-htdemucs/models/htdemucs/export/htdemucs-ft")
+    /// Holds `htdemucs-ft`, `htdemucs-ft-fp32` and `parity_m0.safetensors`.
+    static var exportDir: URL {
+        URL(fileURLWithPath: ProcessInfo.processInfo.environment["HTDEMUCS_EXPORT_DIR"] ?? "/tmp/htdemucs-export")
     }
+
+    static var weightsDir: URL { exportDir.appendingPathComponent("htdemucs-ft") }
 
     private func skipIfMissing() throws {
         let st = Self.weightsDir.appendingPathComponent("htdemucs_ft.safetensors")
@@ -29,14 +31,8 @@ final class E2EHTDemucsTests: XCTestCase {
         XCTAssertEqual(sep.config.arch.bottomChannels, 512)
     }
 
-    static var fp32Dir: URL {
-        URL(fileURLWithPath: NSHomeDirectory())
-            .appendingPathComponent("repos/speech-models-htdemucs/models/htdemucs/export/htdemucs-ft-fp32")
-    }
-    static var parityFile: URL {
-        URL(fileURLWithPath: NSHomeDirectory())
-            .appendingPathComponent("repos/speech-models-htdemucs/models/htdemucs/export/parity_m0.safetensors")
-    }
+    static var fp32Dir: URL { exportDir.appendingPathComponent("htdemucs-ft-fp32") }
+    static var parityFile: URL { exportDir.appendingPathComponent("parity_m0.safetensors") }
 
     /// THE correctness gate: run sub-model 0 on the same input as the PyTorch
     /// reference and compare. High SNR ⇒ the architecture is numerically faithful.

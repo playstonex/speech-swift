@@ -1,0 +1,960 @@
+{
+  "hardware": "Apple M5 Pro",
+  "ram_gib": 48,
+  "macos": "26.6.2",
+  "build": "release, compiled MLX Metal library",
+  "source_model": "BreezeBlue/Breeze-TTS-2",
+  "source_revision": "3e28c5151381a722f1d8661b4118c298caa77aa4",
+  "asr_model": "aufklarer/Qwen3-ASR-0.6B-MLX-4bit",
+  "date": "2026-10-24",
+  "runtime_commit": "0cd8108197bf35529c2940d5fc4f14e3105b6612",
+  "scope": "16 deterministic smoke clips over five texts; English and Chinese; voice design, cloning, direction, and plain synthesis; published 8-bit and BF16 bundles",
+  "cases": {
+    "design-8bit": {
+      "synthesis": {
+        "baseline_memory": {
+          "mlx_active_bytes": 0,
+          "mlx_cache_bytes": 0,
+          "mlx_peak_bytes": 0,
+          "peak_physical_footprint_bytes": 2638304,
+          "peak_rss_bytes": 16318464,
+          "physical_footprint_bytes": 2638304,
+          "rss_bytes": 16318464
+        },
+        "bundle": "Breeze-TTS-2-MLX-8bit",
+        "cfg_scale": 4,
+        "chunk_frames": 25,
+        "final_memory": {
+          "mlx_active_bytes": 3863820580,
+          "mlx_cache_bytes": 4672254054,
+          "mlx_peak_bytes": 6276398330,
+          "peak_physical_footprint_bytes": 8829947816,
+          "peak_rss_bytes": 4228939776,
+          "physical_footprint_bytes": 8829947816,
+          "rss_bytes": 4228939776
+        },
+        "first_chunk_frames": 3,
+        "instruction": "A clear, calm English narrator.",
+        "load_seconds": 1.3841970000066794,
+        "loaded_memory": {
+          "mlx_active_bytes": 3863820548,
+          "mlx_cache_bytes": 136036,
+          "mlx_peak_bytes": 3863820548,
+          "peak_physical_footprint_bytes": 4111847048,
+          "peak_rss_bytes": 4200300544,
+          "physical_footprint_bytes": 4111847048,
+          "rss_bytes": 4200300544
+        },
+        "reference_wav": "",
+        "runs": [
+          {
+            "audio_seconds": 3.2,
+            "chunks": 3,
+            "first_audio_seconds": 0.34878775000106543,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 2.2843834580271505,
+            "index": 0,
+            "memory": {
+              "mlx_active_bytes": 3863820580,
+              "mlx_cache_bytes": 4670236518,
+              "mlx_peak_bytes": 6276087039,
+              "peak_physical_footprint_bytes": 8822214520,
+              "peak_rss_bytes": 4221779968,
+              "physical_footprint_bytes": 8822214520,
+              "rss_bytes": 4221779968
+            },
+            "phase": "cold",
+            "rtf": 0.7138698306334845,
+            "text": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-8bit-0.wav"
+          },
+          {
+            "audio_seconds": 3.2,
+            "chunks": 3,
+            "first_audio_seconds": 0.32883429096546024,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 2.2389655410079286,
+            "index": 1,
+            "memory": {
+              "mlx_active_bytes": 3863820580,
+              "mlx_cache_bytes": 4672254054,
+              "mlx_peak_bytes": 6276398330,
+              "peak_physical_footprint_bytes": 8826474360,
+              "peak_rss_bytes": 4224598016,
+              "physical_footprint_bytes": 8826474360,
+              "rss_bytes": 4224598016
+            },
+            "phase": "warm",
+            "rtf": 0.6996767315649777,
+            "text": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-8bit-1.wav"
+          },
+          {
+            "audio_seconds": 3.2,
+            "chunks": 3,
+            "first_audio_seconds": 0.32995845802361146,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 2.2727526249946095,
+            "index": 2,
+            "memory": {
+              "mlx_active_bytes": 3863820580,
+              "mlx_cache_bytes": 4672254054,
+              "mlx_peak_bytes": 6276398330,
+              "peak_physical_footprint_bytes": 8828145552,
+              "peak_rss_bytes": 4226760704,
+              "physical_footprint_bytes": 8828145552,
+              "rss_bytes": 4226760704
+            },
+            "phase": "warm",
+            "rtf": 0.7102351953108155,
+            "text": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-8bit-2.wav"
+          },
+          {
+            "audio_seconds": 3.2,
+            "chunks": 3,
+            "first_audio_seconds": 0.32894362503429875,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 2.2611315000103787,
+            "index": 3,
+            "memory": {
+              "mlx_active_bytes": 3863820580,
+              "mlx_cache_bytes": 4672254054,
+              "mlx_peak_bytes": 6276398330,
+              "peak_physical_footprint_bytes": 8829947816,
+              "peak_rss_bytes": 4228939776,
+              "physical_footprint_bytes": 8829947816,
+              "rss_bytes": 4228939776
+            },
+            "phase": "warm",
+            "rtf": 0.7066035937532433,
+            "text": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-8bit-3.wav"
+          }
+        ],
+        "seed": 42,
+        "text": "The quick brown fox jumps over the lazy dog."
+      },
+      "round_trip": {
+        "asr_model": "aufklarer/Qwen3-ASR-0.6B-MLX-4bit",
+        "results": [
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "The quick brown fox jumps over the lazy dog.",
+            "reference_words": 9,
+            "substitutions": 0,
+            "transcript": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-8bit-0.wav",
+            "wer": 0
+          },
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "The quick brown fox jumps over the lazy dog.",
+            "reference_words": 9,
+            "substitutions": 0,
+            "transcript": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-8bit-1.wav",
+            "wer": 0
+          },
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "The quick brown fox jumps over the lazy dog.",
+            "reference_words": 9,
+            "substitutions": 0,
+            "transcript": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-8bit-2.wav",
+            "wer": 0
+          },
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "The quick brown fox jumps over the lazy dog.",
+            "reference_words": 9,
+            "substitutions": 0,
+            "transcript": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-8bit-3.wav",
+            "wer": 0
+          }
+        ],
+        "source": "design-8bit.json"
+      }
+    },
+    "design-bf16": {
+      "synthesis": {
+        "baseline_memory": {
+          "mlx_active_bytes": 0,
+          "mlx_cache_bytes": 0,
+          "mlx_peak_bytes": 0,
+          "peak_physical_footprint_bytes": 2605536,
+          "peak_rss_bytes": 16285696,
+          "physical_footprint_bytes": 2605536,
+          "rss_bytes": 16285696
+        },
+        "bundle": "Breeze-TTS-2-MLX-bf16",
+        "cfg_scale": 4,
+        "chunk_frames": 25,
+        "final_memory": {
+          "mlx_active_bytes": 6156491044,
+          "mlx_cache_bytes": 5105579600,
+          "mlx_peak_bytes": 8828671921,
+          "peak_physical_footprint_bytes": 11540289056,
+          "peak_rss_bytes": 6505103360,
+          "physical_footprint_bytes": 11540289056,
+          "rss_bytes": 6505103360
+        },
+        "first_chunk_frames": 3,
+        "instruction": "A clear, calm English narrator.",
+        "load_seconds": 1.3911527080344968,
+        "loaded_memory": {
+          "mlx_active_bytes": 6156491012,
+          "mlx_cache_bytes": 139756,
+          "mlx_peak_bytes": 6156622148,
+          "peak_physical_footprint_bytes": 6388946224,
+          "peak_rss_bytes": 6476283904,
+          "physical_footprint_bytes": 6388946224,
+          "rss_bytes": 6476283904
+        },
+        "reference_wav": "",
+        "runs": [
+          {
+            "audio_seconds": 3.68,
+            "chunks": 3,
+            "first_audio_seconds": 0.48767841700464487,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 4.70531991700409,
+            "index": 0,
+            "memory": {
+              "mlx_active_bytes": 6156491044,
+              "mlx_cache_bytes": 5105215690,
+              "mlx_peak_bytes": 8828655542,
+              "peak_physical_footprint_bytes": 11534505456,
+              "peak_rss_bytes": 6497959936,
+              "physical_footprint_bytes": 11534505456,
+              "rss_bytes": 6497959936
+            },
+            "phase": "cold",
+            "rtf": 1.2786195426641547,
+            "text": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-bf16-0.wav"
+          },
+          {
+            "audio_seconds": 3.68,
+            "chunks": 3,
+            "first_audio_seconds": 0.46598533302312717,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 4.694602333009243,
+            "index": 1,
+            "memory": {
+              "mlx_active_bytes": 6156491044,
+              "mlx_cache_bytes": 5105447376,
+              "mlx_peak_bytes": 8828671921,
+              "peak_physical_footprint_bytes": 11536700936,
+              "peak_rss_bytes": 6500646912,
+              "physical_footprint_bytes": 11536700936,
+              "rss_bytes": 6500646912
+            },
+            "phase": "warm",
+            "rtf": 1.2757071557090334,
+            "text": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-bf16-1.wav"
+          },
+          {
+            "audio_seconds": 3.68,
+            "chunks": 3,
+            "first_audio_seconds": 0.4621771670063026,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 4.628221167018637,
+            "index": 2,
+            "memory": {
+              "mlx_active_bytes": 6156491044,
+              "mlx_cache_bytes": 5105579600,
+              "mlx_peak_bytes": 8828671921,
+              "peak_physical_footprint_bytes": 11538699784,
+              "peak_rss_bytes": 6502858752,
+              "physical_footprint_bytes": 11538699784,
+              "rss_bytes": 6502858752
+            },
+            "phase": "warm",
+            "rtf": 1.2576687953854992,
+            "text": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-bf16-2.wav"
+          },
+          {
+            "audio_seconds": 3.68,
+            "chunks": 3,
+            "first_audio_seconds": 0.462126458005514,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 4.6015659580007195,
+            "index": 3,
+            "memory": {
+              "mlx_active_bytes": 6156491044,
+              "mlx_cache_bytes": 5105579600,
+              "mlx_peak_bytes": 8828671921,
+              "peak_physical_footprint_bytes": 11540289056,
+              "peak_rss_bytes": 6505103360,
+              "physical_footprint_bytes": 11540289056,
+              "rss_bytes": 6505103360
+            },
+            "phase": "warm",
+            "rtf": 1.250425532065413,
+            "text": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-bf16-3.wav"
+          }
+        ],
+        "seed": 42,
+        "text": "The quick brown fox jumps over the lazy dog."
+      },
+      "round_trip": {
+        "asr_model": "aufklarer/Qwen3-ASR-0.6B-MLX-4bit",
+        "results": [
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "The quick brown fox jumps over the lazy dog.",
+            "reference_words": 9,
+            "substitutions": 0,
+            "transcript": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-bf16-0.wav",
+            "wer": 0
+          },
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "The quick brown fox jumps over the lazy dog.",
+            "reference_words": 9,
+            "substitutions": 0,
+            "transcript": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-bf16-1.wav",
+            "wer": 0
+          },
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "The quick brown fox jumps over the lazy dog.",
+            "reference_words": 9,
+            "substitutions": 0,
+            "transcript": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-bf16-2.wav",
+            "wer": 0
+          },
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "The quick brown fox jumps over the lazy dog.",
+            "reference_words": 9,
+            "substitutions": 0,
+            "transcript": "The quick brown fox jumps over the lazy dog.",
+            "wav": "design-bf16-3.wav",
+            "wer": 0
+          }
+        ],
+        "source": "design-bf16.json"
+      }
+    },
+    "chinese-8bit": {
+      "synthesis": {
+        "baseline_memory": {
+          "mlx_active_bytes": 0,
+          "mlx_cache_bytes": 0,
+          "mlx_peak_bytes": 0,
+          "peak_physical_footprint_bytes": 2638304,
+          "peak_rss_bytes": 16318464,
+          "physical_footprint_bytes": 2638304,
+          "rss_bytes": 16318464
+        },
+        "bundle": "Breeze-TTS-2-MLX-8bit",
+        "cfg_scale": 4,
+        "chunk_frames": 25,
+        "final_memory": {
+          "mlx_active_bytes": 3863820580,
+          "mlx_cache_bytes": 7810101130,
+          "mlx_peak_bytes": 6695530048,
+          "peak_physical_footprint_bytes": 11946561424,
+          "peak_rss_bytes": 4206198784,
+          "physical_footprint_bytes": 11946561424,
+          "rss_bytes": 4206198784
+        },
+        "first_chunk_frames": 3,
+        "instruction": "一位声音清晰、语气亲切的普通话女声。",
+        "load_seconds": 1.3181970000150613,
+        "loaded_memory": {
+          "mlx_active_bytes": 3863820548,
+          "mlx_cache_bytes": 136036,
+          "mlx_peak_bytes": 3863924996,
+          "peak_physical_footprint_bytes": 4094824096,
+          "peak_rss_bytes": 4183113728,
+          "physical_footprint_bytes": 4094824096,
+          "rss_bytes": 4183113728
+        },
+        "reference_wav": "",
+        "runs": [
+          {
+            "audio_seconds": 5.04,
+            "chunks": 4,
+            "first_audio_seconds": 0.349438207980711,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 3.6337257080012932,
+            "index": 0,
+            "memory": {
+              "mlx_active_bytes": 3863820580,
+              "mlx_cache_bytes": 7810101130,
+              "mlx_peak_bytes": 6695530048,
+              "peak_physical_footprint_bytes": 11946545040,
+              "peak_rss_bytes": 4206166016,
+              "physical_footprint_bytes": 11946545040,
+              "rss_bytes": 4206166016
+            },
+            "phase": "cold",
+            "rtf": 0.7209773230161296,
+            "text": "你好，欢迎使用语音合成。今天天气很好，我们一起去散步吧。",
+            "wav": "chinese-8bit-0.wav"
+          }
+        ],
+        "seed": 42,
+        "text": "你好，欢迎使用语音合成。今天天气很好，我们一起去散步吧。"
+      },
+      "round_trip": {
+        "asr_model": "aufklarer/Qwen3-ASR-0.6B-MLX-4bit",
+        "results": [
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "你好，欢迎使用语音合成。今天天气很好，我们一起去散步吧。",
+            "reference_words": 4,
+            "substitutions": 0,
+            "transcript": "你好，欢迎使用语音合成。今天天气很好，我们一起去散步吧。",
+            "wav": "chinese-8bit-0.wav",
+            "wer": 0
+          }
+        ],
+        "source": "chinese-8bit.json"
+      }
+    },
+    "clone-8bit": {
+      "synthesis": {
+        "baseline_memory": {
+          "mlx_active_bytes": 0,
+          "mlx_cache_bytes": 0,
+          "mlx_peak_bytes": 0,
+          "peak_physical_footprint_bytes": 2654712,
+          "peak_rss_bytes": 16302080,
+          "physical_footprint_bytes": 2654712,
+          "rss_bytes": 16302080
+        },
+        "bundle": "Breeze-TTS-2-MLX-8bit",
+        "cfg_scale": 4,
+        "chunk_frames": 25,
+        "final_memory": {
+          "mlx_active_bytes": 4054031788,
+          "mlx_cache_bytes": 7723087594,
+          "mlx_peak_bytes": 6882363000,
+          "peak_physical_footprint_bytes": 12071358544,
+          "peak_rss_bytes": 4420255744,
+          "physical_footprint_bytes": 12071211088,
+          "rss_bytes": 4420255744
+        },
+        "first_chunk_frames": 3,
+        "instruction": "",
+        "load_seconds": 1.2222100830404088,
+        "loaded_memory": {
+          "mlx_active_bytes": 3863820548,
+          "mlx_cache_bytes": 136036,
+          "mlx_peak_bytes": 3863951680,
+          "peak_physical_footprint_bytes": 4111421064,
+          "peak_rss_bytes": 4199727104,
+          "physical_footprint_bytes": 4111421064,
+          "rss_bytes": 4199727104
+        },
+        "reference_wav": "design-8bit-1.wav",
+        "runs": [
+          {
+            "audio_seconds": 4.4,
+            "chunks": 4,
+            "first_audio_seconds": 0.3021852090023458,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 2.5960527500137687,
+            "index": 0,
+            "memory": {
+              "mlx_active_bytes": 4054031788,
+              "mlx_cache_bytes": 7722534410,
+              "mlx_peak_bytes": 6882363000,
+              "peak_physical_footprint_bytes": 12068818976,
+              "peak_rss_bytes": 4417126400,
+              "physical_footprint_bytes": 12068818976,
+              "rss_bytes": 4417126400
+            },
+            "phase": "cold",
+            "rtf": 0.5900119886394928,
+            "text": "The weather is beautiful today, and we are going for a walk.",
+            "wav": "clone-8bit-0.wav"
+          },
+          {
+            "audio_seconds": 4.4,
+            "chunks": 4,
+            "first_audio_seconds": 0.2428534160135314,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 2.511764166003559,
+            "index": 1,
+            "memory": {
+              "mlx_active_bytes": 4054031788,
+              "mlx_cache_bytes": 7722964714,
+              "mlx_peak_bytes": 6882363000,
+              "peak_physical_footprint_bytes": 12070408248,
+              "peak_rss_bytes": 4419059712,
+              "physical_footprint_bytes": 12070195280,
+              "rss_bytes": 4419059712
+            },
+            "phase": "warm",
+            "rtf": 0.570855492273536,
+            "text": "The weather is beautiful today, and we are going for a walk.",
+            "wav": "clone-8bit-1.wav"
+          },
+          {
+            "audio_seconds": 4.4,
+            "chunks": 4,
+            "first_audio_seconds": 0.24261004198342562,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 2.582425125001464,
+            "index": 2,
+            "memory": {
+              "mlx_active_bytes": 4054031788,
+              "mlx_cache_bytes": 7723087594,
+              "mlx_peak_bytes": 6882363000,
+              "peak_physical_footprint_bytes": 12071358544,
+              "peak_rss_bytes": 4420255744,
+              "physical_footprint_bytes": 12071211088,
+              "rss_bytes": 4420255744
+            },
+            "phase": "warm",
+            "rtf": 0.5869148011366964,
+            "text": "The weather is beautiful today, and we are going for a walk.",
+            "wav": "clone-8bit-2.wav"
+          }
+        ],
+        "seed": 42,
+        "text": "The weather is beautiful today, and we are going for a walk."
+      },
+      "round_trip": {
+        "asr_model": "aufklarer/Qwen3-ASR-0.6B-MLX-4bit",
+        "results": [
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "The weather is beautiful today, and we are going for a walk.",
+            "reference_words": 12,
+            "substitutions": 0,
+            "transcript": "The weather is beautiful today, and we are going for a walk.",
+            "wav": "clone-8bit-0.wav",
+            "wer": 0
+          },
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "The weather is beautiful today, and we are going for a walk.",
+            "reference_words": 12,
+            "substitutions": 0,
+            "transcript": "The weather is beautiful today, and we are going for a walk.",
+            "wav": "clone-8bit-1.wav",
+            "wer": 0
+          },
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "The weather is beautiful today, and we are going for a walk.",
+            "reference_words": 12,
+            "substitutions": 0,
+            "transcript": "The weather is beautiful today, and we are going for a walk.",
+            "wav": "clone-8bit-2.wav",
+            "wer": 0
+          }
+        ],
+        "source": "clone-8bit.json"
+      }
+    },
+    "direction-8bit": {
+      "synthesis": {
+        "baseline_memory": {
+          "mlx_active_bytes": 0,
+          "mlx_cache_bytes": 0,
+          "mlx_peak_bytes": 0,
+          "peak_physical_footprint_bytes": 2654712,
+          "peak_rss_bytes": 16302080,
+          "physical_footprint_bytes": 2654712,
+          "rss_bytes": 16302080
+        },
+        "bundle": "Breeze-TTS-2-MLX-8bit",
+        "cfg_scale": 4,
+        "chunk_frames": 25,
+        "final_memory": {
+          "mlx_active_bytes": 4054031788,
+          "mlx_cache_bytes": 7802381588,
+          "mlx_peak_bytes": 6897325004,
+          "peak_physical_footprint_bytes": 12139303064,
+          "peak_rss_bytes": 4408934400,
+          "physical_footprint_bytes": 12139303064,
+          "rss_bytes": 4408934400
+        },
+        "first_chunk_frames": 3,
+        "instruction": "Speak slowly with a restrained, serious tone.",
+        "load_seconds": 1.2591804169933312,
+        "loaded_memory": {
+          "mlx_active_bytes": 3863820548,
+          "mlx_cache_bytes": 136036,
+          "mlx_peak_bytes": 3863948556,
+          "peak_physical_footprint_bytes": 4095184544,
+          "peak_rss_bytes": 4183113728,
+          "physical_footprint_bytes": 4095184544,
+          "rss_bytes": 4183113728
+        },
+        "reference_wav": "design-8bit-1.wav",
+        "runs": [
+          {
+            "audio_seconds": 4.4,
+            "chunks": 4,
+            "first_audio_seconds": 0.4247988749993965,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 3.2270390420453623,
+            "index": 0,
+            "memory": {
+              "mlx_active_bytes": 4054031788,
+              "mlx_cache_bytes": 7797368084,
+              "mlx_peak_bytes": 6897325004,
+              "peak_physical_footprint_bytes": 12129554512,
+              "peak_rss_bytes": 4402610176,
+              "physical_footprint_bytes": 12129554512,
+              "rss_bytes": 4402610176
+            },
+            "phase": "cold",
+            "rtf": 0.7334179641012186,
+            "text": "We need to discuss what happened last night.",
+            "wav": "direction-8bit-0.wav"
+          },
+          {
+            "audio_seconds": 4.4,
+            "chunks": 4,
+            "first_audio_seconds": 0.3943895410047844,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 3.1577919999836013,
+            "index": 1,
+            "memory": {
+              "mlx_active_bytes": 4054031788,
+              "mlx_cache_bytes": 7802021140,
+              "mlx_peak_bytes": 6897325004,
+              "peak_physical_footprint_bytes": 12136665216,
+              "peak_rss_bytes": 4406034432,
+              "physical_footprint_bytes": 12136665216,
+              "rss_bytes": 4406034432
+            },
+            "phase": "warm",
+            "rtf": 0.717679999996273,
+            "text": "We need to discuss what happened last night.",
+            "wav": "direction-8bit-1.wav"
+          },
+          {
+            "audio_seconds": 4.4,
+            "chunks": 4,
+            "first_audio_seconds": 0.3951326669775881,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 3.1514447079971433,
+            "index": 2,
+            "memory": {
+              "mlx_active_bytes": 4054031788,
+              "mlx_cache_bytes": 7802381588,
+              "mlx_peak_bytes": 6897325004,
+              "peak_physical_footprint_bytes": 12139303064,
+              "peak_rss_bytes": 4408934400,
+              "physical_footprint_bytes": 12139303064,
+              "rss_bytes": 4408934400
+            },
+            "phase": "warm",
+            "rtf": 0.7162374336357143,
+            "text": "We need to discuss what happened last night.",
+            "wav": "direction-8bit-2.wav"
+          }
+        ],
+        "seed": 42,
+        "text": "We need to discuss what happened last night."
+      },
+      "round_trip": {
+        "asr_model": "aufklarer/Qwen3-ASR-0.6B-MLX-4bit",
+        "results": [
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "We need to discuss what happened last night.",
+            "reference_words": 8,
+            "substitutions": 0,
+            "transcript": "We need to discuss what happened last night.",
+            "wav": "direction-8bit-0.wav",
+            "wer": 0
+          },
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "We need to discuss what happened last night.",
+            "reference_words": 8,
+            "substitutions": 0,
+            "transcript": "We need to discuss what happened last night.",
+            "wav": "direction-8bit-1.wav",
+            "wer": 0
+          },
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "We need to discuss what happened last night.",
+            "reference_words": 8,
+            "substitutions": 0,
+            "transcript": "We need to discuss what happened last night.",
+            "wav": "direction-8bit-2.wav",
+            "wer": 0
+          }
+        ],
+        "source": "direction-8bit.json"
+      }
+    },
+    "plain-8bit": {
+      "synthesis": {
+        "baseline_memory": {
+          "mlx_active_bytes": 0,
+          "mlx_cache_bytes": 0,
+          "mlx_peak_bytes": 0,
+          "peak_physical_footprint_bytes": 2605536,
+          "peak_rss_bytes": 16285696,
+          "physical_footprint_bytes": 2605536,
+          "rss_bytes": 16285696
+        },
+        "bundle": "Breeze-TTS-2-MLX-8bit",
+        "cfg_scale": 4,
+        "chunk_frames": 25,
+        "final_memory": {
+          "mlx_active_bytes": 3863820580,
+          "mlx_cache_bytes": 4289708764,
+          "mlx_peak_bytes": 6121608816,
+          "peak_physical_footprint_bytes": 8439336776,
+          "peak_rss_bytes": 4219158528,
+          "physical_footprint_bytes": 8439336776,
+          "rss_bytes": 4219158528
+        },
+        "first_chunk_frames": 3,
+        "instruction": "",
+        "load_seconds": 1.3048056249972433,
+        "loaded_memory": {
+          "mlx_active_bytes": 3863820548,
+          "mlx_cache_bytes": 136036,
+          "mlx_peak_bytes": 3863939364,
+          "peak_physical_footprint_bytes": 4111273632,
+          "peak_rss_bytes": 4199546880,
+          "physical_footprint_bytes": 4111273632,
+          "rss_bytes": 4199546880
+        },
+        "reference_wav": "",
+        "runs": [
+          {
+            "audio_seconds": 2.8,
+            "chunks": 3,
+            "first_audio_seconds": 0.22147070802748203,
+            "first_chunk_samples": 5760,
+            "generation_seconds": 1.6889772079885006,
+            "index": 0,
+            "memory": {
+              "mlx_active_bytes": 3863820580,
+              "mlx_cache_bytes": 4289708764,
+              "mlx_peak_bytes": 6121608816,
+              "peak_physical_footprint_bytes": 8439320392,
+              "peak_rss_bytes": 4219125760,
+              "physical_footprint_bytes": 8439320392,
+              "rss_bytes": 4219125760
+            },
+            "phase": "cold",
+            "rtf": 0.6032061457101788,
+            "text": "Hello, this is a speech synthesis test.",
+            "wav": "plain-8bit-0.wav"
+          }
+        ],
+        "seed": 42,
+        "text": "Hello, this is a speech synthesis test."
+      },
+      "round_trip": {
+        "asr_model": "aufklarer/Qwen3-ASR-0.6B-MLX-4bit",
+        "results": [
+          {
+            "cer": 0,
+            "deletions": 0,
+            "insertions": 0,
+            "reference": "Hello, this is a speech synthesis test.",
+            "reference_words": 7,
+            "substitutions": 0,
+            "transcript": "Hello, this is a speech synthesis test.",
+            "wav": "plain-8bit-0.wav",
+            "wer": 0
+          }
+        ],
+        "source": "plain-8bit.json"
+      }
+    }
+  },
+  "baseline_wav_comparison": [
+    {
+      "wav": "design-8bit-0.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "e632bc3a0c62f9e7ce6e6845656f3cb353aa0ca43645efc3e3ab31c871c701d2",
+      "baseline_sha256": "e632bc3a0c62f9e7ce6e6845656f3cb353aa0ca43645efc3e3ab31c871c701d2"
+    },
+    {
+      "wav": "design-8bit-1.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "e632bc3a0c62f9e7ce6e6845656f3cb353aa0ca43645efc3e3ab31c871c701d2",
+      "baseline_sha256": "e632bc3a0c62f9e7ce6e6845656f3cb353aa0ca43645efc3e3ab31c871c701d2"
+    },
+    {
+      "wav": "design-8bit-2.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "e632bc3a0c62f9e7ce6e6845656f3cb353aa0ca43645efc3e3ab31c871c701d2",
+      "baseline_sha256": "e632bc3a0c62f9e7ce6e6845656f3cb353aa0ca43645efc3e3ab31c871c701d2"
+    },
+    {
+      "wav": "design-8bit-3.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "e632bc3a0c62f9e7ce6e6845656f3cb353aa0ca43645efc3e3ab31c871c701d2",
+      "baseline_sha256": "e632bc3a0c62f9e7ce6e6845656f3cb353aa0ca43645efc3e3ab31c871c701d2"
+    },
+    {
+      "wav": "design-bf16-0.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "f4617c6812a679afeaf286dd05d76084911613aa9e0cc556efa0c63ddf8fcd87",
+      "baseline_sha256": "f4617c6812a679afeaf286dd05d76084911613aa9e0cc556efa0c63ddf8fcd87"
+    },
+    {
+      "wav": "design-bf16-1.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "f4617c6812a679afeaf286dd05d76084911613aa9e0cc556efa0c63ddf8fcd87",
+      "baseline_sha256": "f4617c6812a679afeaf286dd05d76084911613aa9e0cc556efa0c63ddf8fcd87"
+    },
+    {
+      "wav": "design-bf16-2.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "f4617c6812a679afeaf286dd05d76084911613aa9e0cc556efa0c63ddf8fcd87",
+      "baseline_sha256": "f4617c6812a679afeaf286dd05d76084911613aa9e0cc556efa0c63ddf8fcd87"
+    },
+    {
+      "wav": "design-bf16-3.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "f4617c6812a679afeaf286dd05d76084911613aa9e0cc556efa0c63ddf8fcd87",
+      "baseline_sha256": "f4617c6812a679afeaf286dd05d76084911613aa9e0cc556efa0c63ddf8fcd87"
+    },
+    {
+      "wav": "chinese-8bit-0.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "bca10bceb4fd326bd44761d0521366afd1ddf7ad17427bda224c0a5f0b33f3bf",
+      "baseline_sha256": "bca10bceb4fd326bd44761d0521366afd1ddf7ad17427bda224c0a5f0b33f3bf"
+    },
+    {
+      "wav": "clone-8bit-0.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "89bb315b1b152630c0f7219e45d04ac541b9bc25558635805e842cc7d33eb3a9",
+      "baseline_sha256": "89bb315b1b152630c0f7219e45d04ac541b9bc25558635805e842cc7d33eb3a9"
+    },
+    {
+      "wav": "clone-8bit-1.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "89bb315b1b152630c0f7219e45d04ac541b9bc25558635805e842cc7d33eb3a9",
+      "baseline_sha256": "89bb315b1b152630c0f7219e45d04ac541b9bc25558635805e842cc7d33eb3a9"
+    },
+    {
+      "wav": "clone-8bit-2.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "89bb315b1b152630c0f7219e45d04ac541b9bc25558635805e842cc7d33eb3a9",
+      "baseline_sha256": "89bb315b1b152630c0f7219e45d04ac541b9bc25558635805e842cc7d33eb3a9"
+    },
+    {
+      "wav": "direction-8bit-0.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "8e73bca372730d5364b7fd3d89db54156d7f7d6343ee9d107e7143b2c7ee3593",
+      "baseline_sha256": "8e73bca372730d5364b7fd3d89db54156d7f7d6343ee9d107e7143b2c7ee3593"
+    },
+    {
+      "wav": "direction-8bit-1.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "8e73bca372730d5364b7fd3d89db54156d7f7d6343ee9d107e7143b2c7ee3593",
+      "baseline_sha256": "8e73bca372730d5364b7fd3d89db54156d7f7d6343ee9d107e7143b2c7ee3593"
+    },
+    {
+      "wav": "direction-8bit-2.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "8e73bca372730d5364b7fd3d89db54156d7f7d6343ee9d107e7143b2c7ee3593",
+      "baseline_sha256": "8e73bca372730d5364b7fd3d89db54156d7f7d6343ee9d107e7143b2c7ee3593"
+    },
+    {
+      "wav": "plain-8bit-0.wav",
+      "identical_to_2026_10_23": true,
+      "sha256": "8d81fc13dbd3c927ba0d75f05076a6a696f21ceecbd429060485e79986caea65",
+      "baseline_sha256": "8d81fc13dbd3c927ba0d75f05076a6a696f21ceecbd429060485e79986caea65"
+    }
+  ],
+  "regression_checks": {
+    "runtime_commit": "0cd8108197bf35529c2940d5fc4f14e3105b6612",
+    "unit_ci_semantics": {
+      "passed": 1739,
+      "skipped": 41,
+      "failed": 0
+    },
+    "exporter_unit": {
+      "passed": 3,
+      "failed": 0
+    },
+    "e2e": {
+      "e2e-bf16-testFullModelAgainstOfficialPyTorch": {
+        "passed": 1,
+        "failed": 0
+      },
+      "e2e-cli-default": {
+        "passed": 1,
+        "failed": 0
+      },
+      "e2e-bf16-testStreamingAndIndependentASRRoundTrip": {
+        "passed": 1,
+        "failed": 0
+      },
+      "e2e-published-default": {
+        "passed": 6,
+        "failed": 0
+      },
+      "e2e-bf16-testChineseStreamingAndIndependentASRRoundTrip": {
+        "passed": 1,
+        "failed": 0
+      }
+    }
+  },
+  "official_pytorch_cosine": {
+    "8bit": {
+      "text_features": 0.9994249,
+      "backbone": 0.99993795,
+      "lm_logits": 0.99997663,
+      "depth_logits": 0.9999296
+    },
+    "bf16": {
+      "text_features": 0.99969393,
+      "backbone": 0.9999595,
+      "lm_logits": 0.9999832,
+      "depth_logits": 0.99996924
+    }
+  }
+}

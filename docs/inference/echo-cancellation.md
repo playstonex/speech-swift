@@ -135,6 +135,5 @@ path, delayed only by the documented spectral hop.
 
 - [LocalVQE source](https://github.com/localai-org/LocalVQE)
 - [Core ML model](https://huggingface.co/aufklarer/LocalVQE-v1.4-AEC-200K-CoreML)
-- [Export and benchmark source](https://github.com/soniqo/speech-models/tree/main/models/localvqe-aec/export)
 
 The upstream implementation and weights are Apache-2.0 licensed.

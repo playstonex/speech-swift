@@ -63,6 +63,7 @@ public class CoreMLASREncoder {
         computeUnits: MLComputeUnits = CoreMLComputeUnitsResolver.resolved(default: .all),
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> CoreMLASREncoder {
         let cacheDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
@@ -72,7 +73,8 @@ public class CoreMLASREncoder {
             modelId: modelId,
             to: cacheDir,
             additionalFiles: ["encoder.mlmodelc/**", "config.json"],
-            offlineMode: offlineMode
+            offlineMode: offlineMode,
+            downloadOptions: downloadOptions
         ) { fraction in
             progressHandler?(fraction * 0.8, "Downloading CoreML encoder...")
         }

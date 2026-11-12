@@ -53,6 +53,7 @@ public final class FireRedVADModel {
         modelId: String = defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> FireRedVADModel {
         #if canImport(CoreML)
@@ -69,6 +70,7 @@ public final class FireRedVADModel {
                 "cmvn.json",
             ],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progress in
                 progressHandler?(progress * 0.8, "Downloading model...")
             }

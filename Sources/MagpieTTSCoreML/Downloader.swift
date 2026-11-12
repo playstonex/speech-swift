@@ -43,6 +43,7 @@ public enum MagpieCoreMLDownloader {
     ]
 
     public static func ensureDownloaded(
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double) -> Void)? = nil
     ) async throws -> Paths {
         let repoId = MagpieCoreMLConstants.huggingFaceRepo
@@ -70,6 +71,7 @@ public enum MagpieCoreMLDownloader {
                 to: coreMLDir,
                 additionalFiles: allFiles,
                 offlineMode: false,
+                downloadOptions: downloadOptions,
                 progressHandler: progressHandler.map { p in
                     { progress in p(progress * 0.95) }
                 })
@@ -86,6 +88,7 @@ public enum MagpieCoreMLDownloader {
                 to: mlxDir,
                 additionalFiles: mlxTokenizerFiles,
                 offlineMode: false,
+                downloadOptions: downloadOptions,
                 progressHandler: progressHandler.map { p in
                     { progress in p(0.95 + progress * 0.05) }
                 })

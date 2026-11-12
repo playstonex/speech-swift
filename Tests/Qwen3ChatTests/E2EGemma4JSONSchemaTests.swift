@@ -96,6 +96,29 @@ final class E2EGemma4JSONSchemaTests: XCTestCase {
 
     // MARK: - Real model
 
+    func testChunkedPrefillPreservesJSONSchemaConstraint() throws {
+        let chat = try loadModel()
+        let schema = #"{"type":"object","additionalProperties":false,"required":["status"],"properties":{"status":{"type":"string","enum":["ready"]}}}"#
+        let format = ChatResponseFormat.jsonSchema(schema)
+        let sampling = ChatSamplingConfig(
+            temperature: 0, topK: 0, topP: 1, maxTokens: 64,
+            repetitionPenalty: 1, responseFormat: format)
+        let prompt = Gemma4ChatTemplate.encode(
+            messages: [ChatMessage(role: .user, content: "Return an object with status ready.")],
+            tokenizer: chat.gemmaTokenizer)
+        for chunkSize: Int? in [nil, 4] {
+            var text = ""
+            let failure = chat.decode(
+                promptTokens: prompt, sampling: sampling,
+                prefillChunkSize: chunkSize,
+                constraint: try chat.makeConstraint(format),
+                onText: { text += $0 })
+            XCTAssertNil(failure)
+            let value = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: String]
+            XCTAssertEqual(value, ["status": "ready"])
+        }
+    }
+
     private func loadModel() throws -> Gemma4Chat {
         try requireFile("model.safetensors")
         do {

@@ -166,9 +166,16 @@ Audio waveform [1, T*1920, 1] at 24kHz
 ### Implementation Notes
 
 - **Chunked codec decoding** — Codec frames processed in overlapping chunks (`chunkSize=25, leftContext=10`), reducing O(T²) attention to O(chunk²)
+- **Frame preservation** — Both pre-upsampling convolutions use kernel size equal to stride (2), without right trimming. Each codec frame yields exactly 1,920 samples at 24 kHz; overlap removal discards context only, preserving short final chunks and the reference/target boundary in ICL cloning.
 - **Batch embedding lookups** — All 15 codebook group embeddings summed in one call per step
 - **Bulk float extraction** — Waveform extracted via single `.asArray(Float.self)` call
 - **Causal mask in decoder transformer** — Additive causal mask for pre-transformer attention (required for chunked decoding correctness)
+
+`DecoderFrameGeometryTests` checks checkpoint-shaped weights and output lengths
+without downloading models. `E2EDecoderChunkGeometryTests` covers chunk and
+overlap boundaries. `E2EICLJapaneseSpeechTests` uses a system-generated Japanese
+reference and Japanese ASR to check the first word and sentence ending at two
+fixed seeds. Run model-backed classes separately, as described in the test guide.
 - **Compiled Talker** — `compile(shapeless: true)` processes the growing valid-prefix K/V cache
 - **Compiled code predictor** — Single-item synthesis runs the fixed 15-group autoregressive frame as one graph and extracts its tokens once; batch synthesis retains the per-group compiled transformer
 
@@ -196,6 +203,9 @@ contradictory metadata fails with a typed
 `Qwen3TTSLoadingError.invalidConfiguration` before model allocation.
 
 `fromLocal` defaults to `.none`, leaving the process-wide Metal wired-memory limit unchanged.
+Both loaders separately cap MLX's reusable-buffer cache at `min(2 GiB, physical RAM / 4)`
+while the model is loaded, preserving a smaller caller budget. `unload()` releases
+that registration; remaining models keep their caps. See [MLX memory policy](mlx-memory.md).
 `fromPretrained` retains its existing `.pin(fraction: 0.9)` default for source compatibility.
 Both `fromPretrained` and `fromPretrainedWithEncoder` accept a separate `tokenizerCacheDir`.
 Apps with a shared resource governor should use `.none` and manage any Metal memory policy

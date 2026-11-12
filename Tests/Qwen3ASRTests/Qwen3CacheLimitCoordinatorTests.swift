@@ -129,10 +129,9 @@ final class Qwen3CacheLimitCoordinatorTests: XCTestCase {
         XCTAssertEqual(budget.limit, 6)
     }
 
-    func testNonPositiveCeilingDoesNotChangeCallerBudget() {
+    func testNegativeCeilingDoesNotChangeCallerBudget() {
         let budget = Budget(8)
         let coordinator = makeCoordinator(budget)
-        XCTAssertNil(coordinator.acquire(ceiling: 0))
         XCTAssertNil(coordinator.acquire(ceiling: -1))
         XCTAssertEqual(budget.limit, 8)
     }

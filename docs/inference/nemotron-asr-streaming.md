@@ -375,7 +375,7 @@ The release MLX benchmark exercises the actual cache-aware 320 ms path
 ## Tests
 
 ```bash
-make test                                          # unit + E2E (downloads HF model first time)
+make test                                          # curated no-download smoke/regression suite
 swift test --filter WordBoosting                  # word boosting unit tests + E2E A/B smoke test
 swift test --filter NemotronMLXTests              # model-free MLX loader/config tests
 NEMOTRON_MLX_LOCAL_BUNDLE=/path/to/int5 \
@@ -392,3 +392,26 @@ swift test --filter E2EHiBisect                    # Hindi divergence diagnostic
 ```
 
 Set `NEMOTRON_35_LOCAL_BUNDLE=/tmp/Nemotron-3.5-CoreML-320ms` to skip the HF download and use a local bundle.
+
+Nightly runs Nemotron in its own `nemotron-streaming-mlx-coreml` shard,
+separate from Qwen3 and Parakeet streaming tests. To reproduce its Core ML
+harsh-audio regression with the same compute setting:
+
+```bash
+SPEECH_COREML_COMPUTE_UNITS=cpuOnly \
+  swift test --disable-sandbox --no-parallel \
+    --filter '^NemotronStreamingASRTests[.]E2ENemotronHarshAudioTests/'
+```
+
+The overlap regression uses the checked-in
+`Tests/NemotronStreamingASRTests/Resources/overlapped_speech.wav` fixture
+(24 kHz, mono, 16-bit PCM) to keep the audio identical across runs. It
+preserves the two original Kokoro sentences: `af_heart` says “The conference room had a
+long oak table beneath the windows” and `am_adam` says “Please verify your
+credentials and confirm the booking time.” The second voice starts 320 ms
+(7,680 samples) later and is attenuated by 3 dB. That one-chunk lead-in
+primes recognition before the voices overlap; simultaneous synthetic
+onsets can produce empty transcripts even when both voices transcribe
+correctly on their own. Every decode must produce a nonempty
+transcript without language tags across three fresh sessions. The model-free
+`HarshAudioFixtureTests` pins the WAV checksum and validates its audio format.

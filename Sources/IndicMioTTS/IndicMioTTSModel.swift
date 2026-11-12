@@ -4,6 +4,8 @@ import MLX
 import MLXCommon
 
 public final class IndicMioTTSModel: SpeechGenerationModel, @unchecked Sendable {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public static let defaultModelId = IndicMioBundleConfig.defaultModelId
 
     public let sampleRate: Int
@@ -45,8 +47,12 @@ public final class IndicMioTTSModel: SpeechGenerationModel, @unchecked Sendable 
         modelId: String = defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> IndicMioTTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let directory = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
         try await HuggingFaceDownloader.downloadWeights(
             modelId: modelId,
@@ -66,17 +72,23 @@ public final class IndicMioTTSModel: SpeechGenerationModel, @unchecked Sendable 
                 "miocodec/*",
             ],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progressHandler?($0 * 0.45, "Downloading Indic-Mio") }
         )
-        return try await fromBundle(directory) { progress, message in
+        let model = try await fromBundle(directory) { progress, message in
             progressHandler?(0.45 + progress * 0.55, message)
         }
+        model.referenceDownloadOptions = downloadOptions
+        return model
     }
 
     public static func fromBundle(
         _ directory: URL,
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> IndicMioTTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let configURL = directory.appendingPathComponent("config.json")
         let bundleConfig = try IndicMioBundleConfig.load(from: directory)
         let modelConfig = try IndicMioModelConfig.load(from: configURL)
@@ -226,6 +238,8 @@ public final class IndicMioTTSModel: SpeechGenerationModel, @unchecked Sendable 
         return embedding.asArray(Float.self)
     }
 
+    private var referenceDownloadOptions = DownloadOptions()
+
     private func referenceEncoder() async throws -> IndicMioWavLMFeatureModel {
         if let wavLMReferenceEncoder {
             return wavLMReferenceEncoder
@@ -238,7 +252,8 @@ public final class IndicMioTTSModel: SpeechGenerationModel, @unchecked Sendable 
             return model
         }
 
-        let model = try await IndicMioWavLMFeatureModel.fromPretrained()
+        let model = try await IndicMioWavLMFeatureModel.fromPretrained(
+            downloadOptions: referenceDownloadOptions)
         wavLMReferenceEncoder = model
         return model
     }

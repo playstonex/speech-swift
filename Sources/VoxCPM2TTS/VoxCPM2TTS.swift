@@ -5,6 +5,7 @@ import MLX
 import MLXCommon
 import MLXFast
 import MLXNN
+import MLXRandom
 import Tokenizers
 
 public final class ScalarQuantizationLayer: Module {
@@ -62,6 +63,9 @@ public final class VoxCPM2TTSModel: Module {
     private var tokenizer: Tokenizer?
     private var voxCPM2TokenizerSplitMap: [Int: [Int]] = [:]
     private var _isLoaded: Bool = true
+    /// Registration in the process-wide MLX cache budget. Released by `unload()`
+    /// or automatically when this model is destroyed.
+    var mlxCacheLimitLease: MLXCacheLimitCoordinator.Lease? = MLXCacheLimitCoordinator.shared.acquireDefault()
     private static var debugVerboseEnabled: Bool {
         ProcessInfo.processInfo.environment["VOXCPM2_DEBUG_VERBOSE"] == "1"
     }
@@ -154,15 +158,23 @@ public final class VoxCPM2TTSModel: Module {
     public static func fromPretrained(
         modelId: String = "aufklarer/VoxCPM2-MLX-bf16",
         cacheDir: URL? = nil,
+        tokenizerDirectory: URL? = nil,
         offlineMode: Bool = false,
+        weightPrecision: VoxCPM2WeightPrecision = .automatic,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> VoxCPM2TTSModel {
         let modelCacheDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
-        let tokenizerCacheDir = try HuggingFaceDownloader.getCacheDirectory(
+        let tokenizerCacheDir = try tokenizerDirectory ?? HuggingFaceDownloader.getCacheDirectory(
             for: Self.officialTokenizerModelId,
             cacheDirName: "qwen3-speech-voxcpm2-tokenizer"
         )
         let tokenizerNeedsRefresh = try tokenizerSnapshotNeedsRefresh(in: tokenizerCacheDir)
+        if tokenizerDirectory != nil && tokenizerNeedsRefresh {
+            throw NSError(domain: "VoxCPM2TTSModel", code: 7, userInfo: [
+                NSLocalizedDescriptionKey: "Explicit tokenizer directory requires a complete compatible local snapshot"
+            ])
+        }
         if !HuggingFaceDownloader.weightsExist(in: modelCacheDir)
             || !FileManager.default.fileExists(atPath: modelCacheDir.appendingPathComponent("config.json").path)
         {
@@ -179,7 +191,8 @@ public final class VoxCPM2TTSModel: Module {
                     "special_tokens_map.json",
                     "generation_config.json"
                 ],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
                 ) { fraction in
                 progressHandler?(fraction * 0.8, "Downloading model...")
             }
@@ -192,7 +205,8 @@ public final class VoxCPM2TTSModel: Module {
                     modelId: Self.officialTokenizerModelId,
                     to: tokenizerCacheDir,
                     files: Self.officialTokenizerFiles,
-                    offlineMode: offlineMode
+                    offlineMode: offlineMode,
+                    downloadOptions: downloadOptions
                 ) { fraction in
                     progressHandler?(fraction * 0.8, "Refreshing tokenizer snapshot...")
                 }
@@ -212,11 +226,17 @@ public final class VoxCPM2TTSModel: Module {
             }
         }
 
-        try Self.applyTokenizerConfigOverlay(in: tokenizerCacheDir)
+        if tokenizerDirectory == nil {
+            try Self.applyTokenizerConfigOverlay(in: tokenizerCacheDir)
+        }
 
         progressHandler?(0.82, "Loading config...")
         let args = try ModelArgs.load(from: modelCacheDir)
+        try weightPrecision.validate(quantized: args.quantization?.isQuantized == true)
         let model = VoxCPM2TTSModel(args: args)
+        // Hold the ceiling from weight loading and float32 promotion onward;
+        // a failed load releases it with the model.
+        model.mlxCacheLimitLease = VoxCPM2Memory.acquireCacheLimit()
 
         progressHandler?(0.88, "Loading tokenizer...")
         let tokenizer = try await Self.loadTokenizer(from: tokenizerCacheDir)
@@ -233,7 +253,12 @@ public final class VoxCPM2TTSModel: Module {
         }
         // Upstream promotes low-precision VoxCPM2 runtime dtypes to float32 on
         // Apple Silicon because bf16/fp16 can glitch the diffusion loop.
-        if Self.shouldPromoteRuntimeParametersToFloat32 {
+        if weightPrecision == .float16 {
+            _ = model.apply(filter: { module, _, _ in !(module is Quantized) }) {
+                $0.asType(.float16)
+            }
+            model.audio_vae.castParametersToFloat32()
+        } else if weightPrecision == .float32 || Self.shouldPromoteRuntimeParametersToFloat32 {
             model.promoteRuntimeParametersToFloat32()
         } else {
             model.audio_vae.castParametersToFloat32()
@@ -1134,8 +1159,17 @@ public final class VoxCPM2TTSModel: Module {
         cfgValue: Float = 2.0,
         streamingPrefixLen: Int = 4,
         warmupPatches: Int = 0,
-        instruct: String? = nil
+        instruct: String? = nil,
+        seed: UInt64? = nil,
+        cancellation: InferenceCancellationToken? = nil,
+        streamingChunkPatches: Int = 4,
+        onAudioChunk: (@Sendable ([Float]) -> Void)? = nil
     ) async throws -> [Float] {
+        try cancellation?.checkCancellation()
+        if let seed { MLX.seed(seed) }
+        guard streamingChunkPatches > 0 else {
+            throw NSError(domain: "VoxCPM2TTSModel", code: 6, userInfo: [NSLocalizedDescriptionKey: "streamingChunkPatches must be positive"])
+        }
         guard tokenizer != nil else {
             throw NSError(domain: "VoxCPM2TTSModel", code: 3, userInfo: [
                 NSLocalizedDescriptionKey: "Tokenizer not loaded"
@@ -1322,15 +1356,16 @@ public final class VoxCPM2TTSModel: Module {
         }
 
         let textTokenB = textToken
-        let audioFeatB = audioFeat
-        let textMaskB = textMask.shape.count == 1 ? textMask.reshaped([1, textMask.dim(0)]) : textMask
-        let audioMaskB = audioMask.shape.count == 1 ? audioMask.reshaped([1, audioMask.dim(0)]) : audioMask
+        let networkDtype = base_lm.embedTokens!.weight.dtype
+        let audioFeatB = audioFeat.asType(networkDtype)
+        let textMaskB = (textMask.shape.count == 1 ? textMask.reshaped([1, textMask.dim(0)]) : textMask).asType(networkDtype)
+        let audioMaskB = (audioMask.shape.count == 1 ? audioMask.reshaped([1, audioMask.dim(0)]) : audioMask).asType(networkDtype)
         let textMask3 = textMaskB.expandedDimensions(axis: 2)
         let audioMask3 = audioMaskB.expandedDimensions(axis: 2)
 
         logGen("building embeddings")
         let featEmbed = enc_to_lm_proj(feat_encoder(audioFeatB))
-        let textEmbed = base_lm.embedTokens!(textTokenB) * MLXArray(scaleEmb)
+        let textEmbed = base_lm.embedTokens!(textTokenB) * MLXArray(scaleEmb).asType(networkDtype)
         let combinedEmbed = textMask3 * textEmbed + audioMask3 * featEmbed
 
         let lastFeatIndex = audioFeatB.dim(1) - 1
@@ -1381,7 +1416,31 @@ public final class VoxCPM2TTSModel: Module {
         }
 
         let warmupCount = hasContinuation ? 0 : effectiveWarmup
+        var emittedSamples = 0
+        var streamedSamples: [Float] = []
+        let continuationTrim = hasContinuation ? args.patchSize * audio_vae.decodeChunkSize * (streamingPrefixLen - 1) : 0
+        // Prefix decoding must neither consume the diffusion PRNG nor redraw
+        // the decoder's noise for audio already delivered to a listener.
+        let deterministicDecoder = seed != nil || onAudioChunk != nil
+        func decodeAudio(_ features: MLXArray) -> MLXArray {
+            if deterministicDecoder {
+                return withRandomState(MLXRandom.RandomState(seed: seed ?? 0)) {
+                    audio_vae.decode(features.asType(.float32)).flattened()
+                }
+            }
+            return audio_vae.decode(features.asType(.float32)).flattened()
+        }
+        func decodeWindow(_ features: MLXArray) -> (samples: [Float], sampleOffset: Int) {
+            let firstNeeded = continuationTrim + emittedSamples
+            let firstFrame = max(0, firstNeeded / audio_vae.decodeChunkSize - audio_vae.decoderLeftContextFrames)
+            let window = features[0..., firstFrame..., 0...]
+            let audio = decodeAudio(window)
+            eval(audio)
+            return (audio.asArray(Float.self), firstFrame * audio_vae.decodeChunkSize)
+        }
         for step in 0..<(maxTokens + warmupCount) {
+            try cancellation?.checkCancellation()
+            try Task.checkCancellation()
             if step == 0 {
                 logGen("sampling first audio patch")
             }
@@ -1403,6 +1462,22 @@ public final class VoxCPM2TTSModel: Module {
 
             if step >= warmupCount {
                 predFeatSeq.append(predFeat.expandedDimensions(axis: 1))
+            }
+
+            if let onAudioChunk, step >= warmupCount,
+               (step - warmupCount + 1) % streamingChunkPatches == 0 {
+                let prefix = concatenated(predFeatSeq, axis: 1)
+                    .reshaped([audioFeatB.dim(0), -1, args.featDim])
+                let decoded = decodeWindow(prefix)
+                // Retain one patch at the moving edge of the causal decoder.
+                let stableEnd = max(continuationTrim, decoded.sampleOffset + decoded.samples.count - args.patchSize * audio_vae.decodeChunkSize)
+                let start = continuationTrim + emittedSamples
+                if stableEnd > start {
+                    let chunk = Array(decoded.samples[(start - decoded.sampleOffset)..<(stableEnd - decoded.sampleOffset)])
+                    streamedSamples.append(contentsOf: chunk)
+                    onAudioChunk(chunk)
+                    emittedSamples = stableEnd - continuationTrim
+                }
             }
 
             let currEmbed = enc_to_lm_proj(
@@ -1454,8 +1529,17 @@ public final class VoxCPM2TTSModel: Module {
         var allFeat = concatenated(predFeatSeq, axis: 1)
         allFeat = allFeat.reshaped([allFeat.dim(0), -1, args.featDim])
 
-        var audio = audio_vae.decode(allFeat.asType(.float32))
-        audio = audio.flattened()
+        if let onAudioChunk {
+            let decoded = decodeWindow(allFeat)
+            let start = continuationTrim + emittedSamples - decoded.sampleOffset
+            let tail = Array(decoded.samples[max(0, min(start, decoded.samples.count))...])
+            try cancellation?.checkCancellation()
+            try Task.checkCancellation()
+            if !tail.isEmpty { onAudioChunk(tail); streamedSamples.append(contentsOf: tail) }
+            return streamedSamples
+        }
+
+        var audio = decodeAudio(allFeat)
 
         if hasContinuation {
             let decodePatchLen = args.patchSize * audio_vae.decodeChunkSize
@@ -1466,7 +1550,13 @@ public final class VoxCPM2TTSModel: Module {
         }
 
         eval(audio)
-        return audio.asArray(Float.self)
+        try cancellation?.checkCancellation()
+        try Task.checkCancellation()
+        let samples = audio.asArray(Float.self)
+        if let onAudioChunk, samples.count > emittedSamples {
+            onAudioChunk(Array(samples[emittedSamples...]))
+        }
+        return samples
     }
 }
 
@@ -1475,6 +1565,14 @@ extension VoxCPM2TTSModel: SpeechGenerationModel {
 }
 
 extension VoxCPM2TTSModel: ModelMemoryManageable {
+    /// Actual parameter element counts by storage dtype, including the FP32 AudioVAE.
+    public var parameterDtypes: [String: Int] {
+        var counts: [String: Int] = [:]
+        for (_, array) in parameters().flattened() {
+            counts[String(describing: array.dtype), default: 0] += array.size
+        }
+        return counts
+    }
     public var isLoaded: Bool { _isLoaded }
 
     public func unload() {
@@ -1491,6 +1589,8 @@ extension VoxCPM2TTSModel: ModelMemoryManageable {
         stop_proj.clearParameters()
         stop_head.clearParameters()
         audio_vae.clearParameters()
+        mlxCacheLimitLease?.release()
+        mlxCacheLimitLease = nil
         _isLoaded = false
     }
 

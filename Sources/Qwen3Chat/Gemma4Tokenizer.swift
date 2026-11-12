@@ -88,6 +88,19 @@ public final class Gemma4Tokenizer: @unchecked Sendable {
 
     public func isSpecialToken(_ id: Int) -> Bool { specialIds.contains(id) }
 
+    /// Decode with control tokens intact, for structured tool-call parsing.
+    public func decodeWithSpecialTokens(_ ids: [Int]) -> String {
+        var bytes: [UInt8] = []
+        for id in ids {
+            if specialIds.contains(id), let token = idToToken[id] {
+                bytes.append(contentsOf: token.utf8)
+            } else {
+                bytes.append(contentsOf: tokenBytes(id))
+            }
+        }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
     // MARK: - Merge table
 
     /// `tokenizer.json` carries merges either as `[[left, right]]` or as `["left right"]`.

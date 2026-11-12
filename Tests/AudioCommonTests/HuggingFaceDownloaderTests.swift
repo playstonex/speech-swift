@@ -480,6 +480,28 @@ final class HuggingFaceDownloaderTests: XCTestCase {
         XCTAssertEqual(resolved.path, "/tmp/cache-root/Enc.mlmodelc/weights/weight.bin")
     }
 
+    /// On macOS `/tmp` and `/var` live under `/private`. `standardizedFileURL`
+    /// strips that prefix only from paths that exist, so an existing cache
+    /// directory spelled with `/private` used to refuse every file that had
+    /// not been downloaded yet.
+    func testValidatedLocalPathAcceptsMissingFileUnderPrivatePrefixedDirectory() throws {
+        // Spell the temp dir with `/private` explicitly: `resolvingSymlinksInPath`
+        // strips that prefix the same way `standardizedFileURL` does.
+        let tmp = FileManager.default.temporaryDirectory.path
+        let privateTmp = tmp.hasPrefix("/private/") ? tmp : "/private" + tmp
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: privateTmp), "needs /private (macOS)")
+        let root = URL(fileURLWithPath: privateTmp, isDirectory: true)
+            .appendingPathComponent("private-prefix-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let resolved = try HuggingFaceDownloader.validatedLocalPath(
+            directory: root, relativePath: "config.json")
+        XCTAssertEqual(resolved.path, root.appendingPathComponent("config.json").path)
+        XCTAssertThrowsError(
+            try HuggingFaceDownloader.validatedLocalPath(directory: root, relativePath: "../escape.json"))
+    }
+
     // MARK: - Offline pattern satisfaction
 
     /// `downloadFiles` takes glob patterns, so its offline check has to resolve

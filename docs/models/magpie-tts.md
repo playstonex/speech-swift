@@ -175,4 +175,3 @@ bundle.
 - Codec: [nvidia/nemo-nano-codec-22khz-1.89kbps-21.5fps](https://huggingface.co/nvidia/nemo-nano-codec-22khz-1.89kbps-21.5fps)
 - Paper: [NanoCodec: Towards High-Quality Ultra Fast Speech LLM Inference (2025)](https://arxiv.org/abs/2508.05835v1)
 - Reference CoreML port: [FluidInference/mobius](https://github.com/FluidInference/mobius/tree/main/models/tts/magpie/coreml)
-- MLX export script: `speech-models/models/magpie-tts/export/`

@@ -48,7 +48,8 @@ import KokoroTTS
             kokoro = nil
         } else {
             model = nil
-            kokoro = try await KokoroTTSModel.fromPretrained(cacheDir: URL(fileURLWithPath: bundle), offlineMode: true, computeUnits: .cpuOnly)
+            // The measured loop runs its own warmups, so load_ms stays load only.
+            kokoro = try await KokoroTTSModel.fromPretrained(cacheDir: URL(fileURLWithPath: bundle), offlineMode: true, computeUnits: .cpuOnly, warmUp: false)
         }
         let loadMS = seconds(load)*1000
         for run in 0..<(warmup+runs) {

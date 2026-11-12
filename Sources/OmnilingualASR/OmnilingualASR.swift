@@ -63,6 +63,7 @@ public class OmnilingualASRModel {
         modelId: String? = nil,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> OmnilingualASRModel {
         let effectiveModelId = modelId ?? defaultModelId
@@ -88,7 +89,8 @@ public class OmnilingualASRModel {
                     // runtime, so we ship .mlmodelc and skip that code path.
                     "omnilingual-ctc-300m-int8.mlmodelc/**",
                 ],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             ) { fraction in
                 progressHandler?(fraction * 0.8, "Downloading model...")
             }

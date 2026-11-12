@@ -38,6 +38,7 @@ public final class Community1DiarizationPipeline {
         offlineMode: Bool = false,
         config: Community1Config = .default,
         computeUnits: MLComputeUnits = .cpuAndNeuralEngine,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Community1DiarizationPipeline {
         progressHandler?(0, "Downloading Community-1 bundle...")
@@ -52,6 +53,7 @@ public final class Community1DiarizationPipeline {
                 "config.json",
             ],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progress in
                 progressHandler?(progress * 0.75, "Downloading Community-1 bundle...")
             }

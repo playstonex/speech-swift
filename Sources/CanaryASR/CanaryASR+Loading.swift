@@ -14,6 +14,7 @@ extension CanaryASRModel {
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
         language: String = "en",
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> CanaryASRModel {
         let effectiveModelId = modelId ?? defaultModelId
@@ -39,7 +40,8 @@ extension CanaryASRModel {
                     "vocab.json",
                     "config.json",
                 ],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             ) { fraction in
                 progressHandler?(fraction * 0.7, "Downloading model...")
             }

@@ -152,6 +152,7 @@ public class ParakeetStreamingASRModel {
 
     public static func fromPretrained(
         modelId: String? = nil,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> ParakeetStreamingASRModel {
         let effectiveModelId = modelId ?? defaultModelId
@@ -176,7 +177,8 @@ public class ParakeetStreamingASRModel {
                     "joint.mlmodelc/**",
                     "vocab.json",
                     "config.json",
-                ]
+                ],
+                downloadOptions: downloadOptions
             ) { fraction in
                 progressHandler?(fraction * 0.7, "Downloading model...")
             }

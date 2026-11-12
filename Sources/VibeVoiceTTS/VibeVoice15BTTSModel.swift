@@ -2,6 +2,7 @@ import AudioCommon
 import Foundation
 import MLX
 import Tokenizers
+import MLXCommon
 
 /// Public 1.5B long-form TTS API. Uses the unified-LM `VibeVoice15BModel`
 /// architecture (different from 0.5B Realtime — see VibeVoice15BModel.swift).
@@ -16,6 +17,8 @@ import Tokenizers
 /// )
 /// ```
 public final class VibeVoice15BTTSModel {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     /// Default HuggingFace model identifier — the 1.5B INT4 bundle.
     public static let defaultModelId = "aufklarer/VibeVoice-1.5B-MLX-INT4"
 
@@ -62,8 +65,12 @@ public final class VibeVoice15BTTSModel {
         configuration: Configuration = Configuration(),
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> VibeVoice15BTTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let modelCacheDir = try cacheDir
             ?? HuggingFaceDownloader.getCacheDirectory(for: configuration.modelId)
         if !HuggingFaceDownloader.weightsExist(in: modelCacheDir) {
@@ -72,7 +79,8 @@ public final class VibeVoice15BTTSModel {
                 modelId: configuration.modelId,
                 to: modelCacheDir,
                 additionalFiles: ["config.json", "preprocessor_config.json", "quantization.json"],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             ) { fraction in
                 progressHandler?(fraction * 0.7, "Downloading model...")
             }
@@ -91,7 +99,8 @@ public final class VibeVoice15BTTSModel {
                     "vocab.json", "merges.txt",
                     "special_tokens_map.json", "added_tokens.json",
                 ],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             )
         }
 

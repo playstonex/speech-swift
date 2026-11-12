@@ -124,6 +124,23 @@ results while audio is arriving.
 
 ## Context and memory
 
+While a MOSS MLX model is loaded, its reusable-buffer cache ceiling is
+`min(2 GiB, 25% of physical RAM)`. The ceiling applies before loading weights
+and remains in effect during warm-up and transcription. Lower caller limits,
+including `MLX.Memory.cacheLimit = 0` to disable caching, are preserved.
+MOSS and Qwen3-ASR share ownership of this process-wide setting: the tightest
+loaded model's ceiling wins, and releasing the final model restores the prior
+caller budget unless the caller changed it in the meantime.
+
+This bounds unused reusable buffers, not total process memory. Live decoder KV
+tensors, the waveform, features, and audio embeddings still grow with recording
+length; model weights and other runtime allocations are additional.
+`Memory.clearCache()` between encoder batches and after transcription releases
+cached buffers but cannot replace a decoder-time cache ceiling.
+
+See the [controlled cache-limit validation](../benchmarks/moss-mlx.md#cache-limit-validation-2026-10-24)
+for before/after output comparisons, physical footprint, and known limitations.
+
 Audio consumes 12.5 context tokens per second. Ninety minutes is about 67,500
 audio tokens before prompt and output tokens. Approximate KV-cache storage at
 that audio-token count is:
@@ -147,10 +164,14 @@ Select a lower-memory cache independently:
   --kv-cache int8
 ```
 
-INT8 cache preserved the exact structured short-fixture transcript in E2E
-validation. INT4 cache is intentionally not exposed: it dropped timestamp
-structure and repeated a word on that same quality gate. Long-form INT8-cache
-quality has not yet been included in the published INT5/INT8 comparison.
+An earlier E2E check preserved the structured transcript with INT8 cache.
+Validation with MLX Swift 0.31.4 now reproduces missing speaker labels on the
+short fixture with both INT5 and INT8 weights, on both the original runtime and
+the buffer-cache-limited runtime. Use the default FP16 KV cache for structured
+speaker output; the buffer-cache ceiling does not fix quantized KV quality.
+INT4 cache is intentionally not exposed: it dropped timestamp structure and
+repeated a word on the earlier quality gate. Long-form INT8-cache quality has
+not yet been included in the published INT5/INT8 comparison.
 
 ## Structured output
 

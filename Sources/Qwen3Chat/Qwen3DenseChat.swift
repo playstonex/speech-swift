@@ -10,6 +10,8 @@ import MLXCommon
 /// `ChatTokenizer` (byte-level decode) + the optimised `ChatSampler`. Non-thinking instruct models
 /// (e.g. Qwen3-*-Instruct-2507), so no `<think>` handling.
 public final class Qwen3DenseChat: @unchecked Sendable {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public let dc: Qwen3DenseConfig
     public let tokenizer: ChatTokenizer
     let model: Qwen3DenseModel
@@ -35,6 +37,9 @@ public final class Qwen3DenseChat: @unchecked Sendable {
     public static func fromDirectory(
         _ directory: URL, progressHandler: ((Double, String) -> Void)? = nil
     ) throws -> Qwen3DenseChat {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let config = try Qwen3DenseConfig.load(from: directory.appendingPathComponent("config.json"))
         let tokenizer = ChatTokenizer()
         try tokenizer.load(from: directory)
@@ -50,8 +55,12 @@ public final class Qwen3DenseChat: @unchecked Sendable {
         modelId: String = "aufklarer/Qwen3-4B-Instruct-2507-MLX-5bit",
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Qwen3DenseChat {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let dir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
         try await HuggingFaceDownloader.downloadWeights(
             modelId: modelId, to: dir,
@@ -61,6 +70,7 @@ public final class Qwen3DenseChat: @unchecked Sendable {
                 "model.safetensors", "model.safetensors.index.json",
             ],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progressHandler?($0 * 0.5, "Downloading…") }
         )
         return try fromDirectory(dir, progressHandler: { progressHandler?(0.5 + $0 * 0.5, $1) })

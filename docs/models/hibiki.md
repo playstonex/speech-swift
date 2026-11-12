@@ -135,8 +135,7 @@ HIBIKI_GREEDY=1 speech audio-translate input_fr.wav -o out.wav --source-lang fr
 
 ## Conversion
 
-The Python converter at `models/hibiki/export/convert.py` (in the speech-models
-repo) handles all three Hibiki variants:
+The Python converter handles all three Hibiki variants:
 
 ```bash
 python convert.py --variant 3b-zero --bits 4 \

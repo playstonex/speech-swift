@@ -6,6 +6,8 @@ extension SpeechEnhancer: ModelMemoryManageable {
     public func unload() {
         guard _isLoaded else { return }
         network = nil
+        mlxCacheLimitLease?.release()
+        mlxCacheLimitLease = nil
         _isLoaded = false
     }
 

@@ -64,6 +64,40 @@ Stereo 44.1kHz → STFT (4096/1024) → magnitude → normalize
 | Max bin (model input) | 1487 (~16kHz at 44.1kHz) |
 | Sample rate | 44,100 Hz |
 
+## Instrumental export
+
+This option is unreleased and requires a source build containing the change;
+it is not available in the 0.0.29 release.
+
+The optional `--instrumental` flag writes `instrumental.wav` alongside the
+selected stems, for either the default Open-Unmix engine or HTDemucs:
+
+```bash
+speech separate song.wav --instrumental --output-dir stems/
+speech separate song.wav --engine htdemucs --htdemucs-precision int8 \
+  --stems vocals --instrumental --output-dir stems/
+```
+
+The second command writes only `vocals.wav` and `instrumental.wav`. `--stems`
+continues to control individual stem files; instrumental mode computes all four
+estimates so Open-Unmix retains the vocal estimate in its Wiener denominator.
+Without `--instrumental`, the existing output selection is unchanged. Invalid
+or empty stem names are rejected before model loading.
+
+The backing mix sums drums, bass and other, excluding the vocal estimate. It is
+an estimated instrumental, so vocal leakage and separation artifacts can remain.
+`StemMixer.instrumental(from:)` validates finite, nonempty stereo inputs with
+equal frame counts. If the combined absolute peak exceeds 1, the same attenuation
+is applied to both channels; otherwise the mix stays at unity gain. Individual
+stems keep their existing levels. Output remains stereo 44.1 kHz, 16-bit PCM WAV.
+
+The opt-in `E2ESeparateCommandTests` use `SPEECH_SEPARATION_TEST_AUDIO` as their
+input. Choose a short recording with clearly audible singing and instrumental
+accompaniment. The tests require RMS above 0.001 in both exported files to catch
+an unsuitable, nearly silent demonstration fixture; this is not a separation
+quality benchmark or a restriction on CLI inputs. Run each engine's test in a
+separate process to keep model memory isolated.
+
 ## Reference
 
 - [Open-Unmix (GitHub)](https://github.com/sigsep/open-unmix-pytorch)

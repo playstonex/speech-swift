@@ -219,6 +219,7 @@ public class NemotronStreamingASRModel {
     public static func fromPretrained(
         modelId: String? = nil,
         computeUnits: MLComputeUnits = .all,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> NemotronStreamingASRModel {
         let effectiveModelId = modelId ?? defaultModelId
@@ -248,7 +249,8 @@ public class NemotronStreamingASRModel {
                     "*_vocab.txt",
                     "languages.json",
                     "config.json",
-                ]
+                ],
+                downloadOptions: downloadOptions
             ) { fraction in
                 progressHandler?(fraction * 0.7, "Downloading model...")
             }

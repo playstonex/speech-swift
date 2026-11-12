@@ -1,6 +1,7 @@
 import AudioCommon
 import Foundation
 import MLX
+import MLXCommon
 import MLXLMCommon
 import MLXNN
 import Tokenizers
@@ -65,6 +66,7 @@ public final class MossMLXModel:
     private let promptProcessor: MossPromptProcessor
     private let featureExtractor = MossWhisperFeatureExtractor()
     private let inferenceLock = NSLock()
+    private let cacheLimitLease: MLXCacheLimitCoordinator.Lease?
 
     private init(
         modelId: String,
@@ -73,7 +75,8 @@ public final class MossMLXModel:
         audioModel: MossMLXAudioModel,
         textModel: MossMLXTextModel,
         tokenizer: any Tokenizers.Tokenizer,
-        promptProcessor: MossPromptProcessor
+        promptProcessor: MossPromptProcessor,
+        cacheLimitLease: MLXCacheLimitCoordinator.Lease?
     ) {
         self.modelId = modelId
         self.modelFolder = modelFolder
@@ -82,18 +85,21 @@ public final class MossMLXModel:
         self.textModel = textModel
         self.tokenizer = tokenizer
         self.promptProcessor = promptProcessor
+        self.cacheLimitLease = cacheLimitLease
     }
 
     public static func fromPretrained(
         variant: MossMLXVariant = .int5,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> MossMLXModel {
         try await fromPretrained(
             modelId: variant.modelId,
             cacheDir: cacheDir,
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: progressHandler
         )
     }
@@ -102,6 +108,7 @@ public final class MossMLXModel:
         modelId: String = defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> MossMLXModel {
         let directory: URL
@@ -122,7 +129,8 @@ public final class MossMLXModel:
                 modelId: modelId,
                 to: directory,
                 additionalFiles: downloadAdditionalFiles,
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             ) { fraction in
                 progressHandler?(
                     fraction * 0.75,
@@ -210,6 +218,9 @@ public final class MossMLXModel:
             )
         }
 
+        // Keep the ceiling through loading, warm-up, and every transcription.
+        // The shared lease preserves tighter caller and Qwen3-ASR budgets.
+        let cacheLimitLease = MossMLXMemory.acquireCacheLimit()
         progressHandler?(0.1, "Loading MOSS MLX audio encoder...")
         let audioModel = MossMLXAudioModel(configuration)
         do {
@@ -270,7 +281,8 @@ public final class MossMLXModel:
             audioModel: audioModel,
             textModel: textModel,
             tokenizer: tokenizer,
-            promptProcessor: promptProcessor
+            promptProcessor: promptProcessor,
+            cacheLimitLease: cacheLimitLease
         )
     }
 

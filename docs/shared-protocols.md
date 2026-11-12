@@ -38,6 +38,10 @@ The `AudioCommon` module defines shared protocols that provide model-agnostic in
 
 ## Protocols
 
+MLX runtimes share a default reusable-buffer cache budget across model lifetimes.
+See [MLX memory policy](inference/mlx-memory.md) for caller limits, overlapping
+models, unload behavior and the distinction from total process memory.
+
 ### SpeechGenerationModel (TTS)
 
 Text-to-speech models that generate audio from text.
@@ -547,6 +551,8 @@ Sources/
 │   ├── SileroModel.swift      Silero VAD streaming network (STFT + encoder + LSTM)
 │   ├── StreamingVADProcessor.swift  Event-driven streaming wrapper
 │   ├── SmartTurn.swift        SmartTurnModel: TurnCompletionProvider (Smart Turn v3.2 end-of-turn classifier, CoreML)
+│   ├── P99Turn.swift          P99TurnModel / P99TurnSession: streaming end-of-turn probabilities (CoreML)
+│   ├── VAP.swift              VAPModel: two-channel speech-activity forecasts (CoreML)
 │   ├── DiarizationPipeline.swift  PyannoteDiarizationPipeline: SpeakerDiarizationModel, SpeakerExtractionCapable
 │   ├── DiarizationHelpers.swift   Shared helpers (merge, compact IDs, resample)
 │   ├── SortformerDiarizer.swift   SortformerDiarizer: SpeakerDiarizationModel (CoreML)
@@ -702,12 +708,103 @@ Unified error type in `AudioCommon` for cross-module error reporting:
 
 Each case produces a human-readable `errorDescription` with full context including underlying errors.
 
+### DownloadError
+
+`HuggingFaceDownloader.downloadWeights`, `downloadFiles`, and
+`downloadFilesByteWeighted` share a retry ladder. When retries are exhausted,
+the final attempt determines which `DownloadError` the caller receives:
+
+| Case | Fields | When |
+|------|--------|------|
+| `stalled` | `modelId`, `seconds` | No download progress within the stall timeout |
+| `checksumMismatch` | `file`, `expected`, `actual` | Downloaded bytes fail the published SHA-256 check |
+| `invalidRemoteFileName` | file name or relative path | A remote path is unsafe |
+| `networkUnavailable` | `modelId`, `detail` | A connectivity failure prevents reaching the Hub |
+| `failedToDownload` | detail | HTTP rejection, other download failure, or offline cache miss |
+
+`stalled`, `checksumMismatch`, `invalidRemoteFileName`, and `networkUnavailable`
+are rethrown with their original associated values. Foreign connectivity errors
+such as `URLError.notConnectedToInternet` become `networkUnavailable`. Other
+failures retain the existing `failedToDownload` wrapper with retry context.
+A stalled or unreachable Hub can use a complete
+cache; a missing requested file or shard still fails. Checksum failures and HTTP
+rejections propagate instead of falling back to cached files.
+
+Compatibility: a stall previously surfaced as `networkUnavailable`. Callers
+handling connectivity failures should now also handle `stalled`. Error case
+signatures are unchanged; callers can inspect associated values without parsing
+`localizedDescription`.
+
+### Download retry observation
+
+The download APIs and model-loading entry points accept
+`downloadOptions: DownloadOptions`. Options are local to a load and are
+forwarded to its nested model, tokenizer, and codec downloads.
+
+```swift
+import AudioCommon
+import CohereTranscribeASR
+
+let options = DownloadOptions(onRetry: { event in
+    if let seconds = event.retryInSeconds {
+        print("Attempt \(event.attempt)/\(event.maxAttempts) failed; retry in \(seconds)s")
+    } else {
+        print("Attempt \(event.attempt)/\(event.maxAttempts) failed; no retries remain")
+    }
+})
+let model = try await CohereTranscribeModel.fromPretrained(
+    downloadOptions: options,
+    progressHandler: { fraction in print(fraction) })
+```
+
+`DownloadRetryEvent` is `Sendable` and carries `modelId`, the one-based failed
+`attempt`, `maxAttempts`, the original `error`, and `retryInSeconds`. A zero delay
+means retry immediately; `nil` means there are no more attempts. The callback
+runs synchronously before sleeping, with no main-actor guarantee. It should
+return promptly. The retry ladder propagates `CancellationError` without
+reporting cancellation as a failed attempt.
+
+An event describes an attempt, not the final model-load outcome. In particular,
+the final event can be followed by successful complete-cache fallback. Offline
+loads and empty file lists do not produce retry events. Byte-progress callbacks
+remain separate. Each failed attempt is also logged through `AudioLog.download`
+at notice level; model IDs and detailed error descriptions use private logging.
+
+`DownloadOptions.retryDelaysSeconds` defaults to `nil`, preserving the existing
+policy. Shared manifest downloads use `[5, 15, 30, 60]` (five attempts).
+`[]` permits one attempt. The existing explicit `retryDelaysSeconds` argument on
+the download APIs takes precedence over the options value. Hub-snapshot loaders
+for FunctionGemma and VoiceChat, and Whisper's separate tokenizer fetch, retain
+their single-attempt default; setting the options delays enables retries for
+those paths too. They use `HuggingFaceDownloader.withDownloadRetries` to report
+attempts while retaining their existing transports, cache paths, and revisions.
+Indic-Mio retains the options for its lazily downloaded WavLM reference encoder.
+
 ### Per-module errors
 
 Modules may also define their own error types for domain-specific failures:
 - `TTSError` (Qwen3TTS) — tokenizer and language errors
 - `CosyVoiceTTSError` (CosyVoiceTTS) — load, download, input, generation errors
 - `DownloadError` (AudioCommon) — HuggingFace download failures
+
+## Native chat, streaming state, and cancellation
+
+`Gemma4ConversationMessage` carries complete role and tool-result history.
+`Gemma4Tool` describes a JSON-schema function; `Gemma4ToolCall` carries an ID,
+name, and structured arguments. `Gemma4Chat.generateResponse` returns text and
+parsed calls, uses bounded prefill, and releases request KV state on exit.
+
+`InferenceCancellationToken` is a thread-safe cooperative cancellation token
+shared by Gemma generation and VoxCPM2 audio generation. Call `cancel()` from
+the requesting thread; `checkCancellation()` throws `CancellationError` after
+cancellation is observed.
+
+`SileroVADModel.makeIndependentStream()` shares immutable weights and creates
+independent LSTM/context state. `processChunkThrowing` propagates inference
+errors; the existing non-throwing `processChunk` keeps its prior behavior.
+
+See [native inference service](inference/native-inference-server.md) for HTTP
+request fields, model identities, streaming, precision, and scheduling.
 
 ## Logging
 

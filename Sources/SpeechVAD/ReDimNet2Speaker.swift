@@ -134,6 +134,7 @@ public final class ReDimNet2SpeakerModel {
         modelId: String = defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> ReDimNet2SpeakerModel {
         let root = try cacheDir
@@ -146,6 +147,7 @@ public final class ReDimNet2SpeakerModel {
             to: cacheDir,
             additionalFiles: ["ReDimNet2B6.mlmodelc/**", "config.json"],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progress in
                 progressHandler?(
                     progress * 0.8,

@@ -46,6 +46,7 @@ public final class SupertonicTTSModel: @unchecked Sendable {
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
         computeUnits: MLComputeUnits = .all,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> SupertonicTTSModel {
         let dir: URL
@@ -61,7 +62,8 @@ public final class SupertonicTTSModel: @unchecked Sendable {
                     "VectorEstimator.mlpackage/**", "Vocoder.mlpackage/**",
                     "tts.json", "unicode_indexer.json", "voice_styles/*.json",
                 ],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             ) { p in progressHandler?(p * 0.85, "Downloading SupertonicTTS…") }
         }
         progressHandler?(0.9, "Loading model…")

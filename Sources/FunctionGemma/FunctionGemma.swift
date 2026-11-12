@@ -95,9 +95,16 @@ public final class FunctionGemma: @unchecked Sendable {
     /// `HuggingFaceDownloader.resolvedEndpoint()` — keeps this loader in sync
     /// with every other `fromPretrained` path in the package.
     public static func loadFromHub(_ repoId: String = defaultModelId,
-                                   computeUnits: MLComputeUnits = .cpuAndNeuralEngine) async throws -> FunctionGemma {
+                                   computeUnits: MLComputeUnits = .cpuAndNeuralEngine,
+                                   downloadOptions: DownloadOptions = .init()) async throws -> FunctionGemma {
         let hub = HubApi(endpoint: HuggingFaceDownloader.resolvedEndpoint())
-        let folder = try await hub.snapshot(from: repoId)
+        let folder = try await HuggingFaceDownloader.withDownloadRetries(
+            modelId: repoId,
+            retryDelaysSeconds: downloadOptions.retryDelaysSeconds ?? [],
+            downloadOptions: downloadOptions
+        ) {
+            try await hub.snapshot(from: repoId)
+        }
         return try await load(from: folder, computeUnits: computeUnits)
     }
 

@@ -15,13 +15,13 @@ public struct KokoroCommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Output WAV file path")
     public var output: String = "output.wav"
 
-    @Option(name: .long, help: "Voice preset (default: af_heart)")
-    public var voice: String = "af_heart"
+    @Option(name: .long, help: "Voice preset (default: af_heart; the bundle's only voice for single-voice bundles)")
+    public var voice: String?
 
-    @Option(name: .long, help: "Language code: en, fr, es, ja, zh, hi, pt, ko")
+    @Option(name: .long, help: "Language code: en, fr, es, ja, zh, hi, pt, ko, de (de needs a German bundle)")
     public var language: String = "en"
 
-    @Option(name: .long, help: "HuggingFace model ID")
+    @Option(name: .long, help: "HuggingFace model ID (German: \(KokoroTTSModel.germanMartinModelId) or \(KokoroTTSModel.germanVictoriaModelId))")
     public var model: String = KokoroTTSModel.defaultModelId
 
     @Flag(name: .long, help: "List available voice presets and exit")
@@ -62,6 +62,7 @@ public struct KokoroCommand: ParsableCommand {
                 throw ExitCode(1)
             }
 
+            let voice = self.voice ?? kokoroModel.defaultBundleVoice
             print("Synthesizing: \"\(inputText)\"")
             print("  Voice: \(voice), Language: \(language)")
 

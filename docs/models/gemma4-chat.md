@@ -9,9 +9,77 @@ Swift MLX backend for Gemma 4 text checkpoints in the `Qwen3Chat` module. The pu
 - `aufklarer/gemma-4-E4B-it-MLX-4bit`
 - `aufklarer/gemma-4-E2B-it-MLX-4bit`
 
-The implementation targets the text tower from Gemma 4 multimodal-style configs. It is a hand-written Swift port of the Gemma 4 text architecture, not a wrapper around `mlx-swift-lm`.
+`Gemma4Chat` implements the text tower from Gemma 4 multimodal-style configs in Swift. `Gemma4UnifiedChat` uses the pinned `mlx-swift-lm` implementation for 12B, as described below.
 
 ## Architecture
+
+### Gemma 4 12B Unified text model
+
+`Gemma4UnifiedChat` loads the 12B Unified text model through the pinned
+`mlx-swift-lm` implementation. It supports a local affine INT4 checkpoint with
+group size 64, 48 layers, and a hidden size of 3840. This model has no per-layer
+embeddings and shares the key/value projection in global-attention layers.
+
+```swift
+let chat = try Gemma4UnifiedChat.fromDirectory(
+    URL(fileURLWithPath: "/models/gemma-4-12B-it-4bit"))
+let reply = try chat.generateResponse(
+    messages: [.init(role: .user, content: "Hello")],
+    sampling: .init(temperature: 0, maxTokens: 128))
+```
+
+Native tool declarations, calls, and result history use `Gemma4Tool` and
+`Gemma4ConversationMessage`. Tool responses and a subsequent assistant
+continuation stay in the same model turn. If a user message follows the tool
+responses, the formatter closes the previous model turn before opening the user
+turn. This also applies after chained tool calls and preserves tool-result
+pairing by call ID. The turn boundary follows the
+[Gemma 4 canonical template](https://huggingface.co/google/gemma-4-12B-it/blob/main/chat_template.jinja).
+Response parsing removes channel delimiters from
+returned text, including a closing marker generated after a tool result. Tool
+argument strings retain their original values. For 12B, repeated adjacent
+terminators immediately after a fully validated call are consumed with that
+call. Standalone terminators, incomplete calls, and invalid arguments remain
+errors. The public codec and E4B keep strict terminator handling. Cancellation is cooperative. Prefill evaluates
+KV state in batches of at most 256 tokens, then computes initial vocabulary
+logits for the final prompt token only. Intermediate prompt positions do not
+materialize discarded vocabulary projections.
+
+The instance retains one unchanged system/tool prefix in complete 256-token
+blocks, within the existing `SPEECH_SWIFT_GEMMA4_PREFIX_CACHE_MB` budget
+(1,024 MiB by default for 12B; `0` disables reuse). E4B retains its existing
+512 MiB default. Reuse requires identical prefix token
+IDs. Each request extends an independent copy of the retained cache, including
+sliding-window position metadata. User messages, assistant history, and tool
+results are never added to the retained snapshot. Working state is released
+after generation or cancellation; `clearPrefixCache()` releases the retained
+snapshot. `lastCachedPrefixTokens` reports reuse for the most recent request,
+with `0` for a cold prefill. Calls on an instance must remain serialized.
+
+The native inference HTTP response exposes the optional `cachedPrefixTokens`
+count for 12B chat. Capabilities advertise `system_prefix_cache` when enabled,
+and provenance records `gemma4_12b_prefix_cache_budget_bytes` in the effective
+configuration. The first request still pays for the full prompt prefill.
+
+This interface provides
+buffered text/tool responses; it rejects constrained response formats. Vision
+and audio input use other modules and are outside this text interface.
+
+For 12B, `role: tool` content is wrapped verbatim as text in the native
+`response:name{value:...}` block, matching the checkpoint's standard chat
+template. JSON object, array, and scalar text keeps its original encoding.
+`Gemma4Chat` retains its existing structured JSON tool-response representation.
+
+`generateResponse` accepts an optional `onGeneration` callback for a
+`Gemma4GenerationTrace`. It runs after generation and before tool parsing, so a
+malformed completion remains available even when parsing throws. The trace
+contains the rendered prompt, prompt/generated token IDs, raw output, stop token
+ID, and `stop` or `length` finish reason. It is disabled by default and does not
+alter sampling or parser acceptance. See the native inference server guide for
+opt-in local failure files.
+
+The following architecture and streaming sections describe `Gemma4Chat` for
+E2B and E4B.
 
 Gemma 4 text differs from Qwen-style dense chat models in several important ways:
 

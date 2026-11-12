@@ -6,6 +6,8 @@ extension PyannoteVADModel: ModelMemoryManageable {
     public func unload() {
         guard _isLoaded else { return }
         model.clearParameters()
+        mlxCacheLimitLease?.release()
+        mlxCacheLimitLease = nil
         _isLoaded = false
     }
 

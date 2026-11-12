@@ -42,6 +42,7 @@ public class CoreMLASRModel {
         decoderComputeUnits: MLComputeUnits = CoreMLComputeUnitsResolver.resolved(default: .cpuAndNeuralEngine),
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> CoreMLASRModel {
         // Download encoder (0-30%)
@@ -50,7 +51,8 @@ public class CoreMLASRModel {
             modelId: encoderModelId,
             computeUnits: encoderComputeUnits,
             cacheDir: cacheDir,
-            offlineMode: offlineMode
+            offlineMode: offlineMode,
+            downloadOptions: downloadOptions
         ) { p, msg in
             progressHandler?(p * 0.3, msg)
         }
@@ -61,7 +63,8 @@ public class CoreMLASRModel {
             modelId: decoderModelId,
             computeUnits: decoderComputeUnits,
             cacheDir: cacheDir,
-            offlineMode: offlineMode
+            offlineMode: offlineMode,
+            downloadOptions: downloadOptions
         ) { p, msg in
             progressHandler?(0.3 + p * 0.5, msg)
         }
@@ -73,7 +76,8 @@ public class CoreMLASRModel {
             modelId: tokenizerModelId,
             to: tokenizerDir,
             additionalFiles: ["vocab.json", "merges.txt", "tokenizer_config.json"],
-            offlineMode: offlineMode
+            offlineMode: offlineMode,
+            downloadOptions: downloadOptions
         )
 
         let model = CoreMLASRModel(encoder: enc, decoder: dec)

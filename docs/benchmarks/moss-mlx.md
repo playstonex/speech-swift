@@ -125,3 +125,77 @@ MOSS_MLX_INT8_MODEL_DIR=/path/to/int8 \
 
 Repeat the commands with the other engine. Do not overlap model-loading
 benchmarks; separate processes are required for comparable peak memory.
+
+
+## Cache-limit validation (2026-10-24)
+
+This follow-up validates the allocator-cache fix for issue #519, separately
+from the July weight-precision comparison above. It used an M5 Pro with
+48 GiB unified memory, release builds, compiled Metal shaders, MLX Swift
+0.31.4, greedy decoding, and FP16 KV caches. Each model ran in its own
+process, with model-loading runs strictly sequential.
+
+Against the original runtime at `6e6fd02`, both MOSS weight variants produced
+exactly the same text, raw output, speaker segments, timestamps, prompt/output
+token counts, and stop reasons on 80 English FLEURS clips: 160 identical
+structured outputs. The shared-coordinator refactor also preserved all 80
+Qwen3-ASR 0.6B INT4 transcripts.
+
+| Short-clip workload | Original transcription time | Capped runtime | Output comparison |
+|---|---:|---:|---|
+| MOSS INT5, 80 clips | 21.79 s | 21.29 s | 80/80 exact |
+| MOSS INT8, 80 clips | 22.72 s | 23.07 s | 80/80 exact |
+| Qwen3-ASR 0.6B INT4, 80 clips | 12.37 s | 10.54 s | 80/80 exact |
+
+These single-run timings are regression checks, not a statistically established
+speedup. This FLEURS subset is separate from the July quality benchmark.
+
+For long inputs, the uncapped original exceeded a 28 GiB physical-footprint
+watchdog on the 1,200.064-second `aorju` recording and was stopped. The recorded
+peak was 28.91 GiB, including about 25.65 GiB of reusable MLX cache. Its active
+MLX memory peaked at about 3.46 GiB.
+
+The positive control set `MLX.Memory.cacheLimit = 2 * 1024 * 1024 * 1024` before
+loading the original model, matching the workaround in the issue. Both this
+control and the fixed runtime completed the following inference calls:
+
+| Input | Original with manual 2 GiB cap: peak footprint | Fixed runtime: peak footprint | Structured output |
+|---|---:|---:|---|
+| `aorju`, 20.00 min | 6.38 GiB | 6.58 GiB | 283 segments, 8,933 output tokens; exact match |
+| Five concatenated VoxConverse files, 39.11 min | 9.01 GiB | 9.01 GiB | 624 segments, 16,384 output tokens; exact match |
+
+The longer input concatenated `aepyx`, `aggyz`, `aiqwk`, `aorju`, and `auzru`
+in that order, totaling 2,346.56 seconds. Both runtimes emitted EOS with the
+last parsed segment ending at 1,437.03 seconds. This is a pre-existing early
+termination on the stitched workload, not evidence that its complete audio
+was transcribed. No new long-form accuracy or completeness claim is made.
+
+The 39-minute inference took 452.38 seconds in the manually capped original
+and 465.97 seconds with the fix. The first fixed 20-minute timing overlapped
+an external Swift job and is excluded from performance conclusions.
+
+### Reproduce the inference controls
+
+Use the INT8 bundle with `fromDirectory` → `warmUp` → `transcribeDetailed`.
+Load 16 kHz mono Float32 audio and keep these options identical:
+
+```swift
+let options = MossMLXDecodingOptions(
+    maxTokens: 32_768,
+    encoderBatchSize: 4,
+    prefillChunkSize: 512,
+    kvCachePrecision: .float16
+)
+```
+
+Measure physical footprint with `TASK_VM_INFO`, including its recorded
+high-water mark, rather than RSS alone. Sample active and cached MLX memory
+separately. Compare raw output and every structured segment in separate fresh
+processes; leave the original cache limit unset for the watchdog control, and
+set it to 2 GiB before loading for the positive control. The 2 GiB setting
+bounds reusable buffers and does not cap live KV tensors or total footprint.
+
+The current real-weight checks also reproduce missing speaker labels with
+INT8 KV cache for both weight variants, identically before and after this fix.
+The earlier short-fixture INT8 KV result above does not establish current
+structured-output fidelity. Use FP16 KV for speaker-attributed output.

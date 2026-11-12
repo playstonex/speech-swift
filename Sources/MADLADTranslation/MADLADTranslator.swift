@@ -17,6 +17,8 @@ private let log = OSLog(subsystem: "com.soniqo.madlad", category: "MLX")
 /// Greedy decoding is the default and recommended for translation. Sampling
 /// is exposed for paraphrase-style use cases.
 public final class MADLADTranslator: @unchecked Sendable {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
 
     /// Default HuggingFace repo (MLX-converted MADLAD-400-3B-MT).
     /// The repo is expected to contain `int4/` and `int8/` subdirs, each with
@@ -67,8 +69,12 @@ public final class MADLADTranslator: @unchecked Sendable {
         quantization: Quantization = .int4,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> MADLADTranslator {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let cacheDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
         let variant = quantization.rawValue
 
@@ -84,6 +90,7 @@ public final class MADLADTranslator: @unchecked Sendable {
                 "\(variant)/special_tokens_map.json",
             ],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progress in
                 progressHandler?(progress * 0.5, "Downloading...")
             }
@@ -104,6 +111,9 @@ public final class MADLADTranslator: @unchecked Sendable {
         bits: Int = 4,
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> MADLADTranslator {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         progressHandler?(0.1, "Loading config...")
         let configURL = directory.appendingPathComponent("config.json")
         let config: MADLADTranslationConfig

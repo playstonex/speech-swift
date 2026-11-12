@@ -25,6 +25,8 @@ private let log = OSLog(subsystem: "com.soniqo.qwen3chat", category: "MLX")
 /// ])
 /// ```
 public final class Qwen35MLXChat: @unchecked Sendable {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public static let defaultModelId = "aufklarer/Qwen3.5-0.8B-Chat-MLX"
 
     public let config: Qwen3ChatConfig
@@ -118,8 +120,12 @@ public final class Qwen35MLXChat: @unchecked Sendable {
         quantization: Quantization = defaultQuantization,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Qwen35MLXChat {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let cacheDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
         let variant = quantization.rawValue
 
@@ -135,6 +141,7 @@ public final class Qwen35MLXChat: @unchecked Sendable {
                 "\(variant)/tokenizer_config.json",
             ],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progress in
                 progressHandler?(progress * 0.5, "Downloading...")
             }
@@ -179,6 +186,9 @@ public final class Qwen35MLXChat: @unchecked Sendable {
         directory: URL,
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Qwen35MLXChat {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let config: Qwen3ChatConfig
         let configURL = directory.appendingPathComponent("config.json")
         if FileManager.default.fileExists(atPath: configURL.path) {
@@ -447,6 +457,8 @@ extension Qwen35MLXChat: ModelMemoryManageable {
         guard _isLoaded else { return }
         model.clearParameters()
         state = .initial(config: config)
+        mlxCacheLimitLease?.release()
+        mlxCacheLimitLease = nil
         _isLoaded = false
     }
 

@@ -1,9 +1,10 @@
 """Regenerate the fbank parity fixtures for SpeechWakeWordTests.
 
-Run from speech-swift with the kws-zipformer poetry env on PATH:
+Run with the kws-zipformer export's poetry env, with KWS_EXPORT_DIR pointing at
+that export directory:
 
-    cd ~/speech-models/models/kws-zipformer/export
-    poetry run python ~/speech-swift/scripts/kws/generate_fbank_reference.py
+    cd <kws-zipformer export dir>
+    KWS_EXPORT_DIR=$PWD poetry run python ~/speech-swift/scripts/kws/generate_fbank_reference.py
 
 Produces two files in ``Tests/SpeechWakeWordTests/Resources/``:
 
@@ -13,6 +14,7 @@ Produces two files in ``Tests/SpeechWakeWordTests/Resources/``:
 """
 from __future__ import annotations
 
+import os
 import struct
 import sys
 import wave
@@ -20,8 +22,11 @@ from pathlib import Path
 
 import numpy as np
 
-# Import from the sibling export module.
-sys.path.insert(0, str(Path.home() / "speech-models/models/kws-zipformer/export"))
+# Import from the kws-zipformer export module.
+export_dir = os.environ.get("KWS_EXPORT_DIR")
+if not export_dir:
+    sys.exit("set KWS_EXPORT_DIR to the kws-zipformer export directory")
+sys.path.insert(0, export_dir)
 from streaming_fbank import waveform_to_fbank, SAMPLE_RATE
 
 # Write next to the SpeechWakeWordTests resources in this repo.

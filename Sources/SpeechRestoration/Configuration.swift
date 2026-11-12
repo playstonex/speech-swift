@@ -30,8 +30,7 @@ public enum SidonVariant: String, Sendable, CaseIterable {
 
 /// Configuration for the Sidon restoration pipeline.
 ///
-/// The numbers here are fixed by the export (see
-/// `speech-models/models/sidon/export/NOTES.md`): the CoreML predictor and
+/// The numbers here are fixed by the export: the CoreML predictor and
 /// vocoder were traced at a **fixed** sequence length of `frames` (= 499 ≈ 10 s),
 /// so the runtime chunks longer audio into `windowSamples`-sized windows.
 public struct SidonConfig: Sendable {

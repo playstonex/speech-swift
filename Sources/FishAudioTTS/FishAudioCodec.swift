@@ -155,9 +155,9 @@ final class FishCodecSnake1d: Module {
 
 final class FishCodecConv1dNCL: Module {
     @ModuleInfo(key: "conv") var conv: Conv1d
-    private let causal: Bool
-    private let effectiveKernelSize: Int
-    private let stride: Int
+    let causal: Bool
+    let effectiveKernelSize: Int
+    let stride: Int
 
     init(
         inChannels: Int,
@@ -201,7 +201,7 @@ final class FishCodecConv1dNCL: Module {
 
 final class FishCodecConvTransposed1dNCL: Module {
     @ModuleInfo(key: "conv") var conv: ConvTransposed1d
-    private let trimRight: Int
+    let trimRight: Int
 
     init(
         inChannels: Int,
@@ -493,11 +493,12 @@ final class FishCodecPostTransformer: Module {
         super.init()
     }
 
-    func callAsFunction(_ x: MLXArray) -> MLXArray {
+    func callAsFunction(_ x: MLXArray, memoryOptions: FishAudioMemoryOptions = .unrestricted) -> MLXArray {
         var h = x.transposed(0, 2, 1)
         let mask = makeWindowMask(length: h.dim(1), dtype: h.dtype)
         for layer in layers {
             h = layer(h, mask: mask)
+            memoryOptions.evaluateStage(h)
         }
         return norm(h).transposed(0, 2, 1)
     }
@@ -545,23 +546,25 @@ final class FishCodecQuantizer: Module {
         super.init()
     }
 
-    func decode(_ indices: MLXArray) -> MLXArray {
+    func decode(_ indices: MLXArray, memoryOptions: FishAudioMemoryOptions = .unrestricted) -> MLXArray {
         let semantic = semanticQuantizer.decode(indices[0..., 0..<1, 0...])
         let residual = quantizer.decode(indices[0..., 1..., 0...])
         var h = semantic + residual
-        h = postModule(h)
+        h = postModule(h, memoryOptions: memoryOptions)
         for block in upsample {
             h = block(h)
+            memoryOptions.evaluateStage(h)
         }
         return h
     }
 
-    func encode(_ z: MLXArray) -> MLXArray {
+    func encode(_ z: MLXArray, memoryOptions: FishAudioMemoryOptions = .unrestricted) -> MLXArray {
         var h = z
         for block in downsample {
             h = block(h)
+            memoryOptions.evaluateStage(h)
         }
-        h = preModule(h)
+        h = preModule(h, memoryOptions: memoryOptions)
         let semantic = semanticQuantizer.encode(h)
         let residual = quantizer.encode(h - semantic.quantized)
         return concatenated([semantic.codes, residual.codes], axis: 1).asType(.int32)
@@ -604,13 +607,14 @@ final class FishCodecEncoderBlock: Module {
         super.init()
     }
 
-    func callAsFunction(_ x: MLXArray) -> MLXArray {
+    func callAsFunction(_ x: MLXArray, memoryOptions: FishAudioMemoryOptions = .unrestricted) -> MLXArray {
         var h = residual1(x)
         h = residual2(h)
         h = residual3(h)
         h = conv(snake(h))
+        memoryOptions.evaluateStage(h)
         if let transformer {
-            h = transformer(h)
+            h = transformer(h, memoryOptions: memoryOptions)
         }
         return h
     }
@@ -660,10 +664,12 @@ final class FishCodecDACEncoder: Module {
         super.init()
     }
 
-    func callAsFunction(_ x: MLXArray) -> MLXArray {
+    func callAsFunction(_ x: MLXArray, memoryOptions: FishAudioMemoryOptions = .unrestricted) -> MLXArray {
         var h = inputConv(x)
+        memoryOptions.evaluateStage(h)
         for block in blocks {
-            h = block(h)
+            h = block(h, memoryOptions: memoryOptions)
+            memoryOptions.evaluateStage(h)
         }
         return finalConv(finalSnake(h))
     }
@@ -787,10 +793,12 @@ final class FishCodecDACDecoder: Module {
         super.init()
     }
 
-    func callAsFunction(_ x: MLXArray) -> MLXArray {
+    func callAsFunction(_ x: MLXArray, memoryOptions: FishAudioMemoryOptions = .unrestricted) -> MLXArray {
         var h = inputConv(x)
+        memoryOptions.evaluateStage(h)
         for block in blocks {
             h = block(h)
+            memoryOptions.evaluateStage(h)
         }
         h = finalConv(finalSnake(h))
         return tanh(h)
@@ -803,6 +811,9 @@ public final class FishAudioCodec: Module {
     @ModuleInfo var decoder: FishCodecDACDecoder
 
     public let sampleRate = FishAudioCodecDefaults.sampleRate
+    private var memoryOptions: FishAudioMemoryOptions = .unrestricted
+    private var encodingWeightsURL: URL?
+    var encodingWeightsLoaded: Bool { encodingWeightsURL == nil }
 
     public override init() {
         self._encoder.wrappedValue = FishCodecDACEncoder()
@@ -817,6 +828,25 @@ public final class FishAudioCodec: Module {
         return codec
     }
 
+    static func loadForDrama3(from directory: URL, memoryOptions: FishAudioMemoryOptions) throws -> FishAudioCodec {
+        let codec = FishAudioCodec()
+        codec.memoryOptions = memoryOptions
+        let path = directory.appendingPathComponent("codec.safetensors")
+        guard FileManager.default.fileExists(atPath: path.path) else { throw FishAudioError.missingFile(path) }
+        if memoryOptions.lazyReferenceEncoder {
+            let weights = try MLX.loadArrays(url: path).mapValues { $0.asType(.float32) }
+            codec.loadQuantizerDecodingWeights(from: weights)
+            codec.loadDecoderWeights(from: weights)
+            let modules: [Module] = [codec.decoder, codec.quantizer.postModule,
+                codec.quantizer.semanticQuantizer, codec.quantizer.quantizer] + codec.quantizer.upsample
+            eval(modules.flatMap { $0.parameters().flattenedValues() })
+            codec.encodingWeightsURL = path
+        } else {
+            try codec.loadWeights(from: path)
+        }
+        return codec
+    }
+
     public func loadWeights(from codecSafetensors: URL) throws {
         guard FileManager.default.fileExists(atPath: codecSafetensors.path) else {
             throw FishAudioError.missingFile(codecSafetensors)
@@ -826,6 +856,19 @@ public final class FishAudioCodec: Module {
         loadQuantizerWeights(from: weights)
         loadDecoderWeights(from: weights)
         eval(parameters())
+        encodingWeightsURL = nil
+    }
+
+    private func ensureEncodingWeightsLoaded() throws {
+        guard let path = encodingWeightsURL else { return }
+        try Task.checkCancellation()
+        let weights = try MLX.loadArrays(url: path).mapValues { $0.asType(.float32) }
+        loadEncoderWeights(from: weights)
+        loadQuantizerEncodingWeights(from: weights)
+        let modules: [Module] = [encoder, quantizer.preModule] + quantizer.downsample
+        eval(modules.flatMap { $0.parameters().flattenedValues() })
+        encodingWeightsURL = nil
+        memoryOptions.trimCache()
     }
 
     public func encode(
@@ -852,9 +895,11 @@ public final class FishAudioCodec: Module {
             paddedSamples.append(contentsOf: repeatElement(Float(0), count: paddedCount - paddedSamples.count))
         }
 
+        try ensureEncodingWeightsLoaded()
         let wav = MLXArray(paddedSamples).reshaped([1, 1, paddedSamples.count])
-        let latent = encoder(wav)
-        let codes = quantizer.encode(latent)
+        let latent = encoder(wav, memoryOptions: memoryOptions)
+        memoryOptions.evaluateStage(latent)
+        let codes = quantizer.encode(latent, memoryOptions: memoryOptions)
         eval(codes)
         return try Self.generatedCodebooks(from: codes)
     }
@@ -871,8 +916,9 @@ public final class FishAudioCodec: Module {
             return MLXArray.zeros([0], dtype: .float32)
         }
 
-        let z = quantizer.decode(audioCodes.asType(.int32))
-        let wav = decoder(z)
+        let z = quantizer.decode(audioCodes.asType(.int32), memoryOptions: memoryOptions)
+        memoryOptions.evaluateStage(z)
+        let wav = decoder(z, memoryOptions: memoryOptions)
         return wav.reshaped([-1]).asType(.float32)
     }
 
@@ -934,12 +980,20 @@ public final class FishAudioCodec: Module {
     }
 
     private func loadQuantizerWeights(from weights: [String: MLXArray]) {
+        loadQuantizerEncodingWeights(from: weights)
+        loadQuantizerDecodingWeights(from: weights)
+    }
+
+    private func loadQuantizerEncodingWeights(from weights: [String: MLXArray]) {
         for (index, block) in quantizer.downsample.enumerated() {
             let prefix = "quantizer.downsample.\(index)"
             fishApplyConv1d(block.conv.conv, prefix: "\(prefix).0.conv", from: weights)
             loadConvNeXt(block.convNext, prefix: "\(prefix).1", from: weights)
         }
         loadPostTransformer(quantizer.preModule, prefix: "quantizer.pre_module", from: weights)
+    }
+
+    private func loadQuantizerDecodingWeights(from weights: [String: MLXArray]) {
         loadResidualVectorQuantizer(
             quantizer.semanticQuantizer,
             prefix: "quantizer.semantic_quantizer",

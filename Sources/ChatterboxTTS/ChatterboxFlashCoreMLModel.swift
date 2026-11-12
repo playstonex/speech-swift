@@ -30,6 +30,7 @@ public final class ChatterboxFlashCoreMLModel: @unchecked Sendable {
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
         computeUnits: MLComputeUnits = .all,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> ChatterboxFlashCoreMLModel {
         let directory: URL
@@ -55,7 +56,8 @@ public final class ChatterboxFlashCoreMLModel: @unchecked Sendable {
                     "audio/FlowEstimator.mlmodelc/**",
                     "audio/HiFTVocoder.mlmodelc/**",
                 ],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             ) { progress in
                 progressHandler?(progress * 0.8, "Downloading Chatterbox Flash Core ML...")
             }

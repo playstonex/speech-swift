@@ -9,7 +9,6 @@ Cache-aware FastConformer encoder with a prompt-conditioned RNN-T decoder.
 
 - Upstream: [nvidia/nemotron-3.5-asr-streaming-0.6b](https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b) (gated)
 - Reference architecture: NeMo `EncDecRNNTBPEModelWithPrompt`
-- Conversion pipeline: `speech-models/models/nemotron-asr-streaming-multilingual/export/`
 
 ## Top-level pipeline
 
@@ -147,7 +146,7 @@ tokenizer.model       SentencePiece Unigram model used for word-boosting phrase 
 languages.json        promptDictionary: lang tag → slot
 ```
 
-`.mlmodelc` (compiled) ships rather than `.mlpackage` per the speech-models policy — on-device `MLModel.compileModel()` produces non-deterministic output across simulator vs device runtimes, breaking parity.
+`.mlmodelc` (compiled) ships rather than `.mlpackage` — on-device `MLModel.compileModel()` produces non-deterministic output across simulator vs device runtimes, breaking parity.
 
 ## MLX bundle layout
 

@@ -9,6 +9,8 @@ extension Qwen3TTSModel: ModelMemoryManageable {
         codePredictor.clearParameters()
         codecDecoder.clearParameters()
         speakerEncoder.clearParameters()
+        mlxCacheLimitLease?.release()
+        mlxCacheLimitLease = nil
         _isLoaded = false
     }
 

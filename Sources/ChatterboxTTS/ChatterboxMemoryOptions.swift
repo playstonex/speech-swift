@@ -1,5 +1,6 @@
 import Foundation
 import MLX
+import MLXCommon
 
 public struct ChatterboxMemoryOptions: Sendable, Equatable {
     /// Temporary MLX cache limit while running Chatterbox generation.
@@ -26,7 +27,8 @@ public struct ChatterboxMemoryOptions: Sendable, Equatable {
     /// Memory-conscious default for app/runtime use.
     public static let balanced = ChatterboxMemoryOptions()
 
-    /// Preserve MLX's default cache behavior for maximum-throughput experiments.
+    /// Skip the temporary generation cap and stage clears. The model's default
+    /// lifetime cap and any caller budget still apply.
     public static let unrestricted = ChatterboxMemoryOptions(
         cacheLimitBytes: nil,
         clearCacheBetweenStages: false,
@@ -41,18 +43,17 @@ enum ChatterboxMemory {
         lock.lock()
         defer { lock.unlock() }
 
-        let previousCacheLimit = options.cacheLimitBytes == nil ? nil : Memory.cacheLimit
-        if let cacheLimitBytes = options.cacheLimitBytes {
-            Memory.cacheLimit = min(Memory.cacheLimit, max(0, cacheLimitBytes))
+        let cacheLimitLease = options.cacheLimitBytes.flatMap {
+            MLXCacheLimitCoordinator.shared.acquire(ceiling: max(0, $0))
+        }
+        if options.cacheLimitBytes != nil {
             Memory.clearCache()
         }
         defer {
-            if let previousCacheLimit {
-                Memory.cacheLimit = previousCacheLimit
-            }
             if options.clearCacheOnCompletion {
                 Memory.clearCache()
             }
+            cacheLimitLease?.release()
         }
         return try body()
     }

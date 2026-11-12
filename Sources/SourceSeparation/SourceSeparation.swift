@@ -2,6 +2,7 @@ import MLX
 import MLXNN
 import Foundation
 import AudioCommon
+import MLXCommon
 
 /// Music source separation: split a stereo mix into stems (vocals, drums, bass, other).
 ///
@@ -13,6 +14,8 @@ import AudioCommon
 /// // stems.vocals, stems.drums, stems.bass, stems.other — each [2, N]
 /// ```
 public final class SourceSeparator {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
 
     public static let defaultModelId = "aufklarer/OpenUnmix-HQ-MLX"
     public static let largeModelId = "aufklarer/OpenUnmix-L-MLX"
@@ -182,8 +185,12 @@ public final class SourceSeparator {
     /// Load pretrained Open-Unmix model from HuggingFace.
     public static func fromPretrained(
         modelId: String = defaultModelId,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> SourceSeparator {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let config = modelId.contains("L-MLX") ? OpenUnmixConfig.umxl : OpenUnmixConfig.umxhq
 
         let cacheDir: URL
@@ -206,7 +213,8 @@ public final class SourceSeparator {
                     "bass.safetensors",
                     "other.safetensors",
                     "config.json",
-                ]
+                ],
+                downloadOptions: downloadOptions
             ) { fraction in
                 progressHandler?(fraction * 0.7, "Downloading model...")
             }

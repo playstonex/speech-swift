@@ -8,6 +8,8 @@ extension CosyVoiceTTSModel: ModelMemoryManageable {
         llm.clearParameters()
         flow.clearParameters()
         hifigan.clearParameters()
+        mlxCacheLimitLease?.release()
+        mlxCacheLimitLease = nil
         _isLoaded = false
     }
 

@@ -8,6 +8,8 @@ import Hub
 
 /// Local, text-only Clef-flash decisions. Use each instance serially.
 public final class Clef {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public static let defaultModelID = "aufklarer/Clef-flash-9B-MLX-4bit"
     private let backbone: Qwen35MLXModel
     private let lexical: PreQuantizedEmbedding
@@ -20,12 +22,17 @@ public final class Clef {
     }
 
     public static func fromPretrained(cacheDir: URL? = nil, offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil) async throws -> Clef {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let directory = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: defaultModelID)
         let files = ["config.json", "tokenizer.json", "tokenizer_config.json", "model.safetensors",
                      "joint_head.safetensors", "joint_head_config.json", "LICENSE"]
         try await HuggingFaceDownloader.downloadFiles(modelId: defaultModelID, to: directory,
             files: files, offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progressHandler?($0 * 0.8, "Downloading Clef-flash") })
         return try load(from: directory, progressHandler: progressHandler)
     }
@@ -33,6 +40,9 @@ public final class Clef {
     /// Load a text-only affine 4-bit MLX Clef-flash export, including the joint head.
     public static func load(from directory: URL,
         progressHandler: ((Double, String) -> Void)? = nil) throws -> Clef {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let raw = try JSONSerialization.jsonObject(with: Data(contentsOf: directory.appendingPathComponent("config.json")))
         guard let root = raw as? [String: Any], var text = root["text_config"] as? [String: Any],
               root["model_type"] as? String == "qwen3_5",

@@ -57,13 +57,14 @@ public final class PocketTTSModel: SpeechGenerationModel, @unchecked Sendable {
     }
     public static func fromPretrained(modelId: String = defaultModelId, cacheDir: URL? = nil,
                                       offlineMode: Bool = false, computeUnits: MLComputeUnits = .cpuOnly,
+                                      downloadOptions: DownloadOptions = .init(),
                                       progressHandler: ((Double, String) -> Void)? = nil) async throws -> PocketTTSModel {
         try Task.checkCancellation()
         let directory = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
         try await HuggingFaceDownloader.downloadWeights(modelId: modelId, to: directory,
             additionalFiles: ["cond_prefill.mlmodelc/**", "flowlm_stepv2.mlmodelc/**", "flow_decoder_fused.mlmodelc/**",
                               "mimi_decoder.mlmodelc/**", "constants_bin/**", "NOTICE", "LICENSE", "README.md", "manifest.json"],
-            offlineMode: offlineMode, progressHandler: { progressHandler?($0, "Downloading Pocket TTS") })
+            offlineMode: offlineMode, downloadOptions: downloadOptions, progressHandler: { progressHandler?($0, "Downloading Pocket TTS") })
         try Task.checkCancellation()
         return try fromBundle(directory, computeUnits: computeUnits)
     }

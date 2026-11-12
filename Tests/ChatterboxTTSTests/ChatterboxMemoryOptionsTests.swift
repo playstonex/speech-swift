@@ -1,4 +1,5 @@
 import MLX
+import MLXCommon
 import XCTest
 
 @testable import ChatterboxTTS
@@ -47,5 +48,48 @@ final class ChatterboxMemoryOptionsTests: XCTestCase {
         }
 
         XCTAssertEqual(Memory.cacheLimit, stricterCap)
+    }
+
+    func testModelLoadedDuringGenerationKeepsItsCapAfterGenerationReturns() {
+        let priorCap = Memory.cacheLimit
+        defer { Memory.cacheLimit = priorCap }
+        let callerBudget = 8 * 1024 * 1024 * 1024
+        Memory.cacheLimit = callerBudget
+        var model: MLXCacheLimitCoordinator.Lease?
+        defer { model?.release() }
+        ChatterboxMemory.withOptions(.balanced) {
+            model = MLXCacheLimitCoordinator.shared.acquireDefault()
+            XCTAssertEqual(Memory.cacheLimit, 512 * 1024 * 1024)
+        }
+        XCTAssertEqual(Memory.cacheLimit, MLXCacheLimitPolicy.defaultCeiling(
+            physicalMemoryBytes: Int(ProcessInfo.processInfo.physicalMemory)))
+        model?.release()
+        XCTAssertEqual(Memory.cacheLimit, callerBudget)
+    }
+
+    func testLastModelUnloadedDuringGenerationDoesNotLeaveItsCapBehind() {
+        let priorCap = Memory.cacheLimit
+        defer { Memory.cacheLimit = priorCap }
+        let callerBudget = 8 * 1024 * 1024 * 1024
+        Memory.cacheLimit = callerBudget
+        let model = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { model?.release() }
+        ChatterboxMemory.withOptions(.balanced) {
+            model?.release()
+            XCTAssertEqual(Memory.cacheLimit, 512 * 1024 * 1024)
+        }
+        XCTAssertEqual(Memory.cacheLimit, callerBudget)
+    }
+
+    func testZeroGenerationBudgetRestoresAfterThrowing() {
+        enum GenerationError: Error { case failed }
+        let priorCap = Memory.cacheLimit
+        defer { Memory.cacheLimit = priorCap }
+        Memory.cacheLimit = 128 * 1024 * 1024
+        XCTAssertThrowsError(try ChatterboxMemory.withOptions(.init(cacheLimitBytes: 0)) {
+            XCTAssertEqual(Memory.cacheLimit, 0)
+            throw GenerationError.failed
+        })
+        XCTAssertEqual(Memory.cacheLimit, 128 * 1024 * 1024)
     }
 }

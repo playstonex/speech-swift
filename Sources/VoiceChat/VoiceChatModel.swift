@@ -2,6 +2,7 @@ import AudioCommon
 import Foundation
 import Hub
 import MLX
+import MLXCommon
 
 public typealias VoiceChatLoadProgressHandler = @Sendable (
     _ progress: Double,
@@ -14,6 +15,8 @@ public typealias VoiceChatLoadProgressHandler = @Sendable (
 /// EAR-TTS or codec weights fails immediately instead of degrading to the
 /// understanding-only path.
 public final class VoiceChatModel {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public static let defaultModelID =
         "aufklarer/VoiceChat-11B-Perception-MLX-int8"
 
@@ -44,6 +47,9 @@ public final class VoiceChatModel {
         from root: URL,
         progressHandler: VoiceChatLoadProgressHandler? = nil
     ) async throws -> VoiceChatModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let encoderDirectory = root.appendingPathComponent("encoder")
         let languageDirectory = root.appendingPathComponent("llm")
         let speechDirectory = root.appendingPathComponent("tts")
@@ -106,12 +112,19 @@ public final class VoiceChatModel {
     public static func loadFromHub(
         _ modelID: String = defaultModelID,
         revision: String = "main",
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: @escaping (Progress) -> Void = { _ in },
         loadProgressHandler: VoiceChatLoadProgressHandler? = nil
     ) async throws -> VoiceChatModel {
         let hub = HubApi(endpoint: HuggingFaceDownloader.resolvedEndpoint())
-        let directory = try await hub.snapshot(
-            from: modelID, revision: revision, progressHandler: progressHandler)
+        let directory = try await HuggingFaceDownloader.withDownloadRetries(
+            modelId: modelID,
+            retryDelaysSeconds: downloadOptions.retryDelaysSeconds ?? [],
+            downloadOptions: downloadOptions
+        ) {
+            try await hub.snapshot(
+                from: modelID, revision: revision, progressHandler: progressHandler)
+        }
         return try await load(
             from: directory,
             progressHandler: loadProgressHandler)

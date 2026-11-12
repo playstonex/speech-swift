@@ -10,14 +10,12 @@ import CoreML
 /// `/tmp/nem35-logs/wer_swift.json` so it can be diffed against the Python
 /// reference (`/tmp/nem35-logs/wer_coreml_new_all.json`).
 ///
-/// Requires the FLEURS data materialized at
-/// `/Users/ivan/repos/speech-models/benchmarks/fleurs/<lang>/` and the local
+/// Requires the FLEURS data materialized at `$FLEURS_ROOT/<lang>/` and the local
 /// CoreML bundle at `/tmp/Nemotron-3.5-CoreML-320ms` (or set
 /// `NEMOTRON_35_LOCAL_BUNDLE`).
 final class E2ENemotronMultilingualBench: XCTestCase {
 
-    private static let fleursRoot = ProcessInfo.processInfo.environment["FLEURS_ROOT"]
-        ?? "/Users/ivan/repos/speech-models/benchmarks/fleurs"
+    private static let fleursRoot = ProcessInfo.processInfo.environment["FLEURS_ROOT"] ?? ""
     private static let outputPath = "/tmp/nem35-logs/wer_swift.json"
     private static let languages: [(dir: String, tag: String)] = [
         ("en_us", "en-US"), ("de_de", "de-DE"), ("fr_fr", "fr-FR"),
@@ -26,6 +24,9 @@ final class E2ENemotronMultilingualBench: XCTestCase {
     private static let samplesPerLang = 50
 
     func testBenchAllLanguages() async throws {
+        guard !Self.fleursRoot.isEmpty else {
+            throw XCTSkip("set FLEURS_ROOT to the materialized FLEURS data")
+        }
         let bundlePath = ProcessInfo.processInfo.environment["NEMOTRON_35_LOCAL_BUNDLE"]
             ?? "/tmp/Nemotron-3.5-CoreML-320ms"
         let bundleURL = URL(fileURLWithPath: bundlePath)

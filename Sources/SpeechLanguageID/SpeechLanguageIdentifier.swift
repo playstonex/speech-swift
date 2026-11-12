@@ -11,6 +11,8 @@ import MLXNN
 /// language belongs to the 107-label inventory; applications should calibrate
 /// their own unknown-language rejection policy.
 public final class SpeechLanguageIdentifier {
+    var mlxCacheLimitLease: MLXCacheLimitCoordinator.Lease?
+
     public static let defaultMLXModelID =
         "aufklarer/SpeechBrain-ECAPA-VoxLingua107-21M-MLX"
     public static let defaultCoreMLModelID =
@@ -33,6 +35,8 @@ public final class SpeechLanguageIdentifier {
         coreMLModel: MLModel?
     ) {
         self.engine = engine
+        mlxCacheLimitLease = engine == .mlx ? MLXCacheLimitCoordinator.shared.acquireDefault() : nil
+
         self.configuration = configuration
         self.labels = labels
         self.frontend = SpeechBrainFbank(melBinCount: configuration.nMels)
@@ -46,6 +50,7 @@ public final class SpeechLanguageIdentifier {
         engine: LanguageIDEngine = .mlx,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> SpeechLanguageIdentifier {
         let resolvedModelID = modelID ?? {
@@ -74,6 +79,7 @@ public final class SpeechLanguageIdentifier {
             to: directory,
             additionalFiles: additionalFiles,
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progress in
                 progressHandler?(progress * 0.85, "Downloading model files...")
             }
@@ -104,6 +110,8 @@ public final class SpeechLanguageIdentifier {
 
         switch engine {
         case .mlx:
+            let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+            defer { loadingCacheLimit?.release() }
             let network = SpeechBrainLanguageIDNetwork()
             do {
                 let weights = try MLX.loadArrays(url: artifactURL)

@@ -24,6 +24,7 @@ public enum SpeechEnhancerEngine: String, Sendable {
 /// let cleanAudio = try enhancer.enhance(audio: noisyAudio, sampleRate: 48000)
 /// ```
 public final class SpeechEnhancer {
+    var mlxCacheLimitLease: MLXCacheLimitCoordinator.Lease?
 
     /// Default HuggingFace model ID (CoreML weights)
     public static let defaultModelId = "aufklarer/DeepFilterNet3-CoreML"
@@ -92,6 +93,8 @@ public final class SpeechEnhancer {
         auxData: DeepFilterNet3WeightLoader.AuxiliaryData
     ) {
         self.engine = .mlx
+        mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
         self.network = nil
         self.mlxNetwork = mlxNetwork
         self.config = config
@@ -433,6 +436,7 @@ public final class SpeechEnhancer {
         engine: SpeechEnhancerEngine? = nil,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> SpeechEnhancer {
         let resolvedEngine = engine
@@ -466,6 +470,7 @@ public final class SpeechEnhancer {
             to: cacheDir,
             additionalFiles: additionalFiles,
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progress in
                 progressHandler?(progress * 0.8, "Downloading model...")
             }
@@ -477,6 +482,8 @@ public final class SpeechEnhancer {
 
         switch resolvedEngine {
         case .mlx:
+            let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+            defer { loadingCacheLimit?.release() }
             let (network, auxData) = try DeepFilterNet3WeightLoader.loadMLX(
                 from: cacheDir, config: config)
             progressHandler?(1.0, "Ready")

@@ -2,8 +2,7 @@ import Foundation
 
 /// Aho-Corasick trie over BPE token ids with keyword-phrase acoustic thresholds.
 ///
-/// Port of icefall's ``context_graph.py`` (Apache-2.0, upstream vendored under
-/// ``models/kws-zipformer/export/icefall_kws`` in ``soniqo/speech-models``).
+/// Port of icefall's ``context_graph.py`` (Apache-2.0).
 /// Used by :class:`StreamingKwsDecoder` to boost phrases during modified-beam
 /// search and to detect end-of-phrase transitions.
 public final class ContextGraph {

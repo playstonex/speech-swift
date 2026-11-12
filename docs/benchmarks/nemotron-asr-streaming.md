@@ -114,27 +114,9 @@ smallest disk + streaming footprint.
 ## Reproducing
 
 ```bash
-# Python (50 samples per lang)
-cd speech-models/models/nemotron-asr-streaming-multilingual/export
-poetry run python bench_wer_torch_fp32.py --langs en_us,de_de,fr_fr,ar_eg,hi_in,ja_jp --limit 50
-poetry run python bench_wer_coreml.py --bundle /tmp/Nemotron-3.5-CoreML-320ms --langs en_us,de_de,fr_fr,ar_eg,hi_in,ja_jp --limit 50
-python bench_wer_mlx.py \
-  --root /tmp/Nemotron-3.5-MLX \
-  --variants int5,int8 \
-  --langs en_us,de_de,fr_fr,ar_eg,hi_in,ja_jp \
-  --streaming \
-  --limit 50
-python bench_stream_all.py \
-  --root /tmp/Nemotron-3.5-MLX \
-  --runs mlx_int5 \
-  --seconds 60
-python bench_stream_all.py \
-  --root /tmp/Nemotron-3.5-MLX \
-  --runs mlx_int8 \
-  --seconds 60
-
 # Swift
 cd speech-swift
+FLEURS_ROOT=/path/to/fleurs \
 NEMOTRON_35_LOCAL_BUNDLE=/tmp/Nemotron-3.5-CoreML-320ms \
   swift test --filter E2ENemotronMultilingualBench
 NEMOTRON_MLX_LOCAL_BUNDLE=/tmp/Nemotron-3.5-MLX/int5 \
@@ -154,4 +136,4 @@ NEMOTRON_MLX_INT8_LOCAL_BUNDLE=/tmp/Nemotron-3.5-MLX/int8 \
     --output /tmp/nemotron-swift-bench.json
 ```
 
-Results land in `/tmp/nem35-logs/wer_*.json` (Python) and `/tmp/nem35-logs/wer_swift.json` (Swift).
+Results land in `/tmp/nem35-logs/wer_swift.json`.

@@ -121,6 +121,7 @@ public extension Nemotron3Diarizer {
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
         computeUnits: MLComputeUnits = .cpuAndNeuralEngine,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Nemotron3Diarizer {
         let directory = try cacheDir
@@ -136,6 +137,7 @@ public extension Nemotron3Diarizer {
                 "config.json",
             ],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { fraction in
                 progressHandler?(fraction * 0.8, "Downloading Nemotron 3 Core ML bundle...")
             }

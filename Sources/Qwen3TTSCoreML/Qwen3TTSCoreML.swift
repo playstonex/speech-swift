@@ -44,6 +44,7 @@ public final class Qwen3TTSCoreMLModel {
         offlineMode: Bool = false,
         computeUnits: MLComputeUnits? = nil,
         speakerEmbeddingURL: URL? = nil,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Qwen3TTSCoreMLModel {
         let resolvedCacheDir: URL
@@ -62,7 +63,8 @@ public final class Qwen3TTSCoreMLModel {
                     "tts_bos_embed.npy", "tts_eos_embed.npy",
                     "config.json", "vocab.json", "merges.txt",
                 ],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             ) { progress in progressHandler?(progress * 0.7, "Downloading model...") }
         }
 

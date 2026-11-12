@@ -157,6 +157,14 @@ Audio (24kHz) -> SeanetEncoder (Conv1d downsampling, residual blocks)
 | Transformer heads | 16 |
 | Upsample rates | [2, 2] pre-upsample (4x) then [8, 5, 4, 3] SEANet decoder (480x) = 1920x |
 
+Both pre-upsampling convolutions use **kernel size 2 and stride 2**, matching
+the pretrained codec weights. They do not trim their output. The main decoder
+blocks use kernels twice their stride and trim the resulting overlap instead.
+This distinction preserves exactly **1,920 samples per codec frame**, including
+when a checkpoint replaces the initially constructed convolution weights.
+Using width-4 pre-upsampling kernels leaves a stale trim count after width-2
+weights are loaded, removing 2,880 samples (120 ms) from every decode chunk.
+
 **SnakeBeta activation:** `x + (1/b) * sin^2(a * x)` — learnable periodic activation used in the decoder upsampling blocks for high-quality audio reconstruction.
 
 ## Model Variants

@@ -24,6 +24,7 @@ extension Qwen3TTSModel {
         cacheDir: URL? = nil,
         tokenizerCacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> (Qwen3TTSModel, SpeechTokenizerEncoder) {
         let tts = try await Qwen3TTSModel.fromPretrained(
@@ -32,6 +33,7 @@ extension Qwen3TTSModel {
             cacheDir: cacheDir,
             tokenizerCacheDir: tokenizerCacheDir,
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: progressHandler)
 
         // The codec encoder (Mimi) lives in the speech-tokenizer bundle, NOT the

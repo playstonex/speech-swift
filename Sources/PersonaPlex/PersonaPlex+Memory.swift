@@ -8,6 +8,8 @@ extension PersonaPlexModel: ModelMemoryManageable {
         temporal.clearParameters()
         depformer.clearParameters()
         mimi.clearParameters()
+        mlxCacheLimitLease?.release()
+        mlxCacheLimitLease = nil
         _isLoaded = false
     }
 

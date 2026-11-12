@@ -15,7 +15,7 @@ public struct KokoroConfig: Codable, Sendable {
         sampleRate: Int = 24000,
         maxPhonemeLength: Int = 128,
         styleDim: Int = 256,
-        languages: [String] = ["en", "fr", "es", "ja", "zh", "hi", "pt", "it"]
+        languages: [String] = ["en", "fr", "es", "ja", "zh", "hi", "pt", "it", "de"]
     ) {
         self.sampleRate = sampleRate
         self.maxPhonemeLength = maxPhonemeLength

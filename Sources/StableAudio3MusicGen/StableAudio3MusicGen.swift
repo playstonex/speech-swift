@@ -3,6 +3,7 @@ import MLX
 import MLXNN
 import MLXRandom
 import AudioCommon
+import MLXCommon
 
 // MARK: - Generation parameters
 
@@ -34,6 +35,8 @@ public struct StableAudio3GenerationParams: Sendable {
 // MARK: - Main entry point
 
 public final class StableAudio3MusicGen {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public let variant: StableAudio3Variant
     public let t5: T5GemmaText
     public let dit: DiTMedium                 // medium only in this initial port
@@ -63,8 +66,12 @@ public final class StableAudio3MusicGen {
         variant: StableAudio3Variant = .mediumInt8,
         tLatHint: Int? = nil,
         localBundleOverride: URL? = nil,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double) -> Void)? = nil
     ) async throws -> StableAudio3MusicGen {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         guard variant.family == .medium else {
             throw StableAudio3Error.unsupportedFamily(
                 "Only the Medium DiT family is wired up in this port — got family=\(variant.family). "
@@ -74,6 +81,7 @@ public final class StableAudio3MusicGen {
         let paths = try await StableAudio3Downloader.ensureDownloaded(
             variant: variant,
             localBundleOverride: localBundleOverride,
+            downloadOptions: downloadOptions,
             progressHandler: progressHandler)
 
         let tLat = tLatHint ?? computeTLat(seconds: 30.0)

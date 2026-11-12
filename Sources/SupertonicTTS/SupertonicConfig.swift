@@ -1,7 +1,7 @@
 import Foundation
 
 /// Static geometry of the SupertonicTTS-3 CoreML graphs (44.1 kHz, non-autoregressive
-/// flow-matching). Mirrors `speech-models/stmodels/infer.py` and the C++ `LiteRTSupertonicTts`.
+/// flow-matching). Mirrors the reference Python inference and the C++ `LiteRTSupertonicTts`.
 public struct SupertonicConfig: Codable, Sendable {
     /// Vocoder output rate.
     public let sampleRate: Int

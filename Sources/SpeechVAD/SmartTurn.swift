@@ -52,6 +52,7 @@ public final class SmartTurnModel: TurnCompletionProvider {
         modelId: String = defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> SmartTurnModel {
         let cacheDir = try cacheDir
@@ -63,6 +64,7 @@ public final class SmartTurnModel: TurnCompletionProvider {
             to: cacheDir,
             additionalFiles: ["\(compiledModelName)/**", "config.json"],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progress in
                 progressHandler?(progress * 0.8, "Downloading Smart Turn model...")
             }

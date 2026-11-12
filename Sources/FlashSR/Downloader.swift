@@ -10,6 +10,7 @@ public enum FlashSRDownloader {
 
     public static func ensureDownloaded(
         variant: FlashSRVariant,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double) -> Void)? = nil
     ) async throws -> Paths {
         let repoId = variant.huggingFaceRepoId
@@ -19,6 +20,7 @@ public enum FlashSRDownloader {
             to: dir,
             additionalFiles: ["model.safetensors", "config.json"],
             offlineMode: false,
+            downloadOptions: downloadOptions,
             progressHandler: progressHandler
         )
         return Paths(bundleDir: dir)

@@ -1,4 +1,5 @@
 import Foundation
+import MLXCommon
 import MLX
 import ArgumentParser
 import CohereTranscribeASR
@@ -168,9 +169,9 @@ public struct TranscribeCommand: ParsableCommand {
 
     private func runKyutaiTranscription() throws {
         try runAsync {
-            let previousCacheLimit = Memory.cacheLimit
-            Memory.cacheLimit = effectiveKyutaiCacheLimitMB * 1024 * 1024
-            defer { Memory.cacheLimit = previousCacheLimit }
+            let cacheLimitLease = MLXCacheLimitCoordinator.shared.acquire(
+                ceiling: effectiveKyutaiCacheLimitMB * 1024 * 1024)
+            defer { cacheLimitLease?.release() }
             let modelId = try resolveKyutaiModelId(model)
             let audio = try AudioFileLoader.load(
                 url: URL(fileURLWithPath: audioFile), targetSampleRate: KyutaiSTTConfig.sampleRate)

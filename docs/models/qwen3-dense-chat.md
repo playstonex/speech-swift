@@ -41,7 +41,7 @@ A textbook decoder-only transformer (no hybrid layers, no gating):
 
 ### MLX (Mac GPU)
 
-First-party exports (via `speech-models/export_mlx.py` → `mlx_lm.convert`), group size 64:
+First-party exports (via `mlx_lm.convert`), group size 64:
 
 | Repo | Quant | Bits/weight | Size |
 |------|-------|-------------|------|
@@ -115,5 +115,5 @@ int5 → argmax 1096 for tokens `[9707, 11, 1879, 0]`).
 
 ## Conversion
 
-- **MLX**: `speech-models/export_mlx.py --hf-path Qwen/Qwen3-4B-Instruct-2507 --q-bits {4,5}` —
-  quantizes via `mlx_lm.convert`. Publish with `speech-models/publish_mlx.py {4,5}`.
+- **MLX**: quantized from `Qwen/Qwen3-4B-Instruct-2507` with `mlx_lm.convert` at 4 and 5
+  bits.

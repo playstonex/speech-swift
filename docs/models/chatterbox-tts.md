@@ -67,12 +67,13 @@ The MLX clone path uses `ChatterboxMemoryOptions.balanced` by default. During
 `clone(...)` and standalone `ChatterboxS3Gen.synthesize(...)`, the runtime
 temporarily caps MLX cache memory at up to 512 MB without raising a stricter
 caller cap, clears reusable buffers between T3, S3Gen flow, and vocoder stages,
-then restores the caller's previous cache limit. This keeps long-form synthesis
+then releases its temporary registration in the shared cache coordinator. This keeps long-form synthesis
 from retaining large stage-local Metal buffers. A 72 s Russian clone on the
 local M-series test machine dropped from ~39.0 GB process footprint to ~7.4 GB
 with this policy. Pass
-`memoryOptions: .unrestricted` to preserve MLX's default cache behavior for
-maximum-throughput experiments.
+`memoryOptions: .unrestricted` to skip generation-stage limits and clears.
+The model's [default lifetime cache cap](../inference/mlx-memory.md) and any
+lower caller budget still apply.
 
 ## Chatterbox Flash Core ML
 

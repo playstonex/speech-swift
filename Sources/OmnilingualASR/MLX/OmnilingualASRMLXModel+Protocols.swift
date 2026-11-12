@@ -20,6 +20,8 @@ extension OmnilingualASRMLXModel: ModelMemoryManageable {
 
     public func unload() {
         guard _isLoaded else { return }
+        mlxCacheLimitLease?.release()
+        mlxCacheLimitLease = nil
         _isLoaded = false
     }
 

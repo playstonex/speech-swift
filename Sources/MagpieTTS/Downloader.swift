@@ -16,6 +16,7 @@ public enum MagpieTTSDownloader {
 
     public static func ensureDownloaded(
         variant: MagpieTTSVariant = .int8,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double) -> Void)? = nil
     ) async throws -> Paths {
         let repoId = variant.huggingFaceRepoId
@@ -44,6 +45,7 @@ public enum MagpieTTSDownloader {
                 "tokenizer/hi.json",
             ],
             offlineMode: false,
+            downloadOptions: downloadOptions,
             progressHandler: progressHandler)
         return Paths(
             bundleRoot: dir,

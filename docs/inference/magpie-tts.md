@@ -192,8 +192,7 @@ the speaker enum maps internally.
   gap.
 - **Streaming codec** is full-buffer-replay per chunk; a streaming-friendly
   codec state cache can drop streaming RTF below 0.3.
-- **FP16 bundle** is not on HuggingFace yet (export available locally in
-  `speech-models/models/magpie-tts/export/output/Magpie-TTS-Multilingual-357M-MLX-FP16`).
+- **FP16 bundle** is not on HuggingFace yet.
 - **CoreML LT + audio embeddings** — the CoreML bundle currently
   delegates the LocalTransformer + audio embedding averaging back to
   MLX. Shipping `local_transformer/*.npy` and `audio_embedding_*.npy`

@@ -50,6 +50,8 @@ public struct HiggsTTSSynthesisOptions: Equatable, Sendable {
 /// Higgs TTS 3 runtime: Qwen3 backbone, fused codebook interface, and the
 /// Higgs codec (decode for synthesis, encode for reference cloning).
 public final class HiggsTTSModel: SpeechGenerationModel, ModelMemoryManageable, @unchecked Sendable {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public static let defaultModelId = "aufklarer/Higgs-TTS-3-4B-MLX-bf16"
     public static let modelKey = "higgs-tts-3"
 
@@ -90,14 +92,19 @@ public final class HiggsTTSModel: SpeechGenerationModel, ModelMemoryManageable, 
         modelId: String = defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> HiggsTTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let directory = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
         try await HuggingFaceDownloader.downloadFiles(
             modelId: modelId,
             to: directory,
             files: requiredFiles,
-            offlineMode: offlineMode
+            offlineMode: offlineMode,
+            downloadOptions: downloadOptions
         ) { progress in
             progressHandler?(progress * 0.9, "Downloading Higgs TTS 3")
         }
@@ -110,6 +117,9 @@ public final class HiggsTTSModel: SpeechGenerationModel, ModelMemoryManageable, 
         _ directory: URL,
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> HiggsTTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         progressHandler?(0.05, "Loading Higgs TTS 3 bundle")
         for file in requiredFiles {
             let url = directory.appendingPathComponent(file)
@@ -132,6 +142,8 @@ public final class HiggsTTSModel: SpeechGenerationModel, ModelMemoryManageable, 
         fused = nil
         codecWeights = nil
         codec = nil
+        mlxCacheLimitLease?.release()
+        mlxCacheLimitLease = nil
         loaded = false
     }
 

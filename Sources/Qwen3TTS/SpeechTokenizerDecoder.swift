@@ -581,15 +581,16 @@ public class SpeechTokenizerDecoder: Module {
         // Transformer (8 layers with 512-dim bottleneck)
         self._transformer.wrappedValue = DecoderTransformer(config: config)
 
-        // Pre-upsample stages: latentDim -> latentDim (2x each)
+        // The checkpoint's pre-upsampling kernels equal their stride. Unlike
+        // the main decoder blocks, these layers need no right-side trim.
         let latent = config.latentDim
         self._preUpsample1.wrappedValue = CausalTransposeConv1d(
             inputChannels: latent, outputChannels: latent,
-            kernelSize: config.upsamplingRatios[0] * 2, stride: config.upsamplingRatios[0])
+            kernelSize: config.upsamplingRatios[0], stride: config.upsamplingRatios[0])
         self._preConvNeXt1.wrappedValue = ConvNeXtBlock(dim: latent)
         self._preUpsample2.wrappedValue = CausalTransposeConv1d(
             inputChannels: latent, outputChannels: latent,
-            kernelSize: config.upsamplingRatios[1] * 2, stride: config.upsamplingRatios[1])
+            kernelSize: config.upsamplingRatios[1], stride: config.upsamplingRatios[1])
         self._preConvNeXt2.wrappedValue = ConvNeXtBlock(dim: latent)
 
         // Input conv: latentDim -> decoderDim
@@ -713,9 +714,8 @@ public class SpeechTokenizerDecoder: Module {
             let chunkCodes = codes[0..., 0..., contextStart..<chunkEnd]  // [B, 16, contextFrames + chunkFrames]
             let chunkWaveform = executeDecoder(chunkCodes)  // [B, T_samples, 1]
 
-            // Trim left context samples — clamp to actual output length because
-            // convolutional boundary effects can make the decoder produce fewer
-            // samples than (inputFrames * samplesPerFrame), especially on short last chunks.
+            // Each frame expands to exactly 1920 samples. Remove the overlapping
+            // context, bounding the slice to the available output defensively.
             let trimSamples = min(actualContext * samplesPerFrame, chunkWaveform.dim(1))
             let totalSamples = chunkWaveform.dim(1)
             guard trimSamples < totalSamples else {

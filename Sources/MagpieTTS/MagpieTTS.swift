@@ -3,6 +3,7 @@ import MLX
 import MLXNN
 import MLXRandom
 import AudioCommon
+import MLXCommon
 
 /// Magpie-TTS Multilingual 357M (NVIDIA) — MLX port for Apple Silicon.
 ///
@@ -18,6 +19,8 @@ import AudioCommon
 ///   5. ``MagpieNanoCodec`` decodes the (T_frames, 8) code matrix to a 22.05
 ///      kHz waveform.
 public final class MagpieTTS {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
 
     // Sub-modules
     public let textEncoder: MagpieTextEncoder
@@ -53,14 +56,21 @@ public final class MagpieTTS {
 
     public static func fromPretrained(
         variant: MagpieTTSVariant = .int8,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double) -> Void)? = nil
     ) async throws -> MagpieTTS {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let paths = try await MagpieTTSDownloader.ensureDownloaded(
-            variant: variant, progressHandler: progressHandler)
+            variant: variant, downloadOptions: downloadOptions, progressHandler: progressHandler)
         return try MagpieTTS.load(from: paths)
     }
 
     public static func load(from paths: MagpieTTSDownloader.Paths) throws -> MagpieTTS {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let teCfg = try decode(
             MagpieTextEncoderConfig.self,
             from: paths.textEncoderDir.appendingPathComponent("config.json"))

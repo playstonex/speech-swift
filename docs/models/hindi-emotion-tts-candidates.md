@@ -85,7 +85,7 @@ format:
 ## Porting Order
 
 1. **Indic-Mio**
-   - Export script and bundle layout are in `speech-models`.
+   - Export script and bundle layout are in place.
    - Text LM, tokenizer, content-token range, MioCodec FSQ path, and decode
      timing are identified.
    - Swift target is present for bundle loading, token generation, and content

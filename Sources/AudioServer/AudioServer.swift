@@ -34,13 +34,15 @@ public struct AudioServer {
     let realtimeState: any RealtimeModelLoading
     let host: String
     let port: Int
+    let inference: NativeInferenceService?
 
-    public init(host: String = "127.0.0.1", port: Int = 8080, preload: Bool = false) {
+    public init(host: String = "127.0.0.1", port: Int = 8080, preload: Bool = false, inference: NativeInferenceService? = nil) {
         let state = ModelState()
         self.state = state
         self.realtimeState = state
         self.host = host
         self.port = port
+        self.inference = inference
     }
 
     init(
@@ -53,6 +55,7 @@ public struct AudioServer {
         self.realtimeState = realtimeState
         self.host = host
         self.port = port
+        self.inference = nil
     }
 
     public func run() async throws {
@@ -87,6 +90,7 @@ public struct AudioServer {
     func buildRouter() -> Router<BasicRequestContext> {
         let router = Router()
         let state = self.state
+        inference?.registerRoutes(on: router)
         let inferenceState = self.realtimeState
 
         router.get("/health") { _, _ in
@@ -1903,6 +1907,7 @@ func mapToKokoroLanguageCode(_ language: String) -> String {
     case "pt", "portuguese": return "pt"
     case "it", "italian": return "it"
     case "hi", "hindi": return "hi"
+    case "de", "deu", "german": return "de"
     default: return "en"
     }
 }

@@ -13,7 +13,7 @@ final class WhisperCoreMLRuntime: @unchecked Sendable {
     private let modelFolder: URL
     private let melModel: MLModel
     private let encoderModel: MLModel
-    private let decoderPrefillModel: MLModel
+    private let decoderPrefillModel: MLModel?
     private let decoderModel: MLModel
     private let tokenizer: WhisperByteLevelTokenizer
     private let generationConfig: WhisperGenerationConfig
@@ -35,7 +35,9 @@ final class WhisperCoreMLRuntime: @unchecked Sendable {
 
         self.melModel = try Self.loadModel("MelSpectrogram.mlmodelc", from: modelFolder, configuration: melConfig)
         self.encoderModel = try Self.loadModel("AudioEncoder.mlmodelc", from: modelFolder, configuration: neuralConfig)
-        self.decoderPrefillModel = try Self.loadModel("TextDecoderContextPrefill.mlmodelc", from: modelFolder, configuration: neuralConfig)
+        let prefillURL = modelFolder.appendingPathComponent("TextDecoderContextPrefill.mlmodelc")
+        self.decoderPrefillModel = FileManager.default.fileExists(atPath: prefillURL.path)
+            ? try Self.loadModel("TextDecoderContextPrefill.mlmodelc", from: modelFolder, configuration: neuralConfig) : nil
         self.decoderModel = try Self.loadModel("TextDecoder.mlmodelc", from: modelFolder, configuration: neuralConfig)
         self.tokenizer = try WhisperByteLevelTokenizer(modelFolder: modelFolder)
         self.generationConfig = try WhisperGenerationConfig.load(from: modelFolder)
@@ -94,7 +96,7 @@ final class WhisperCoreMLRuntime: @unchecked Sendable {
 
         let languageToken = try resolveLanguageToken(languageHint, encoderEmbeds: encoderEmbeds)
         let language = generationConfig.languageCode(forToken: languageToken)
-        let state = try makeDecoderState(languageToken: languageToken)
+        let state = try makeDecoderState(languageToken: languageToken, encoderEmbeds: encoderEmbeds)
         let generated = try decodeGreedy(encoderEmbeds: encoderEmbeds, state: state)
 
         return WhisperTranscription(
@@ -127,9 +129,9 @@ final class WhisperCoreMLRuntime: @unchecked Sendable {
             ?? generationConfig.englishToken
     }
 
-    private func makeDecoderState(languageToken: Int) throws -> DecoderState {
+    private func makeDecoderState(languageToken: Int, encoderEmbeds: MLMultiArray) throws -> DecoderState {
         let state = try makeEmptyDecoderState()
-
+        if let decoderPrefillModel {
         let prefillInputs = try MLDictionaryFeatureProvider(dictionary: [
             "language": MLFeatureValue(multiArray: scalarInt32(languageToken)),
             "task": MLFeatureValue(multiArray: scalarInt32(generationConfig.transcribeTaskIndex)),
@@ -143,7 +145,24 @@ final class WhisperCoreMLRuntime: @unchecked Sendable {
 
         copyCacheSlice(keyPrefill, into: state.keyCache, tokenCount: generationConfig.prefillCacheTokenCount)
         copyCacheSlice(valuePrefill, into: state.valueCache, tokenCount: generationConfig.prefillCacheTokenCount)
-
+        } else {
+            // Full Large-v3 bundles can omit the optional precomputed cache.
+            // Run the same prefix through the decoder using the actual audio.
+            for (position, token) in generationConfig.decoderPrefix(languageToken: languageToken).enumerated() {
+                state.inputIds[0] = NSNumber(value: Int32(token))
+                state.cacheLength[0] = NSNumber(value: Int32(position))
+                setFloat16(state.decoderKeyPaddingMask, at: position, to: 0)
+                setFloat16(state.kvCacheUpdateMask, at: position, to: 1)
+                let output = try predictDecoder(encoderEmbeds: encoderEmbeds, state: state)
+                guard let key = output.featureValue(for: "key_cache_updates")?.multiArrayValue,
+                      let value = output.featureValue(for: "value_cache_updates")?.multiArrayValue else {
+                    throw AudioModelError.inferenceFailed(operation: "Whisper prefix", reason: "Missing cache updates")
+                }
+                copyCacheUpdate(key, into: state.keyCache, at: position)
+                copyCacheUpdate(value, into: state.valueCache, at: position)
+                setFloat16(state.kvCacheUpdateMask, at: position, to: 0)
+            }
+        }
         for index in 0...generationConfig.prefillCacheTokenCount {
             setFloat16(state.decoderKeyPaddingMask, at: index, to: 0)
         }
@@ -161,15 +180,18 @@ final class WhisperCoreMLRuntime: @unchecked Sendable {
             state.inputIds[0] = NSNumber(value: Int32(nextToken))
             state.cacheLength[0] = NSNumber(value: Int32(tokenIndex))
 
-            let output = try predictDecoder(encoderEmbeds: encoderEmbeds, state: state)
-            guard let logits = output.featureValue(for: "logits")?.multiArrayValue,
-                  let keyUpdate = output.featureValue(for: "key_cache_updates")?.multiArrayValue,
-                  let valueUpdate = output.featureValue(for: "value_cache_updates")?.multiArrayValue
-            else {
-                throw AudioModelError.inferenceFailed(operation: "Whisper decoder", reason: "Missing decoder outputs")
+            let sampled = try autoreleasepool {
+                let output = try predictDecoder(encoderEmbeds: encoderEmbeds, state: state)
+                guard let logits = output.featureValue(for: "logits")?.multiArrayValue,
+                      let keyUpdate = output.featureValue(for: "key_cache_updates")?.multiArrayValue,
+                      let valueUpdate = output.featureValue(for: "value_cache_updates")?.multiArrayValue else {
+                    throw AudioModelError.inferenceFailed(operation: "Whisper decoder", reason: "Missing decoder outputs")
+                }
+                let token = argmax(logits: logits, generatedTokens: generated)
+                copyCacheUpdate(keyUpdate, into: state.keyCache, at: tokenIndex)
+                copyCacheUpdate(valueUpdate, into: state.valueCache, at: tokenIndex)
+                return token
             }
-
-            let sampled = argmax(logits: logits, generatedTokens: generated)
             if sampled == generationConfig.endToken {
                 break
             }
@@ -181,9 +203,6 @@ final class WhisperCoreMLRuntime: @unchecked Sendable {
                 }
                 generated = candidate
             }
-
-            copyCacheUpdate(keyUpdate, into: state.keyCache, at: tokenIndex)
-            copyCacheUpdate(valueUpdate, into: state.valueCache, at: tokenIndex)
 
             setFloat16(state.decoderKeyPaddingMask, at: tokenIndex + 1, to: 0)
             setFloat16(state.kvCacheUpdateMask, at: tokenIndex, to: 0)

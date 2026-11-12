@@ -1,4 +1,6 @@
 import AudioCommon
+import MLX
+import MLXCommon
 import Tokenizers
 import XCTest
 @testable import MossTranscribe
@@ -76,6 +78,56 @@ final class E2EMossTranscribeTests: XCTestCase {
             variant: .int8,
             localEnvironment: "MOSS_E2E_MLX_INT8_MODEL_DIR"
         )
+    }
+
+    func testMLXCacheLimitCoversLoadingAndInferenceThenRestoresCallerBudget()
+        async throws
+    {
+        let previousLimit = Memory.cacheLimit
+        defer {
+            Memory.clearCache()
+            Memory.cacheLimit = previousLimit
+        }
+        let callerLimit = 8 * 1024 * 1024 * 1024
+        Memory.cacheLimit = callerLimit
+        let expectedLimit = min(
+            2 * 1024 * 1024 * 1024,
+            Int(ProcessInfo.processInfo.physicalMemory) / 4
+        )
+        var limitBeforeWeights: Int?
+        var fixture: (audio: [Float], model: MossMLXModel)? = try await loadMLXFixture(
+            variant: .int8,
+            localEnvironment: "MOSS_E2E_MLX_INT8_MODEL_DIR",
+            progressHandler: { _, message in
+                if message == "Loading MOSS MLX audio encoder..." {
+                    limitBeforeWeights = Memory.cacheLimit
+                }
+            }
+        )
+        XCTAssertEqual(limitBeforeWeights, expectedLimit)
+        XCTAssertEqual(Memory.cacheLimit, expectedLimit)
+        try XCTUnwrap(fixture).model.warmUp()
+        let result = try XCTUnwrap(fixture).model.transcribeDetailed(
+            audio: XCTUnwrap(fixture).audio,
+            sampleRate: MossMLXModel.inputSampleRate
+        )
+        XCTAssertEqual(
+            result.text,
+            "Can you guarantee that the replacement part will be shipped tomorrow?"
+        )
+        XCTAssertEqual(result.metrics.stopReason, .endOfSequence)
+        XCTAssertEqual(Memory.cacheLimit, expectedLimit)
+        let otherCeiling = min(expectedLimit, 512 * 1024 * 1024)
+        let firstOwner = MLXCacheLimitCoordinator.shared.acquire(ceiling: otherCeiling)
+        XCTAssertEqual(Memory.cacheLimit, otherCeiling)
+        firstOwner?.release()
+        XCTAssertEqual(Memory.cacheLimit, expectedLimit)
+
+        let remainingOwner = MLXCacheLimitCoordinator.shared.acquire(ceiling: otherCeiling)
+        fixture = nil
+        XCTAssertEqual(Memory.cacheLimit, otherCeiling)
+        remainingOwner?.release()
+        XCTAssertEqual(Memory.cacheLimit, callerLimit)
     }
 
     func testMLXINT5WeightsWithINT8KVCacheProduceStructuredTranscript()
@@ -267,7 +319,8 @@ final class E2EMossTranscribeTests: XCTestCase {
 
     private func loadMLXFixture(
         variant: MossMLXVariant,
-        localEnvironment: String
+        localEnvironment: String,
+        progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> (audio: [Float], model: MossMLXModel) {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -290,11 +343,13 @@ final class E2EMossTranscribeTests: XCTestCase {
         ] {
             model = try await MossMLXModel.fromDirectory(
                 URL(fileURLWithPath: local),
-                modelId: "local/MOSS-MLX-\(variant.rawValue.uppercased())"
+                modelId: "local/MOSS-MLX-\(variant.rawValue.uppercased())",
+                progressHandler: progressHandler
             )
         } else {
             model = try await MossMLXModel.fromPretrained(
-                variant: variant
+                variant: variant,
+                progressHandler: progressHandler
             )
         }
         return (audio, model)

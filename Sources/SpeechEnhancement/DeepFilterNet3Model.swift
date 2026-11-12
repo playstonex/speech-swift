@@ -15,7 +15,7 @@ class DeepFilterNet3Network {
     ///
     /// On-device ``MLModel.compileModel`` drifts per runtime (Mac vs
     /// simulator vs iPhone), so we require a pre-compiled bundle. The
-    /// publishing pipeline (``speech-models/models/deepfilternet``) ships
+    /// publishing pipeline ships
     /// only ``.mlmodelc`` for this reason.
     init(modelURL: URL, computeUnits: MLComputeUnits = .all) throws {
         let config = MLModelConfiguration()

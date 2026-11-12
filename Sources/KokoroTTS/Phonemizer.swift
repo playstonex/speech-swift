@@ -7,6 +7,9 @@ import NaturalLanguage
 /// English: dictionary lookup → suffix stemming → CoreML BART G2P fallback.
 /// Chinese/Japanese/Italian: dedicated language-specific phonemizers.
 /// French/Spanish/Portuguese/Hindi: pronunciation dictionary + rule-based G2P.
+/// German: number/abbreviation normalization, `dict_de.json` (shipped with the
+/// German voice bundles), inflection/compound fallbacks and rule-based G2P in
+/// the espeak-ng convention the German voices were trained on.
 public final class KokoroPhonemizer {
 
     /// IPA symbol → token ID mapping (from vocab_index.json).
@@ -20,6 +23,11 @@ public final class KokoroPhonemizer {
 
     /// Silver dictionary (lower-confidence entries).
     private var silverDict: [String: DictEntry] = [:]
+
+    /// German pronunciation dictionary (`dict_de.json`), loaded with the
+    /// German voice bundles. Empty for the multilingual bundle, where the
+    /// German rules alone still produce German phonemes.
+    private var germanDict: [String: String] = [:]
 
     /// CoreML G2P encoder model.
     private var g2pEncoder: MLModel?
@@ -125,6 +133,18 @@ public final class KokoroPhonemizer {
         }
     }
 
+    /// Load the German dictionary (`dict_de.json`, flat `{"word": "phonemes"}`)
+    /// when the bundle ships one.
+    public func loadGermanDictionary(from directory: URL) throws {
+        let url = directory.appendingPathComponent("dict_de.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        let data = try Data(contentsOf: url)
+        germanDict = try JSONDecoder().decode([String: String].self, from: data)
+    }
+
+    /// Number of entries in the loaded German dictionary.
+    public var germanDictionarySize: Int { germanDict.count }
+
     /// Load separate G2P encoder + decoder CoreML models.
     public func loadG2PModels(encoderURL: URL, decoderURL: URL, vocabURL: URL) throws {
         let config = MLModelConfiguration()
@@ -167,6 +187,7 @@ public final class KokoroPhonemizer {
     private lazy var spanishPhonemizer = LatinPhonemizer(language: .spanish)
     private lazy var portuguesePhonemizer = LatinPhonemizer(language: .portuguese)
     private lazy var italianPhonemizer = LatinPhonemizer(language: .italian)
+    private lazy var germanPhonemizer = GermanPhonemizer()
 
     // MARK: - Tokenization
 
@@ -188,6 +209,8 @@ public final class KokoroPhonemizer {
             phonemes = phonemizeWithDict(text, dict: PronunciationDicts.pt, fallback: portuguesePhonemizer)
         case "hi", "hindi":
             phonemes = phonemizeWithDict(text, dict: PronunciationDicts.hi, fallback: hindiPhonemizer)
+        case "de", "deu", "german":
+            phonemes = germanPhonemizer.phonemize(text, dictionary: germanDict)
         default:
             phonemes = textToPhonemes(text)
         }

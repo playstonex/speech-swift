@@ -87,6 +87,7 @@ public final class SpeechRestorer {
         computeUnits: MLComputeUnits? = nil,
         predictorComputeUnits: MLComputeUnits? = nil,
         vocoderComputeUnits: MLComputeUnits? = nil,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> SpeechRestorer {
         let placement = SidonComputePlacement.resolve(
@@ -100,6 +101,7 @@ public final class SpeechRestorer {
             variant: variant,
             cacheDir: cacheDir,
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progressHandler?($0 * 0.8, "Downloading model...") }
         )
 

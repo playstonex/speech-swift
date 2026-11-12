@@ -1,7 +1,7 @@
 import Foundation
 
 /// Configuration for Hybrid Transformer Demucs (Demucs v4), decoded from the
-/// `<model>_config.json` produced by the speech-models exporter.
+/// `<model>_config.json` produced by the exporter.
 ///
 /// `htdemucs_ft` is a bag of 4 sub-models (one fine-tuned per source). The bag
 /// `weights` are diagonal — model `i` contributes only source `i` — so

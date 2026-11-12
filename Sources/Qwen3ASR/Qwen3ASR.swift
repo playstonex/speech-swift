@@ -142,7 +142,7 @@ public class Qwen3ASRModel {
 
     /// Registration in the shared cache-budget coordinator. Released by
     /// `unload()` or automatically when this model is destroyed.
-    var mlxCacheLimitLease: Qwen3ASRCacheLimitCoordinator.Lease?
+    var mlxCacheLimitLease: Qwen3ASRCacheLimitCoordinator.Lease? = MLXCacheLimitCoordinator.shared.acquireDefault()
 
     init(
         audioConfig: Qwen3AudioEncoderConfig = .default,
@@ -1339,6 +1339,7 @@ public extension Qwen3ASRModel {
         modelId: String = "aufklarer/Qwen3-ASR-0.6B-MLX-4bit",
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Qwen3ASRModel {
         progressHandler?(0.0, "Downloading model...")
@@ -1372,6 +1373,7 @@ public extension Qwen3ASRModel {
             to: cacheDir,
             additionalFiles: ["vocab.json", "merges.txt", "tokenizer_config.json"],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progress in
                 progressHandler?(progress * 0.8, "Downloading weights...")
             }

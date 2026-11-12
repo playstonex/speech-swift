@@ -1,14 +1,19 @@
 #if canImport(CoreML)
 import XCTest
 import Foundation
+import CoreML
 import AudioCommon
 @testable import Qwen3ASR
 
 /// End-to-end tests for the CoreML forced aligner pipeline (audio_encoder
 /// + embedding + text_decoder + classify head). Loads the published
 /// ``aufklarer/Qwen3-ForcedAligner-0.6B-CoreML-FP16`` bundle and verifies
-/// that the produced alignment is finite, monotonic, and lands inside the
-/// audio clip's duration window.
+/// that the produced alignment is finite, monotonic, lands inside the clip,
+/// and matches reference word starts and ends within three 80 ms timestamp classes.
+///
+/// Set `ALIGNER_COREML_PUBLISHED_E2E=1` to enable these tests. To reuse
+/// compiled bundle copies offline, set `ALIGNER_COREML_PUBLISHED_CACHE_ROOT`
+/// to a directory containing `fp16/` and `int8/` bundle directories.
 ///
 /// Regression coverage:
 /// - Catches the prior NaN bug in the text decoder (the upstream fp16
@@ -45,26 +50,59 @@ final class E2ECoreMLForcedAlignerTests: XCTestCase {
         )
     }
 
+    func testFP16CPUOnlyMatchesReferenceBoundaries() async throws {
+        try await runAligner(
+            modelId: "aufklarer/Qwen3-ForcedAligner-0.6B-CoreML-FP16",
+            variantLabel: "FP16", computeUnits: .cpuOnly)
+    }
+
+    func testINT8CPUOnlyMatchesReferenceBoundaries() async throws {
+        try await runAligner(
+            modelId: "aufklarer/Qwen3-ForcedAligner-0.6B-CoreML-INT8",
+            variantLabel: "INT8", computeUnits: .cpuOnly)
+    }
+
     // MARK: - Shared body
 
-    private func runAligner(modelId: String, variantLabel: String) async throws {
+    private func runAligner(
+        modelId: String, variantLabel: String, computeUnits: MLComputeUnits? = nil
+    ) async throws {
         guard let wavURL = Bundle.module.url(forResource: "test_audio", withExtension: "wav") else {
             throw XCTSkip("test_audio.wav not found in Qwen3ASRTests resources")
         }
 
         let aligner: CoreMLForcedAligner
+        let cacheDirectory = ProcessInfo.processInfo.environment["ALIGNER_COREML_PUBLISHED_CACHE_ROOT"]
+            .map { URL(fileURLWithPath: $0, isDirectory: true)
+                .appendingPathComponent(variantLabel.lowercased(), isDirectory: true) }
         do {
-            aligner = try await CoreMLForcedAligner.fromPretrained(
-                modelId: modelId
-            ) { progress, status in
+            let progressHandler: (Double, String) -> Void = { progress, status in
                 if Int(progress * 100) % 25 == 0 {
                     print(String(format: "  [%@] loading: %.0f%% — %@",
                                  variantLabel, progress * 100, status))
                 }
             }
+            if let computeUnits {
+                aligner = try await CoreMLForcedAligner.fromPretrained(
+                    modelId: modelId,
+                    encoderComputeUnits: computeUnits, decoderComputeUnits: computeUnits,
+                    cacheDir: cacheDirectory, offlineMode: cacheDirectory != nil,
+                    progressHandler: progressHandler)
+            } else {
+                // Exercise the loader's real defaults in the existing GPU checks.
+                aligner = try await CoreMLForcedAligner.fromPretrained(
+                    modelId: modelId, cacheDir: cacheDirectory,
+                    offlineMode: cacheDirectory != nil, progressHandler: progressHandler)
+            }
         } catch {
+            // Explicit CPU compatibility checks and supplied local bundles
+            // must fail visibly rather than turn a loader failure into a skip.
+            if cacheDirectory != nil || computeUnits != nil { throw error }
             throw XCTSkip("CoreML aligner \(variantLabel) bundle unavailable: \(error)")
         }
+
+        let execution = computeUnits.map(CoreMLComputeUnitsResolver.shortName) ?? "default"
+        print("[COREML-ALIGN-COMPAT] variant=\(variantLabel) execution=\(execution) os=\(ProcessInfo.processInfo.operatingSystemVersionString)")
 
         let (samples, sampleRate) = try AudioFileLoader.loadWAV(url: wavURL)
         let targetSampleRate = 16000
@@ -141,6 +179,20 @@ final class E2ECoreMLForcedAlignerTests: XCTestCase {
             span, 0.5,
             "[\(variantLabel)] Alignment span \(span)s is too small — "
             + "suggests NaN/argmax-0 collapse")
+
+        // PyTorch reference for this fixture (issue #546). Shape, span and
+        // monotonicity alone also accept the incorrect 16–18 s alignment.
+        let referenceStarts: [Float] = [5.28, 5.52, 5.52, 6.16, 6.80, 6.88,
+                                        7.04, 7.36, 7.44, 8.00, 8.40]
+        let referenceEnds: [Float] = [5.44, 5.52, 6.16, 6.32, 6.88, 7.04,
+                                      7.36, 7.44, 8.00, 8.40, 8.96]
+        XCTAssertEqual(aligned.map(\.text), Self.referenceText.split(separator: " ").map(String.init))
+        for (word, expected) in zip(aligned, zip(referenceStarts, referenceEnds)) {
+            XCTAssertEqual(word.startTime, expected.0, accuracy: 0.24,
+                           "[\(variantLabel)] Incorrect start time for '\(word.text)'")
+            XCTAssertEqual(word.endTime, expected.1, accuracy: 0.24,
+                           "[\(variantLabel)] Incorrect end time for '\(word.text)'")
+        }
     }
 }
 #endif

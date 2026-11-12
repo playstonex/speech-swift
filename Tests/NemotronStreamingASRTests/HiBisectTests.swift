@@ -17,7 +17,10 @@ final class E2EHiBisect: XCTestCase {
             throw XCTSkip("local bundle missing")
         }
 
-        let fleurs = URL(fileURLWithPath: "/Users/ivan/repos/speech-models/benchmarks/fleurs/hi_in")
+        guard let fleursRoot = ProcessInfo.processInfo.environment["FLEURS_ROOT"] else {
+            throw XCTSkip("set FLEURS_ROOT to the materialized FLEURS data")
+        }
+        let fleurs = URL(fileURLWithPath: fleursRoot).appendingPathComponent("hi_in")
         let tsvLines = try String(contentsOf: fleurs.appendingPathComponent("test.tsv"))
             .components(separatedBy: .newlines)
             .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }

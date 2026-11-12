@@ -1,7 +1,10 @@
 import Foundation
 import AudioCommon
+import MLXCommon
 
 public final class Audio2Face3DModel: @unchecked Sendable {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public let backend: Audio2Face3DBackend
     public let configuration: Audio2Face3DConfiguration
 
@@ -27,6 +30,9 @@ public final class Audio2Face3DModel: @unchecked Sendable {
         backend: Audio2Face3DBackend = .mlx,
         configuration: Audio2Face3DConfiguration = Audio2Face3DConfiguration()
     ) throws -> Audio2Face3DModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let resolvedConfiguration = try Audio2Face3DDownloader.configuration(
             from: directory,
             fallback: configuration)
@@ -52,15 +58,20 @@ public final class Audio2Face3DModel: @unchecked Sendable {
         backend: Audio2Face3DBackend = .mlx,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Audio2Face3DModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         var configuration = Audio2Face3DConfiguration(modelId: modelId)
         let dir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
         progressHandler?(0.0, "Downloading Audio2Face-3D...")
         try await Audio2Face3DDownloader.ensureDownloaded(
             modelId: modelId,
             to: dir,
-            offlineMode: offlineMode
+            offlineMode: offlineMode,
+            downloadOptions: downloadOptions
         ) { progress, _, _, file in
             progressHandler?(progress * 0.90, file.isEmpty ? "Downloading Audio2Face-3D..." : "Downloading \(file)...")
         }

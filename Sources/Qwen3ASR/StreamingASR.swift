@@ -71,12 +71,13 @@ public class StreamingASR {
         vadModelId: String = SileroVADModel.defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> StreamingASR {
         let asr = try await Qwen3ASRModel.fromPretrained(
-            modelId: asrModelId, cacheDir: cacheDir, offlineMode: offlineMode, progressHandler: progressHandler)
+            modelId: asrModelId, cacheDir: cacheDir, offlineMode: offlineMode, downloadOptions: downloadOptions, progressHandler: progressHandler)
         let vad = try await SileroVADModel.fromPretrained(
-            modelId: vadModelId, cacheDir: cacheDir, offlineMode: offlineMode, progressHandler: progressHandler)
+            modelId: vadModelId, cacheDir: cacheDir, offlineMode: offlineMode, downloadOptions: downloadOptions, progressHandler: progressHandler)
         return StreamingASR(asrModel: asr, vadModel: vad)
     }
 

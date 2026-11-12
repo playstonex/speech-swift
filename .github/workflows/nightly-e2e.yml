@@ -17,8 +17,22 @@ on:
   workflow_dispatch:
     inputs:
       shard:
-        description: 'Run a single shard (regex matching matrix shard name); leave blank for all'
+        description: 'Run a shard by name; coreml-aligner-cpu-compat runs only the CPU compatibility probe'
         required: false
+        default: ''
+      cpu_aligner_mode:
+        description: 'CPU compatibility probe: published bundles or graph candidate comparison'
+        type: choice
+        options:
+          - published
+          - candidates
+          - legacy
+        default: published
+      cpu_aligner_int8_revision:
+        description: 'Optional 40-character model commit for the published CPU INT8 check'
+        default: ''
+      cpu_aligner_fp16_revision:
+        description: 'Optional 40-character model commit for the published CPU FP16 check'
         default: ''
 
 concurrency:
@@ -27,6 +41,7 @@ concurrency:
 
 jobs:
   e2e:
+    if: github.event.inputs.shard != 'coreml-aligner-cpu-compat'
     runs-on: macos-15
     # Per-shard cap. Healthy shards finish in <15 min on cpuOnly; 30 min
     # bounds any stuck shard so it fails fast (with logs) instead of holding
@@ -142,7 +157,12 @@ jobs:
           - name: qwen3-asr-streaming-mlx-coreml
             # StreamingASR loads ASR-0.6B-4bit + SileroVAD per test method;
             # 3 methods × fresh load = enough memory churn to deserve isolation.
-            filter: 'StreamingASRTests'
+            filter: '^Qwen3ASRTests[.]StreamingASRTests/'
+            skip: ''
+          - name: nemotron-streaming-mlx-coreml
+            # Match the target explicitly: an unanchored StreamingASRTests
+            # also selects Nemotron and Parakeet under the Qwen3 shard name.
+            filter: '^NemotronStreamingASRTests[.]'
             skip: ''
           - name: cosyvoice-mlx-coreml
             # Keep the full CosyVoice pipeline E2E, but skip the redundant
@@ -175,7 +195,7 @@ jobs:
       # Package.resolved is gitignored, so it never exists in the checkout and
       # never contributed to this key — hash the manifest alone.
       #
-      # The restore-keys fallbacks are kept deliberately: 13 shards each need a
+      # The restore-keys fallbacks are kept deliberately: each shard needs a
       # warm .build, and a manifest edit would otherwise cold-build all of them
       # inside the 30-minute shard cap. The risk they carry — restoring a stale
       # or corrupt archive — is handled by the resolve step below rather than by
@@ -252,6 +272,190 @@ jobs:
         if: always() && steps.shard-filter.outputs.selected == 'true'
         run: |
           du -sh ~/Library/Caches/qwen3-speech 2>/dev/null || echo "(no cache)"
+
+  cpu-aligner-compatibility:
+    name: CoreML aligner CPU compatibility
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.shard == 'coreml-aligner-cpu-compat'
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      SPEECH_COREML_COMPUTE_UNITS: cpuOnly
+      ALIGNER_COREML_PUBLISHED_E2E: '1'
+      ALIGN_DEBUG: '1'
+      COREML_ALIGN_PROFILE: '1'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/cache@v5
+        with:
+          path: .build
+          key: spm-nightly-${{ runner.os }}-${{ hashFiles('Package.swift') }}
+          restore-keys: |
+            spm-nightly-${{ runner.os }}-
+            spm-${{ runner.os }}-
+      - name: Resolve dependencies
+        run: ./scripts/ci_resolve.sh
+      - name: Build tests and metallib
+        run: |
+          swift build --build-tests --disable-sandbox
+          ./scripts/build_mlx_metallib.sh debug
+      - name: Download the pinned compiled INT8 bundles
+        if: github.event.inputs.cpu_aligner_mode != 'published'
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path, PurePosixPath
+          from urllib.request import urlopen
+
+          repo = 'aufklarer/Qwen3-ForcedAligner-0.6B-CoreML-INT8'
+          revision = 'ac27c13a9dae935e7d478b996d89d94ff617e3ca'
+          cache = Path(os.environ['RUNNER_TEMP']) / 'aligner-cpu-compat'
+          root = cache / 'int8'
+          tree = json.load(urlopen(f'https://huggingface.co/api/models/{repo}/tree/{revision}?recursive=true', timeout=90))
+          metadata = {'config.json', 'vocab.json', 'merges.txt', 'tokenizer_config.json', 'embed_tokens.fp16.bin'}
+          files = [entry for entry in tree if entry['type'] == 'file' and (
+              entry['path'].startswith(('audio_encoder.mlmodelc/', 'text_decoder.mlmodelc/'))
+              or entry['path'] in metadata)]
+          assert metadata <= {entry['path'] for entry in files}
+          for entry in files:
+              relative = PurePosixPath(entry['path'])
+              assert not relative.is_absolute() and '..' not in relative.parts
+              target = root / relative
+              target.parent.mkdir(parents=True, exist_ok=True)
+              lfs = entry.get('lfs')
+              digest = hashlib.sha256() if lfs else hashlib.sha1()
+              if not lfs:
+                  digest.update(f"blob {entry['size']}\0".encode())
+              with urlopen(f"https://huggingface.co/{repo}/resolve/{revision}/{entry['path']}", timeout=90) as response, target.open('wb') as output:
+                  while chunk := response.read(1024 * 1024):
+                      output.write(chunk)
+                      digest.update(chunk)
+              assert target.stat().st_size == entry['size'], entry['path']
+              assert digest.hexdigest() == (lfs['oid'] if lfs else entry['oid']), entry['path']
+          (root / 'compatibility-revision.json').write_text(json.dumps({'repo': repo, 'revision': revision}, indent=2))
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write(f'ALIGNER_COREML_PUBLISHED_CACHE_ROOT={cache}\n')
+          print(f'Prepared {len(files)} pinned files ({sum(entry["size"] for entry in files)} bytes)')
+          PY
+      - name: Download versioned CPU decoders at verified model commits
+        if: github.event.inputs.cpu_aligner_mode == 'published'
+        env:
+          INT8_REVISION: ${{ github.event.inputs.cpu_aligner_int8_revision }}
+          FP16_REVISION: ${{ github.event.inputs.cpu_aligner_fp16_revision }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, re
+          from pathlib import Path, PurePosixPath
+          from urllib.request import urlopen
+
+          cache = Path(os.environ['RUNNER_TEMP']) / 'aligner-cpu-release'
+          total_bytes = 0
+          for variant in ('int8', 'fp16'):
+              repo = f'aufklarer/Qwen3-ForcedAligner-0.6B-CoreML-{variant.upper()}'
+              revision = os.environ[f'{variant.upper()}_REVISION']
+              if not revision:
+                  with urlopen(f'https://huggingface.co/api/models/{repo}', timeout=90) as response:
+                      model = json.load(response)
+                  assert not model['private']
+                  revision = model['sha']
+              assert re.fullmatch('[0-9a-f]{40}', revision), 'Use an immutable model commit'
+              with urlopen(f'https://huggingface.co/api/models/{repo}/tree/{revision}?recursive=true', timeout=90) as response:
+                  tree = json.load(response)
+              metadata = {'config.json', 'vocab.json', 'merges.txt', 'tokenizer_config.json', 'embed_tokens.fp16.bin'}
+              files = [entry for entry in tree if entry['type'] == 'file' and (
+                  entry['path'].startswith(('audio_encoder.mlmodelc/', 'text_decoder_cpu_v1.mlmodelc/'))
+                  or entry['path'] in metadata)]
+              required = metadata | {'text_decoder_cpu_v1.mlmodelc/model.mil',
+                                     'text_decoder_cpu_v1.mlmodelc/weights/weight.bin',
+                                     'audio_encoder.mlmodelc/weights/weight.bin'}
+              assert required <= {entry['path'] for entry in files}, 'CPU release is incomplete'
+              total_bytes += sum(entry['size'] for entry in files)
+              assert total_bytes < 3_200_000_000, 'CPU probe exceeds its bounded download size'
+              for entry in files:
+                  relative = PurePosixPath(entry['path'])
+                  assert not relative.is_absolute() and '..' not in relative.parts
+                  target = cache / variant / relative
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  lfs = entry.get('lfs')
+                  digest = hashlib.sha256() if lfs else hashlib.sha1()
+                  if not lfs:
+                      digest.update(f"blob {entry['size']}\0".encode())
+                  with urlopen(f"https://huggingface.co/{repo}/resolve/{revision}/{entry['path']}", timeout=90) as response, target.open('wb') as output:
+                      while chunk := response.read(1024 * 1024):
+                          output.write(chunk)
+                          digest.update(chunk)
+                  assert target.stat().st_size == entry['size'], entry['path']
+                  assert digest.hexdigest() == (lfs['oid'] if lfs else entry['oid']), entry['path']
+              (cache / variant / 'compatibility-revision.json').write_text(json.dumps(
+                  {'repo': repo, 'revision': revision, 'decoder': 'text_decoder_cpu_v1'}, indent=2))
+              print(f'{variant}: {revision}, {len(files)} verified files')
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write(f'ALIGNER_COREML_PUBLISHED_CACHE_ROOT={cache}\n')
+          print(f'Prepared CPU release inputs ({total_bytes} bytes)')
+          PY
+      - uses: actions/setup-python@v6
+        if: github.event.inputs.cpu_aligner_mode != 'legacy'
+        with:
+          python-version: '3.11'
+      - name: Check graph and release helpers
+        if: github.event.inputs.cpu_aligner_mode != 'legacy'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/coreml-probe-tools"
+          "$RUNNER_TEMP/coreml-probe-tools/bin/pip" install 'coremltools==9.0'
+          "$RUNNER_TEMP/coreml-probe-tools/bin/python" -m unittest discover \
+            -s scripts/tests -p 'test_prepare_coreml_aligner_cpu*.py' -v
+          swiftc -O scripts/probe_coreml_aligner_cpu.swift -o "$RUNNER_TEMP/probe-coreml-aligner-cpu"
+      - name: Prepare diagnostic graph candidates
+        if: github.event.inputs.cpu_aligner_mode == 'candidates'
+        run: |
+          "$RUNNER_TEMP/coreml-probe-tools/bin/python" scripts/prepare_coreml_aligner_cpu_probe.py \
+            --cache-root "$ALIGNER_COREML_PUBLISHED_CACHE_ROOT" \
+            --output-root "$RUNNER_TEMP/aligner-cpu-candidates"
+      - name: Reproduce legacy CPU-only word boundaries
+        if: github.event.inputs.cpu_aligner_mode == 'legacy'
+        run: >
+          swift test --skip-build --no-parallel
+          --filter E2ECoreMLForcedAlignerTests/testINT8CPUOnlyMatchesReferenceBoundaries
+      - name: Check published CPU-only INT8 and FP16 boundaries in separate processes
+        if: github.event.inputs.cpu_aligner_mode == 'published'
+        run: |
+          for variant in int8 fp16; do
+            if [ "$variant" = int8 ]; then label=INT8; else label=FP16; fi
+            "$RUNNER_TEMP/probe-coreml-aligner-cpu" \
+              "$ALIGNER_COREML_PUBLISHED_CACHE_ROOT/$variant/text_decoder_cpu_v1.mlmodelc"
+            swift test --skip-build --no-parallel \
+              --filter "E2ECoreMLForcedAlignerTests/test${label}CPUOnlyMatchesReferenceBoundaries"
+          done
+      - name: Compare CPU decoder candidates in separate processes
+        if: github.event.inputs.cpu_aligner_mode == 'candidates'
+        run: |
+          published_cache="$ALIGNER_COREML_PUBLISHED_CACHE_ROOT"
+          candidate_passes=0
+          echo '| Decoder | Reference word boundaries |' >> "$GITHUB_STEP_SUMMARY"
+          echo '| --- | --- |' >> "$GITHUB_STEP_SUMMARY"
+          for candidate in published recompile output32 norm32; do
+            if [ "$candidate" = published ]; then
+              export ALIGNER_COREML_PUBLISHED_CACHE_ROOT="$published_cache"
+            else
+              export ALIGNER_COREML_PUBLISHED_CACHE_ROOT="$RUNNER_TEMP/aligner-cpu-candidates/$candidate"
+            fi
+            echo "::group::CPU compatibility: $candidate"
+            "$RUNNER_TEMP/probe-coreml-aligner-cpu" \
+              "$ALIGNER_COREML_PUBLISHED_CACHE_ROOT/int8/text_decoder.mlmodelc"
+            if swift test --skip-build --no-parallel \
+              --filter E2ECoreMLForcedAlignerTests/testINT8CPUOnlyMatchesReferenceBoundaries; then
+              outcome=PASS
+              if [ "$candidate" != published ]; then
+                candidate_passes=$((candidate_passes + 1))
+              fi
+            else
+              outcome=FAIL
+            fi
+            echo "| $candidate | $outcome |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::endgroup::"
+          done
+          # The published model is the known failing control. A comparison is
+          # successful only if a candidate passes the unchanged boundary test.
+          test "$candidate_passes" -gt 0
 
   notify:
     name: Discord notify (on failure)

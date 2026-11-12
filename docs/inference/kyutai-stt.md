@@ -32,7 +32,7 @@ speech transcribe recording.wav --engine kyutai --model 2.6b
 | INT4 | [aufklarer/Kyutai-STT-1B-MLX-4bit](https://huggingface.co/aufklarer/Kyutai-STT-1B-MLX-4bit) |
 | FP16 | [aufklarer/Kyutai-STT-1B-MLX-FP16](https://huggingface.co/aufklarer/Kyutai-STT-1B-MLX-FP16) |
 
-`--mlx-cache-limit-mb` controls the process-wide pool of reusable MLX buffers. Kyutai CLI commands default to 256 MiB; zero disables that pool. The CLI restores the previous setting on return, including failures. Model APIs leave this policy to the caller. In the paired 16-clip INT8 profile, a 256 MiB limit reduced peak physical footprint from 4,863 to 1,947 MiB with identical transcripts and 1.6% lower throughput in that single pair. RSS and physical footprint are different measurements; see the [benchmark report](../benchmarks/kyutai-stt.md).
+`--mlx-cache-limit-mb` controls the process-wide pool of reusable MLX buffers. Kyutai CLI commands default to 256 MiB; zero disables that pool. The CLI restores the previous setting on return, including failures. Model APIs now apply the shared default of `min(2 GiB, physical RAM / 4)` while loaded and preserve a lower caller budget; see [MLX memory policy](mlx-memory.md). In the paired 16-clip INT8 profile, a 256 MiB limit reduced peak physical footprint from 4,863 to 1,947 MiB with identical transcripts and 1.6% lower throughput in that single pair. RSS and physical footprint are different measurements; see the [benchmark report](../benchmarks/kyutai-stt.md).
 
 Applications can set the same process-wide policy explicitly before loading models:
 

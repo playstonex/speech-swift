@@ -34,6 +34,7 @@ public enum WeSpeakerEngine: String, Sendable {
 /// // embedding: [Float] of length 256
 /// ```
 public final class WeSpeakerModel {
+    var mlxCacheLimitLease: MLXCacheLimitCoordinator.Lease?
 
     /// The inference engine in use.
     public let engine: WeSpeakerEngine
@@ -68,6 +69,8 @@ public final class WeSpeakerModel {
     static let enumeratedMelLengths = [20, 50, 100, 200, 300, 500, 750, 1000, 1500, 2000]
 
     init(network: WeSpeakerNetwork) {
+        mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
         self.engine = .mlx
         self.network = network
         self.melExtractor = MelFeatureExtractor()
@@ -99,6 +102,7 @@ public final class WeSpeakerModel {
         engine: WeSpeakerEngine = .mlx,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> WeSpeakerModel {
         let resolvedModelId = modelId ?? (engine == .coreml ? defaultCoreMLModelId : defaultModelId)
@@ -109,10 +113,13 @@ public final class WeSpeakerModel {
 
         switch engine {
         case .mlx:
+            let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+            defer { loadingCacheLimit?.release() }
             try await HuggingFaceDownloader.downloadWeights(
                 modelId: resolvedModelId,
                 to: cacheDir,
                 offlineMode: offlineMode,
+                downloadOptions: downloadOptions,
                 progressHandler: { progress in
                     progressHandler?(progress * 0.8, "Downloading weights...")
                 }
@@ -133,6 +140,7 @@ public final class WeSpeakerModel {
                 to: cacheDir,
                 additionalFiles: ["wespeaker.mlmodelc/**", "config.json"],
                 offlineMode: offlineMode,
+                downloadOptions: downloadOptions,
                 progressHandler: { progress in
                     progressHandler?(progress * 0.8, "Downloading CoreML model...")
                 }

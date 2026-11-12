@@ -1,7 +1,10 @@
 import AudioCommon
 import Foundation
+import MLXCommon
 
 public final class IndexTTS2TTSModel: SpeechGenerationModel, ModelMemoryManageable, @unchecked Sendable {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public static let defaultModelId = "aufklarer/IndexTTS2-MLX-fp16"
     public static let modelKey = "indextts2"
 
@@ -111,13 +114,18 @@ public final class IndexTTS2TTSModel: SpeechGenerationModel, ModelMemoryManageab
         modelId: String = defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> IndexTTS2TTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let directory = try await IndexTTS2BundleLoader.download(
             modelId: modelId,
             requiredFiles: requiredFiles,
             cacheDir: cacheDir,
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: progressHandler)
         return try await fromBundle(directory) { progress, message in
             progressHandler?(0.85 + progress * 0.15, message)
@@ -128,6 +136,9 @@ public final class IndexTTS2TTSModel: SpeechGenerationModel, ModelMemoryManageab
         _ directory: URL,
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> IndexTTS2TTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let info = try IndexTTS2BundleLoader.load(
             from: directory,
             expectedModelKey: modelKey,
@@ -145,6 +156,8 @@ public final class IndexTTS2TTSModel: SpeechGenerationModel, ModelMemoryManageab
 
     public func unload() {
         nativeRuntime = nil
+        mlxCacheLimitLease?.release()
+        mlxCacheLimitLease = nil
         loaded = false
     }
 

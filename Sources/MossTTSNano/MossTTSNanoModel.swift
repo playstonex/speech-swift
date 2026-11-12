@@ -34,11 +34,13 @@ public actor MossTTSNanoModel: SpeechGenerationModel {
         modelId: String = defaultModelId,
         cacheDirectory: URL? = nil,
         computeUnits: MLComputeUnits = .cpuOnly,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double) -> Void)? = nil
     ) async throws -> MossTTSNanoModel {
         let directory = try HuggingFaceDownloader.getCacheDirectory(for: modelId, basePath: cacheDirectory)
         try await HuggingFaceDownloader.downloadFiles(modelId: modelId, to: directory,
             files: ["config.json", "tokenizer_swift.json", "GlobalDecoder.mlmodelc/*", "LocalDecoder.mlmodelc/*", "CodecDecoder.mlmodelc/*", "CodecEncoder.mlmodelc/*"],
+            downloadOptions: downloadOptions,
             progressHandler: progressHandler)
         return try MossTTSNanoModel(modelDirectory: directory, computeUnits: computeUnits)
     }

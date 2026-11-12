@@ -1,6 +1,7 @@
 import XCTest
 @testable import KokoroTTS
 @testable import Qwen3ASR
+import AudioCommon
 import CoreML
 
 /// E2E tests using fromPretrained() — downloads models from HuggingFace.
@@ -49,6 +50,85 @@ final class E2EKokoroTests: XCTestCase {
 
         let rms = sqrt(audio.map { $0 * $0 }.reduce(0, +) / Float(audio.count))
         XCTAssertGreaterThan(rms, 0.001, "Audio should not be silence")
+    }
+
+    func testLongTextIsNotClippedToOnePass() async throws {
+        // One pass of the bounded graph holds 5 s; three sentences need more.
+        let m = try await model()
+        let asr = try await asrModel()
+        let text = "The meeting starts at nine tomorrow morning. Please bring the budget report "
+            + "and the travel plans for next month. We will finish with a short review of the new product launch."
+        let audio = try m.synthesize(text: text, voice: "af_heart")
+        let duration = Double(audio.count) / 24000.0
+        print("Long text: \(String(format: "%.2f", duration))s")
+        XCTAssertGreaterThan(duration, 6.0, "Three sentences must not be clipped to a single 5 s pass")
+        XCTAssertLessThanOrEqual(audio.map { abs($0) }.max() ?? 0, 1.0)
+
+        let transcription = asr.transcribe(audio: audio, sampleRate: 24000).lowercased()
+        print("Output: \"\(transcription)\"")
+        let keywords = ["meeting", "morning", "budget", "travel", "review", "product", "launch"]
+        let matched = keywords.filter { transcription.contains($0) }
+        XCTAssertGreaterThanOrEqual(matched.count, 6, "Expected \(keywords) in \"\(transcription)\"")
+        XCTAssertTrue(transcription.contains("launch"), "The last sentence must be spoken")
+    }
+
+    func testFirstSynthesisAfterLoadIsWarm() async throws {
+        // fromPretrained warms the model up, so the first reply costs what
+        // later ones do. Without it the first call is 3-6x slower.
+        let bundles = [
+            (KokoroTTSModel.defaultModelId, "af_heart", "en", "Hello there, how are you today?"),
+            (KokoroTTSModel.germanMartinModelId, "dm_martin", "de", "Guten Tag, wie geht es Ihnen?"),
+        ]
+        for (modelId, voice, language, text) in bundles {
+            let m = try await KokoroTTSModel.fromPretrained(modelId: modelId)
+            func seconds() throws -> Double {
+                let t0 = CFAbsoluteTimeGetCurrent()
+                _ = try m.synthesize(text: text, voice: voice, language: language)
+                return CFAbsoluteTimeGetCurrent() - t0
+            }
+            let first = try seconds()
+            let warm = try (0..<3).map { _ in try seconds() }.sorted()[1]
+            print("\(modelId): first synthesis \(String(format: "%.3f", first)) s, warm \(String(format: "%.3f", warm)) s")
+            XCTAssertLessThan(first, warm * 2.5, "\(modelId): the first synthesis after loading was not warm")
+        }
+    }
+
+    func testTextThatFitsOnePassStreamsAsOneChunk() async throws {
+        // Text within one chunk's budget renders in one call.
+        let m = try await model()
+        var chunks: [AudioChunk] = []
+        for try await chunk in m.generateStream(text: "Hello there. How are you today?", language: "en") {
+            chunks.append(chunk)
+        }
+        XCTAssertEqual(chunks.count, 1)
+        XCTAssertEqual(chunks.first?.isFinal, true)
+        XCTAssertEqual(chunks.first?.frameIndex, 0)
+        XCTAssertGreaterThan(chunks.first?.samples.count ?? 0, 24000)
+    }
+
+    func testStreamYieldsEachChunkAsItIsRendered() async throws {
+        // Well past one 5 s pass, so the text is split.
+        let m = try await model()
+        let text = "The first sentence is spoken right away. The second one follows right after it. "
+            + "A third sentence keeps the stream going for a while longer. "
+            + "The fourth one adds a few more words to the paragraph. "
+            + "And the fifth sentence finally closes the stream."
+        var chunks: [AudioChunk] = []
+        for try await chunk in m.generateStream(text: text, language: "en") {
+            chunks.append(chunk)
+        }
+        XCTAssertGreaterThanOrEqual(chunks.count, 2, "Three sentences should stream as several chunks")
+        XCTAssertEqual(chunks.filter(\.isFinal).count, 1)
+        XCTAssertEqual(chunks.last?.isFinal, true)
+        var offset = 0
+        for chunk in chunks {
+            XCTAssertEqual(chunk.frameIndex, offset, "frameIndex is the chunk's first sample in the stream")
+            XCTAssertEqual(chunk.sampleRate, 24000)
+            XCTAssertFalse(chunk.samples.isEmpty)
+            offset += chunk.samples.count
+        }
+        let joined = try m.synthesize(text: text, voice: m.defaultBundleVoice)
+        XCTAssertEqual(Double(offset), Double(joined.count), accuracy: Double(joined.count) * 0.05)
     }
 
     func testSynthesizeShortText() async throws {

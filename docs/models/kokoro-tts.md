@@ -8,7 +8,7 @@ Kokoro-82M is a non-autoregressive text-to-speech model based on [StyleTTS 2](ht
 - **Backend**: CoreML (Neural Engine)
 - **Output**: 24 kHz mono Float32 PCM
 - **Inference**: Non-autoregressive, end-to-end model
-- **Voices**: 54 presets across 10 languages
+- **Voices**: 54 presets across 10 languages, plus two German voice bundles (see [German voices](#german-voices))
 - **License**: Apache-2.0
 
 ## Pipeline
@@ -115,6 +115,17 @@ Fixed-shape decoder models for different maximum output lengths:
 
 Each frame produces 600 audio samples at 24 kHz (25ms per frame).
 
+## Long text
+
+The end-to-end graph takes 128 phoneme tokens but renders at most 5 s per pass, about 56 tokens at the models' speech rate (upstream Kokoro's, ~10.5 tokens/s). Text is split the way speech-core splits it on Android, and text within one chunk renders in a single call:
+
+- Chunks are packed greedily up to 56 tokens, preferring sentence ends, then clause punctuation (`,` `;` `:`), then words, then characters for a single oversized word. Punctuation is a boundary only when whitespace or the end of the text follows it, so `3.5`, `1.000`, `z.B.` and `18:30` reach the phonemizer intact.
+- A last chunk under 12 tokens joins the previous one when the merged chunk stays within 64 tokens.
+- A chunk whose speech would reach the last 200 ms of the output window is split at its best sentence, clause or word boundary and rendered again, up to four times.
+- `synthesize` returns the chunks' audio concatenated. `generateStream` yields each chunk as soon as it is rendered, with `frameIndex` set to the chunk's first sample in the stream.
+
+A sentence longer than one chunk, about ten words without a comma, is split between words and gets a short pause there.
+
 ## Phonemizer
 
 Three-tier pipeline, all Apache-2.0 licensed (no GPL dependencies):
@@ -160,6 +171,37 @@ Naming convention: `[language][gender]_[name]`
 
 Weights: [aufklarer/Kokoro-82M-CoreML](https://huggingface.co/aufklarer/Kokoro-82M-CoreML)
 
+## German voices
+
+German is not one of the multilingual bundle's languages: the German voices are
+separate Kokoro-architecture checkpoints fine-tuned by
+[kikiri-tts](https://huggingface.co/kikiri-tts) (StyleTTS2 stage 2, Apache 2.0),
+one voice per weight set, converted with the same end-to-end pipeline:
+
+| Model ID | Voice | Files |
+|---|---|---|
+| `aufklarer/Kokoro-82M-German-Martin-CoreML` | `dm_martin` (male) | `kokoro_5s.mlmodelc`, `vocab_index.json`, `dict_de.json`, `voices/dm_martin.json` |
+| `aufklarer/Kokoro-82M-German-Victoria-CoreML` | `df_victoria` (female) | same layout, `voices/df_victoria.json` |
+
+```swift
+let tts = try await KokoroTTSModel.fromPretrained(modelId: KokoroTTSModel.germanMartinModelId)
+let audio = try tts.synthesize(text: "Am 3. Oktober um 18:30 Uhr kostet es 12,80 €.",
+                               voice: "dm_martin", language: "de")
+```
+
+`GermanPhonemizer.swift` reproduces the front-end the voices were trained
+with (espeak-ng 1.52 German as post-processed by misaki, short ü written `y`,
+`ʦ`/`ʧ`/`ʤ` affricates, `I`/`W` diphthongs) without espeak: it spells out
+numbers, ordinals, dates, times, currency, units and abbreviations, resolves
+words through `dict_de.json` (the 50k most frequent German words plus the
+brand/tech overrides of the kikiri front-end, downloaded with the bundle),
+derives inflected and compound forms from dictionary words, and falls back to
+rule-based G2P. The structure is shared with speech-core's `kokoro_german.cpp`;
+`GermanPhonemizerTests` keeps the two in lockstep and can run a full parity
+check against the C++ output (`KOKORO_GERMAN_PARITY_TSV`). Passing `"de"` to
+the multilingual bundle still works (German phonemes through an English voice);
+a German bundle has exactly one voice.
+
 ## Performance (M2 Max)
 
 | Metric | Value |
@@ -185,6 +227,15 @@ let tts = try await KokoroTTSModel.fromPretrained(computeUnits: .cpuAndGPU)
 
 The G2P encoder/decoder always run on CPU regardless of this setting; they are small enough that CPU is the fastest path.
 
+## Warm-up
+
+A model's first prediction is several times slower than the ones after it, so `fromPretrained` runs one short synthesis before it returns. On an M5 Pro this adds about 0.55 s to loading, and the first sentence after loading takes about 0.13 s instead of 0.5–0.8 s. Pass `warmUp: false` to skip it, for example when the model is only being downloaded, and call `warmUp()` before the first reply:
+
+```swift
+let tts = try await KokoroTTSModel.fromPretrained(warmUp: false)
+try tts.warmUp()
+```
+
 ## Conversion
 
 ```bash
@@ -199,7 +250,9 @@ Sources/KokoroTTS/
   Configuration.swift        Model config, voice/language selection
   KokoroModel.swift          End-to-end CoreML model loading and inference
   KokoroTTS.swift            High-level API (fromPretrained, synthesize, alignment)
-  Phonemizer.swift           English G2P + multilingual routing (en/zh/ja/hi/fr/es/pt/it)
+  TextChunker.swift          Sentence/clause/word chunking of long text (mirrors speech-core)
+  Phonemizer.swift           English G2P + multilingual routing (en/zh/ja/hi/fr/es/pt/it/de)
+  GermanPhonemizer.swift     German: normalization + dict_de.json + inflection/compounds + rule-based G2P
   ChinesePhonemizer.swift    Chinese: CFStringTransform pinyin → IPA
   JapanesePhonemizer.swift   Japanese: CFStringTokenizer → katakana → IPA (M2P table)
   HindiPhonemizer.swift      Hindi: Apple IAST transliteration → IPA

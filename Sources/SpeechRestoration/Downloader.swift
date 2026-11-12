@@ -24,6 +24,7 @@ public enum SidonDownloader {
         variant: SidonVariant,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double) -> Void)? = nil
     ) async throws -> Paths {
         let repoDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
@@ -44,6 +45,7 @@ public enum SidonDownloader {
                 "\(sub)/\(SidonConfig.vocoderPackageName)/**",
             ],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: progressHandler
         )
 

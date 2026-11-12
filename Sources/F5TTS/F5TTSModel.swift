@@ -4,6 +4,8 @@ import MLX
 import MLXCommon
 
 public final class F5TTSModel: SpeechGenerationModel, ModelMemoryManageable, @unchecked Sendable {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public static let defaultModelId = "aufklarer/F5TTS-v1-Base-MLX-fp16"
     public static let modelKey = "f5-tts"
 
@@ -39,14 +41,19 @@ public final class F5TTSModel: SpeechGenerationModel, ModelMemoryManageable, @un
         modelId: String = defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> F5TTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let directory = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
         try await HuggingFaceDownloader.downloadFiles(
             modelId: modelId,
             to: directory,
             files: requiredFiles,
-            offlineMode: offlineMode
+            offlineMode: offlineMode,
+            downloadOptions: downloadOptions
         ) { progress in
             progressHandler?(progress * 0.85, "Downloading F5-TTS")
         }
@@ -57,6 +64,7 @@ public final class F5TTSModel: SpeechGenerationModel, ModelMemoryManageable, @un
             to: directory,
             files: [pinyinLexiconFile],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: nil)
         return try await fromBundle(directory) { progress, message in
             progressHandler?(0.85 + progress * 0.15, message)
@@ -67,6 +75,9 @@ public final class F5TTSModel: SpeechGenerationModel, ModelMemoryManageable, @un
         _ directory: URL,
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> F5TTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         progressHandler?(0.05, "Loading F5-TTS bundle")
         let info = try F5TTSBundleLoader.load(from: directory)
         let lexiconName = info.config.files.pinyinLexicon ?? pinyinLexiconFile
@@ -87,6 +98,8 @@ public final class F5TTSModel: SpeechGenerationModel, ModelMemoryManageable, @un
     public func unload() {
         flow = nil
         vocoder = nil
+        mlxCacheLimitLease?.release()
+        mlxCacheLimitLease = nil
         loaded = false
     }
 

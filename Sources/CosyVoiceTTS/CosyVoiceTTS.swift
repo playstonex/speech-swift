@@ -30,6 +30,8 @@ public enum CosyVoiceTTSError: Error, LocalizedError {
 ///
 /// - Warning: This class is not thread-safe. Create separate instances for concurrent use.
 public final class CosyVoiceTTSModel {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     /// Default HuggingFace model identifier — the 0.5B bf16 MLX bundle. Single
     /// SSOT for the registry and other call sites.
     public static let defaultModelId = "aufklarer/CosyVoice3-0.5B-MLX-bf16"
@@ -61,8 +63,12 @@ public final class CosyVoiceTTSModel {
         modelId: String = CosyVoiceTTSModel.defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> CosyVoiceTTSModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         // Get cache directory
         let cacheDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
 
@@ -81,7 +87,8 @@ public final class CosyVoiceTTSModel {
                     "vocab.json", "merges.txt", "tokenizer_config.json", "config.json",
                     "flow_noise.bin",
                 ],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             ) { progress in
                 progressHandler?(progress * 0.5, "Downloading...")
             }
@@ -165,7 +172,7 @@ public final class CosyVoiceTTSModel {
             // without the file, so this cannot fail a load.
             try? await HuggingFaceDownloader.downloadFiles(
                 modelId: modelId, to: cacheDir,
-                files: ["flow_noise.bin"], offlineMode: offlineMode)
+                files: ["flow_noise.bin"], offlineMode: offlineMode, downloadOptions: downloadOptions)
         }
         let noisePath = envNoise
             ?? (FileManager.default.fileExists(atPath: bundleNoisePath) ? bundleNoisePath : nil)

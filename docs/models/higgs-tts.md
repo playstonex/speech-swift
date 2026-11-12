@@ -50,8 +50,7 @@ inside the target text.
 ## Validation Status
 
 The Swift runtime is cross-validated against the reference implementations
-(mlx-audio primary; vllm-omni and sglang-omni agree on every mechanic — see
-the exporter's REFERENCES.md in speech-models):
+(mlx-audio primary; vllm-omni and sglang-omni agree on every mechanic):
 
 - **LM parity** (teacher-forced replay, identical inputs): logits agree to
   bf16 accumulation tolerance (max |Δ| 1.0 over ~tens-scale logits), 62/64

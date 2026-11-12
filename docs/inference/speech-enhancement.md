@@ -127,8 +127,7 @@ noise remains below -50 dBFS across the seam. See
 `Tests/SpeechEnhancementTests/E2EDeepFilterNet3ChunkingTests.swift`.
 
 For seamless GRU streaming we'd need a model re-export with the hidden
-state threaded as explicit CoreML inputs/outputs (see
-`speech-models/.../convert.py` notes). Tracked as a follow-up; not
+state threaded as explicit CoreML inputs/outputs. Tracked as a follow-up; not
 required for the common speech-denoise case.
 
 ## CLI

@@ -1,7 +1,7 @@
 import AudioCommon
 import Foundation
 
-/// Whisper large-v3 turbo ASR through speech-swift's native CoreML runtime.
+/// Whisper Large-v3 and Large-v3 Turbo ASR through the native CoreML runtime.
 public final class WhisperASRModel: SpeechRecognitionModel, @unchecked Sendable {
     public static let defaultModelId = "aufklarer/Whisper-Large-v3-Turbo-CoreML"
     public static let defaultModelVariant = "large-v3-v20240930_turbo"
@@ -46,6 +46,7 @@ public final class WhisperASRModel: SpeechRecognitionModel, @unchecked Sendable 
         modelId: String? = nil,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> WhisperASRModel {
         let effectiveModelId = modelId ?? defaultModelId
@@ -79,7 +80,8 @@ public final class WhisperASRModel: SpeechRecognitionModel, @unchecked Sendable 
                         "normalizer.json",
                         "preprocessor_config.json",
                     ],
-                    offlineMode: offlineMode
+                    offlineMode: offlineMode,
+                    downloadOptions: downloadOptions
                 ) { fraction in
                     progressHandler?(fraction * 0.75, "Downloading Whisper CoreML bundle...")
                 }
@@ -89,7 +91,8 @@ public final class WhisperASRModel: SpeechRecognitionModel, @unchecked Sendable 
 
             try await ensureTokenizer(
                 in: resolvedCacheDir,
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             ) { fraction in
                 progressHandler?(0.75 + fraction * 0.10, "Downloading Whisper tokenizer...")
             }
@@ -113,9 +116,18 @@ public final class WhisperASRModel: SpeechRecognitionModel, @unchecked Sendable 
         }
     }
 
-    static func hasCompleteCachedBundle(in directory: URL) -> Bool {
+    /// Load a staged CoreML bundle without downloading or substituting a model.
+    public static func fromDirectory(_ directory: URL, modelId: String) throws -> WhisperASRModel {
+        guard hasCompleteCachedBundle(in: directory, requiresPrefill: false) else {
+            throw AudioModelError.modelLoadFailed(modelId: modelId, reason: "Incomplete staged Whisper bundle")
+        }
+        return try WhisperASRModel(modelId: modelId, modelFolder: directory,
+                                  runtime: WhisperCoreMLRuntime(modelFolder: directory))
+    }
+
+    static func hasCompleteCachedBundle(in directory: URL, requiresPrefill: Bool = true) -> Bool {
         let fileManager = FileManager.default
-        for relativePath in requiredBundleFiles {
+        for relativePath in requiredBundleFiles where requiresPrefill || !relativePath.hasPrefix("TextDecoderContextPrefill.") {
             let url = directory.appendingPathComponent(relativePath)
             guard fileManager.fileExists(atPath: url.path),
                   let attributes = try? fileManager.attributesOfItem(atPath: url.path),
@@ -182,6 +194,7 @@ public final class WhisperASRModel: SpeechRecognitionModel, @unchecked Sendable 
     private static func ensureTokenizer(
         in modelFolder: URL,
         offlineMode: Bool,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double) -> Void)? = nil
     ) async throws {
         let files = ["tokenizer.json", "tokenizer_config.json"]
@@ -214,12 +227,19 @@ public final class WhisperASRModel: SpeechRecognitionModel, @unchecked Sendable 
                 request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             }
 
-            let (data, response) = try await URLSession.shared.data(for: request)
-            if let http = response as? HTTPURLResponse,
-               !(200..<300).contains(http.statusCode) {
-                throw AudioModelError.modelLoadFailed(
-                    modelId: tokenizerModelId,
-                    reason: "\(file): HTTP \(http.statusCode)")
+            let data = try await HuggingFaceDownloader.withDownloadRetries(
+                modelId: tokenizerModelId,
+                retryDelaysSeconds: downloadOptions.retryDelaysSeconds ?? [],
+                downloadOptions: downloadOptions
+            ) {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                if let http = response as? HTTPURLResponse,
+                   !(200..<300).contains(http.statusCode) {
+                    throw AudioModelError.modelLoadFailed(
+                        modelId: tokenizerModelId,
+                        reason: "\(file): HTTP \(http.statusCode)")
+                }
+                return data
             }
             try data.write(to: modelFolder.appendingPathComponent(file), options: .atomic)
             progressHandler?(Double(index + 1) / Double(missingFiles.count))

@@ -104,6 +104,7 @@ public final class LocalVQEEchoCanceller {
         computeUnits: MLComputeUnits = CoreMLComputeUnitsResolver.resolved(
             default: .cpuAndNeuralEngine),
         enablePrealignment: Bool = true,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> LocalVQEEchoCanceller {
         let modelDirectory = try cacheDir
@@ -118,6 +119,7 @@ public final class LocalVQEEchoCanceller {
                 "LocalVQEAECFrontend.npz",
             ],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { fraction in
                 progressHandler?(fraction * 0.75, "Downloading LocalVQE AEC...")
             })

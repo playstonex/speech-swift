@@ -123,6 +123,7 @@ public final class PyannoteDiarizationPipeline {
         useVADFilter: Bool = false,
         cacheBaseDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> PyannoteDiarizationPipeline {
         progressHandler?(0.0, "Downloading segmentation model...")
@@ -133,6 +134,7 @@ public final class PyannoteDiarizationPipeline {
             modelId: segModelId,
             to: segCacheDir,
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progress in
                 progressHandler?(progress * 0.3, "Downloading segmentation weights...")
             }
@@ -152,6 +154,7 @@ public final class PyannoteDiarizationPipeline {
             engine: embeddingEngine,
             cacheDir: embCacheDir,
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progress, status in
                 progressHandler?(0.3 + progress * 0.4, status)
             }
@@ -166,6 +169,7 @@ public final class PyannoteDiarizationPipeline {
                 engine: .mlx,
                 cacheDir: vadCacheDir,
                 offlineMode: offlineMode,
+                downloadOptions: downloadOptions,
                 progressHandler: { progress, status in
                     progressHandler?(0.7 + progress * 0.25, status)
                 }

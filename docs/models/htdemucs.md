@@ -4,8 +4,7 @@ State-of-the-art music source separation. Splits stereo music into 4 stems
 (drums, bass, other, vocals) — substantially higher separation quality than
 Open-Unmix. On a directional benchmark (3 MUSDB *sample* clips, museval /
 BSSEval v4) `htdemucs_ft` averages **+3.01 dB SDR** over UMX-HQ, with the
-largest gains on bass (**+5.75 dB**) and drums (**+2.40 dB**). Reproduce with
-`benchmark.py` in the `speech-models` repo.
+largest gains on bass (**+5.75 dB**) and drums (**+2.40 dB**).
 
 ## Architecture
 
@@ -86,7 +85,18 @@ speech separate song.wav --engine htdemucs --htdemucs-precision int8
 
 # Specific stems / output dir
 speech separate song.wav --engine htdemucs --stems vocals,drums --output-dir stems/
+
+# Vocal and instrumental files, without writing the individual backing stems
+speech separate song.wav --engine htdemucs --htdemucs-precision int8 \
+  --stems vocals --instrumental --output-dir stems/
 ```
+
+The unreleased `--instrumental` option requires a source build containing the
+change. It adds `instrumental.wav`, the sum of drums, bass and other.
+One shared attenuation is applied only when the mix peak exceeds 1, preserving
+stereo balance without boosting quiet audio. The selected individual stems keep
+their existing levels. See [instrumental export](source-separation.md#instrumental-export)
+for validation and output details.
 
 ```swift
 import SourceSeparation

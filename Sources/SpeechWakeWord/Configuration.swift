@@ -2,8 +2,7 @@ import Foundation
 
 /// Configuration for the icefall KWS Zipformer (gigaspeech, 3.49M params) exported to CoreML.
 ///
-/// The authoritative source is `config.json` shipped alongside the `.mlmodelc` bundle
-/// (see `models/kws-zipformer/export/convert.py:544` in `soniqo/speech-models`). The
+/// The authoritative source is `config.json` shipped alongside the `.mlmodelc` bundle. The
 /// fields here mirror that schema exactly — keep in sync when re-exporting.
 public struct KWSZipformerConfig: Codable, Sendable {
     public let modelName: String

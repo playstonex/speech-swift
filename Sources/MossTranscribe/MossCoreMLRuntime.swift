@@ -273,6 +273,7 @@ public final class MossTranscribeModel: SpeechRecognitionModel, @unchecked Senda
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
         computeUnits: MLComputeUnits = .all,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> MossTranscribeModel {
         try await fromPretrained(
@@ -280,6 +281,7 @@ public final class MossTranscribeModel: SpeechRecognitionModel, @unchecked Senda
             cacheDir: cacheDir,
             offlineMode: offlineMode,
             computeUnits: computeUnits,
+            downloadOptions: downloadOptions,
             progressHandler: progressHandler
         )
     }
@@ -289,6 +291,7 @@ public final class MossTranscribeModel: SpeechRecognitionModel, @unchecked Senda
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
         computeUnits: MLComputeUnits = .all,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> MossTranscribeModel {
         let directory: URL
@@ -325,7 +328,8 @@ public final class MossTranscribeModel: SpeechRecognitionModel, @unchecked Senda
                         "merges.txt",
                         "chat_template.jinja",
                     ],
-                    offlineMode: offlineMode
+                    offlineMode: offlineMode,
+                    downloadOptions: downloadOptions
                 ) { fraction in
                     progressHandler?(
                         fraction * 0.8,

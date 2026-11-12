@@ -3,10 +3,13 @@ import MLX
 import Tokenizers
 import Hub
 import AudioCommon
+import MLXCommon
 
 /// Local schema-conditioned classification and entity spans. One instance must
 /// be used serially. Model scores are not guarantees of semantic correctness.
 public final class GLiNER {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     let network: GLiNERNetwork
     let tokenizer: Tokenizer
     let maxWidth: Int
@@ -38,13 +41,18 @@ public final class GLiNER {
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
         evaluateLayers: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> GLiNER {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let id = modelID ?? variant.modelID
         let directory = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: id)
         progressHandler?(0, "Downloading GLiNER...")
         try await HuggingFaceDownloader.downloadFiles(
             modelId: id, to: directory, files: variant.files, offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progressHandler?($0 * 0.9, "Downloading model files...") })
         // The downloader skips requested files a repository does not have, so
         // an incomplete or wrong repository must be caught here, not at load.
@@ -59,6 +67,9 @@ public final class GLiNER {
         return model
     }
     public static func load(from directory: URL, evaluateLayers: Bool = false) async throws -> GLiNER {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         let config = try GLiNERConfig.load(from: directory.appendingPathComponent("encoder_config/config.json"))
         let raw = try JSONSerialization.jsonObject(with: Data(contentsOf: directory.appendingPathComponent("config.json"))) as? [String: Any]
         guard raw?["architecture"] as? String == "span", raw?["counting_layer"] as? String == "count_lstm",

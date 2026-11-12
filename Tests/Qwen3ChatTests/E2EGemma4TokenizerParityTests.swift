@@ -15,7 +15,7 @@ final class E2EGemma4TokenizerParityTests: XCTestCase {
             return URL(fileURLWithPath: p)
         }
         return URL(fileURLWithPath:
-            "/Users/ivan/repos/runner-speech-models/speech-models/out/mlx/gemma-4-E2B-it-MLX-4bit")
+            "/tmp/gemma-4-E2B-it-MLX-4bit")
     }()
 
     /// Sampled from one real 393-row meeting recording (~55k characters of Russian with English and

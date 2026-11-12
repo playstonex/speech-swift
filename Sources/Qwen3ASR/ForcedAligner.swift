@@ -59,6 +59,8 @@ public enum ForcedAlignerVariant: String, CaseIterable, Sendable {
 /// vocab lm_head with a 5000-class timestamp classification head.
 /// Inference is non-autoregressive (single forward pass).
 public class Qwen3ForcedAligner {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public let audioEncoder: Qwen3AudioEncoder
     public let textDecoder: any ForcedAlignerTextDecoding
     public let classifyHead: Linear
@@ -339,20 +341,19 @@ public class Qwen3ForcedAligner {
 
         // 8. Apply LIS monotonicity correction.
         //
-        // First cap indices to the audio's actual extent. The classify head
-        // addresses classifyNum slots (400s) regardless of input length, and on
+        // Exclude indices beyond the audio's actual extent from the anchors.
+        // The classify head addresses classifyNum slots (400s) regardless of input length, and on
         // hard audio it emits confident indices far past the end of the file.
         // Those are not timestamps, and worse, a slow upward drift of garbage
         // is monotonic -- fed to LIS uncapped it becomes the anchor set and the
-        // genuine indices get interpolated away. Capping first keeps impossible
-        // values out of the anchor competition entirely.
+        // genuine indices get interpolated away. Clamping first would make an
+        // invalid run count as repeated anchors, so retain only in-range candidates.
         let durationSec = Float(audio.count) / Float(sampleRate)
         let maxIndex = min(
             config.classifyNum - 1,
             Int((durationSec / config.timestampSegmentTime).rounded(.up))
         )
-        let cappedIndices = rawIndices.map { min($0, maxIndex) }
-        let correctedIndices = TimestampCorrection.enforceMonotonicity(cappedIndices)
+        let correctedIndices = TimestampCorrection.enforceMonotonicity(rawIndices, maxIndex: maxIndex)
 
         // Optional raw/corrected dump for bug-triage of misaligned timestamps.
         if ProcessInfo.processInfo.environment["ALIGN_DEBUG"] == "1" {
@@ -451,8 +452,12 @@ public extension Qwen3ForcedAligner {
         modelId: String = "aufklarer/Qwen3-ForcedAligner-0.6B-4bit",
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Qwen3ForcedAligner {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         progressHandler?(0.0, "Downloading model...")
 
         let cacheDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
@@ -464,6 +469,7 @@ public extension Qwen3ForcedAligner {
             additionalFiles: ["vocab.json", "merges.txt", "tokenizer_config.json",
                               "quantize_config.json"],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { progress in
                 progressHandler?(progress * 0.8, "Downloading weights...")
             }

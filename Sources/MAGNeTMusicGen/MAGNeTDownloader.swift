@@ -13,6 +13,7 @@ public enum MAGNeTDownloader {
     /// Ensure all three repos are cached locally. Returns the directories.
     public static func ensureDownloaded(
         variant: MAGNeTVariant,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double) -> Void)? = nil
     ) async throws -> BundlePaths {
         let bundleId = variant.huggingFaceRepoId
@@ -22,6 +23,7 @@ public enum MAGNeTDownloader {
             to: bundleDir,
             additionalFiles: ["model.safetensors", "config.json"],
             offlineMode: false,
+            downloadOptions: downloadOptions,
             progressHandler: { progressHandler?($0 * 0.4) }
         )
 
@@ -34,6 +36,7 @@ public enum MAGNeTDownloader {
                 "spiece.model", "tokenizer.json", "tokenizer_config.json"
             ],
             offlineMode: false,
+            downloadOptions: downloadOptions,
             progressHandler: { progressHandler?(0.4 + $0 * 0.3) }
         )
 
@@ -44,6 +47,7 @@ public enum MAGNeTDownloader {
             to: encodecDir,
             additionalFiles: ["model.safetensors", "config.json"],
             offlineMode: false,
+            downloadOptions: downloadOptions,
             progressHandler: { progressHandler?(0.7 + $0 * 0.3) }
         )
 

@@ -223,6 +223,7 @@ public extension Mimi {
         numCodebooks: Int = 16,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Mimi {
         let cfg = MimiConfig.moshiko(numCodebooks: numCodebooks)
@@ -237,7 +238,8 @@ public extension Mimi {
                 modelId: repoId,
                 to: mimiDir,
                 additionalFiles: [filename],
-                offlineMode: offlineMode
+                offlineMode: offlineMode,
+                downloadOptions: downloadOptions
             )
         }
 

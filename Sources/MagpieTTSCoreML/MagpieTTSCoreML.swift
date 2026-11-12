@@ -80,6 +80,7 @@ public final class MagpieTTSCoreML {
     // MARK: - Loading
 
     public static func fromPretrained(
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double) -> Void)? = nil
     ) async throws -> MagpieTTSCoreML {
         let debug = ProcessInfo.processInfo.environment["MAGPIE_COREML_PROFILE"] == "1"
@@ -93,6 +94,7 @@ public final class MagpieTTSCoreML {
 
         let tDownload = CFAbsoluteTimeGetCurrent()
         let paths = try await MagpieCoreMLDownloader.ensureDownloaded(
+            downloadOptions: downloadOptions,
             progressHandler: progressHandler)
         tick("ensureDownloaded", tDownload)
 
@@ -134,7 +136,7 @@ public final class MagpieTTSCoreML {
         } else {
             tick("cache MISS", tCache)
             let tMLX = CFAbsoluteTimeGetCurrent()
-            let mlxModel = try await MagpieTTS.fromPretrained(variant: .int8)
+            let mlxModel = try await MagpieTTS.fromPretrained(variant: .int8, downloadOptions: downloadOptions)
             tick("MLX MagpieTTS load", tMLX)
             let tExtract = CFAbsoluteTimeGetCurrent()
             (ltWeights, audioEmbeds) = try MagpieCoreMLWeightExtractor.extract(from: mlxModel)

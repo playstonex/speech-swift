@@ -30,6 +30,12 @@ If the caller passes `language`, the runtime uses the matching Whisper language 
 
 `TextDecoderContextPrefill.mlmodelc` creates the cache for language and task tokens. `TextDecoder.mlmodelc` then generates tokens one step at a time, with explicit `key_cache`, `value_cache`, cache masks, and cache-length updates supplied by Swift.
 
+Staged full Large-v3 bundles may omit the optional prefill model. In that case,
+the runtime decodes the start, language, and transcribe tokens using the current
+audio embeddings. Decoder cache dimensions come from the loaded model. CoreML
+temporaries are released per generated token to bound memory with the larger
+32-layer decoder.
+
 The current decoder uses greedy no-timestamp generation. It suppresses special tokens and stops on the end token, with a narrow repeated-word guard for obvious hallucination loops.
 
 ## CLI
@@ -79,6 +85,21 @@ let result = try await model.transcribeWithLanguageAsync(
 print(result.text)
 print(result.language ?? "unknown")
 ```
+
+## Staged full Large-v3
+
+For a staged full Large-v3 bundle, use the explicit offline entry point:
+
+```swift
+let model = try WhisperASRModel.fromDirectory(
+    URL(fileURLWithPath: "/models/whisper-large-v3-coreml"),
+    modelId: "whisper-large-v3")
+```
+
+The directory needs the mel, encoder, and decoder `.mlmodelc` payloads,
+`generation_config.json`, `tokenizer.json`, and `tokenizer_config.json`.
+The [native inference service](native-inference-server.md) exposes this model
+over HTTP alongside local chat, synthesis, and VAD.
 
 ## Benchmarking
 

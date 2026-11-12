@@ -28,7 +28,7 @@ Audio (16kHz) + Text
                         |
                         v
 +------------------------------------------------+
-|  LIS Monotonicity Correction                   |
+|  Nondecreasing Timestamp Correction            |
 |  Index × 80ms → timestamps in seconds          |
 +-----------------------+------------------------+
                         |
@@ -60,6 +60,8 @@ Audio (16kHz) + Text
 
 ### 1. Audio Encoding
 Same as ASR: mel spectrogram → chunked Conv2D → transformer → projector.
+
+Both runtimes use the exact 400-point STFT, periodic Hann window, 160-sample hop, and 128 Slaney-normalized mel bins at 16 kHz described in the [ASR preprocessing pipeline](qwen3-asr-inference.md#stage-1-preprocessing-audiopreprocessingswift). Zero-padding the transform to 512 points changes the model's input features and can shift timestamp predictions.
 
 ### 2. Text Preprocessing (TextPreprocessing.swift)
 
@@ -104,9 +106,9 @@ A universal token filter keeps Unicode Letters (`L*`), Numbers (`N*`), combining
 
 `NLTokenizer` is built into the OS — zero extra binary size, on-device, and produces morpheme-level Japanese and word-level Korean output suitable for the aligner. The model's timestamp head only cares about morpheme **boundaries**, not exact morpheme identity, so small differences (e.g. NLTokenizer splits `"5G"` → `"5", "G"`) don't affect timestamp quality.
 
-Each token gets `<timestamp>` pairs:
+Each word's tokens are followed by two `<timestamp>` slots: start, then end. This order matches the model's reference inference and is shared by the MLX and CoreML runtimes. Placing a slot before the word shifts the timestamp predictions onto the preceding word.
 ```
-<ts>Can<ts> <ts>you<ts> <ts>guarantee<ts>
+Can<ts><ts>you<ts><ts>guarantee<ts><ts>
 ```
 
 ### 3. Single Forward Pass
@@ -116,7 +118,7 @@ Build the full sequence with chat template:
 <|im_start|>system\n<|im_end|>\n
 <|im_start|>user\n<|audio_start|>[audio_pad × N]<|audio_end|><|im_end|>\n
 <|im_start|>assistant\n
-<ts>word1_tokens<ts> <ts>word2_tokens<ts> ...
+word1_tokens<ts><ts>word2_tokens<ts><ts>...
 ```
 
 One forward pass through the decoder (no cache, no loop). Apply classify head to all hidden states → logits `[1, seqLen, 5000]`.
@@ -128,13 +130,17 @@ One forward pass through the decoder (no cache, no loop). Apply classify head to
 3. Multiply by 80ms → raw timestamps in seconds
 4. Pair consecutive timestamps as (start, end) per word
 
-### 5. LIS Monotonicity Correction (TimestampCorrection.swift)
+### 5. Nondecreasing Timestamp Correction (TimestampCorrection.swift)
 
-Raw timestamps may not be monotonic. Fix via:
-1. Find Longest Increasing Subsequence (O(n log n))
+Raw timestamps may not be monotonic. Correction uses the nondecreasing form of LIS:
+1. Find a longest nondecreasing subsequence (O(n log n) anchor search), retaining equal timestamp classes. Equal-length chains choose the earliest predecessor and endpoint, matching the [Qwen reference](https://github.com/QwenLM/Qwen3-ASR/blob/c17a131fe028b2e428b6e80a33d30bb4fa57b8df/qwen_asr/inference/qwen3_forced_aligner.py#L147).
 2. Small gaps (≤2 positions): nearest-neighbor correction
-3. Larger gaps: linear interpolation between LIS anchors
+3. Larger gaps: linear interpolation between anchors
 4. Final pass: enforce non-decreasing order
+
+Valid repeated boundaries remain unchanged, including zero-duration words and adjacent words that share a boundary. A strictly increasing subsequence would discard these valid anchors and can shorten a word's end time. Both MLX and CoreML use the same correction helper.
+
+The MLX path excludes predictions beyond the audio's actual extent from anchor selection. Clamping those predictions first would create a repeated plateau that can outvote genuine word boundaries. Invalid positions are repaired from in-range anchors; when none exist, values are clamped to the audio extent.
 
 ## Long-audio handling
 
@@ -293,6 +299,27 @@ let aligned = try aligner.align(
 
 The CoreML aligner runs the audio encoder + token embedding + 28-layer non-autoregressive text decoder + classify head from two `.mlmodelc` bundles and a raw fp16 token-embedding binary. The audio encoder is fixed to a 30 s mel input and reports the real (un-padded) audio-token count; the text decoder runs at a fixed prompt length of 768 tokens — enough to cover the 9-token chat-template prefix + up to 390 audio tokens + 6-token suffix + ~120 word slots. The causal mask is `-1e4` (finite) so the fp16 softmax stays numerically stable.
 
+The text decoder defaults to `.cpuAndGPU`; the encoder retains `.cpuAndNeuralEngine`. The original decoder graph can produce incorrect timestamp classes on the Neural Engine or all-zero timestamps on older CPU runtimes. GPU execution keeps the original `text_decoder` bundle. Explicit `.cpuOnly` loads of the published INT8 and FP16 models request the separate `text_decoder_cpu_v1` bundle, whose 113 RMS-normalization calculations use Float32 while learned weights and model input/output types remain unchanged. Loader defaults still honor `SPEECH_COREML_COMPUTE_UNITS`.
+
+### CPU-only compatibility checks
+
+The pinned legacy INT8 decoder returns zero for all 22 timestamp slots on macOS 15.8.2. Recompilation, Float32 output, and preallocated output buffers do not repair it. Promoting RMS normalization to Float32 restores all 22 corrected reference boundaries exactly on that runtime. INT8 and FP16 CPU/GPU checks also pass on an M5 Pro running macOS 26.6.2. Physical-iPhone coverage remains separate.
+
+Run one online `.cpuOnly` load to fetch the versioned CPU bundle. An old offline cache still contains the legacy decoder; it cannot receive the repair without updated assets. When both are cached, CPU execution prefers `text_decoder_cpu_v1`, while GPU execution selects `text_decoder`. Local/custom directories keep legacy compatibility and can provide the versioned CPU bundle explicitly. A source-only CPU `.mlpackage` is compiled before loading. Future graph revisions require a new bundle version rather than replacing cached files in place.
+
+The published-bundle E2E suite includes explicit CPU-only tests that fail on load errors instead of skipping them:
+
+```bash
+ALIGNER_COREML_PUBLISHED_E2E=1 swift test --no-parallel --disable-sandbox \
+  --filter E2ECoreMLForcedAlignerTests/testINT8CPUOnlyMatchesReferenceBoundaries
+ALIGNER_COREML_PUBLISHED_E2E=1 swift test --no-parallel --disable-sandbox \
+  --filter E2ECoreMLForcedAlignerTests/testFP16CPUOnlyMatchesReferenceBoundaries
+```
+
+`ALIGNER_COREML_PUBLISHED_CACHE_ROOT` can point to an offline cache containing `int8/` and `fp16/` directories. The Nightly E2E workflow also has a manual `coreml-aligner-cpu-compat` selector: its default `published` mode checks the versioned INT8 and FP16 CPU bundles in separate processes on macOS 15, with a 30-minute cap and verified file hashes. The optional `cpu_aligner_int8_revision` and `cpu_aligner_fp16_revision` inputs pin immutable 40-character model commits; otherwise the resolved commits are recorded in the log. It is not included in scheduled model runs.
+
+The optional `cpu_aligner_mode=candidates` input compares the pinned legacy decoder with three diagnostic graphs: an unchanged source recompile, Float32 logits output, and Float32 RMS normalization. Each retains the original weights and runs in a separate process against the same word-boundary assertions. The `legacy` mode reproduces the old INT8 CPU failure. A standalone numeric probe also reports finite/nonzero logits with default and preallocated output buffers.
+
 ## Model bundle layout
 
 Each CoreML repo on HuggingFace contains:
@@ -301,6 +328,7 @@ Each CoreML repo on HuggingFace contains:
 |---|---|
 | `audio_encoder.mlmodelc` (+ `.mlpackage`) | 24-layer block-attention audio encoder |
 | `text_decoder.mlmodelc` (+ `.mlpackage`) | 28-layer non-AR decoder + 5000-class classify head, fixed T=768 |
+| `text_decoder_cpu_v1.mlmodelc` (+ `.mlpackage`) | CPU-compatible decoder with Float32 RMS normalization and the original weights |
 | `embed_tokens.fp16.bin` | Raw little-endian fp16 token embedding table, `[152 064, 1024]` |
 | `config.json` | Variant + classify_num + timestamp_segment_time + fixed shapes |
 | `vocab.json`, `merges.txt`, `tokenizer_config.json` | Qwen3 BPE tokenizer files |

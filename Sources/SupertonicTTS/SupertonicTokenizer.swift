@@ -3,8 +3,8 @@ import Foundation
 /// SupertonicTTS G2P-free text front-end: **NFKD + regex cleanup + `<lang>…</lang>` wrap +
 /// codepoint→token-id table lookup**. No phonemizer, no IPA, no espeak.
 ///
-/// Faithful Swift port of `Supertone/supertonic` `py/helper.py::UnicodeProcessor` (validated in
-/// `speech-models/stmodels/infer.py`) and the C++ `SupertonicTokenizer`. NFKD — the keystone that
+/// Faithful Swift port of `Supertone/supertonic` `py/helper.py::UnicodeProcessor` (validated
+/// against the upstream Python) and the C++ `SupertonicTokenizer`. NFKD — the keystone that
 /// decomposes ä → a +◌̈ and Hangul into in-vocab jamo — is Foundation's
 /// `decomposedStringWithCompatibilityMapping`.
 public struct SupertonicTokenizer: Sendable {

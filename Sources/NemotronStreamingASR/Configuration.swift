@@ -36,7 +36,7 @@ public struct NemotronStreamingConfig: Codable, Sendable {
         ///
         /// The CoreML encoder graph already incorporates right-context via
         /// the streaming cache mechanism: at conversion time the export
-        /// script (`speech-models/.../convert.py:172`, `keep_all_outputs=False`)
+        /// script (`keep_all_outputs=False`)
         /// trimmed the right-context outputs, and the encoder pulls future
         /// context from `cache_last_channel`/`cache_last_time` filled by
         /// the *previous* chunk. The Swift streaming session correctly

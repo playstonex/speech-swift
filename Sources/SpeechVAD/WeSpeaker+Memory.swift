@@ -9,6 +9,8 @@ extension WeSpeakerModel: ModelMemoryManageable {
         #if canImport(CoreML)
         coremlModel = nil
         #endif
+        mlxCacheLimitLease?.release()
+        mlxCacheLimitLease = nil
         _isLoaded = false
     }
 

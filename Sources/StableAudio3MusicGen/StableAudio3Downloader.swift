@@ -28,6 +28,7 @@ public enum StableAudio3Downloader {
     public static func ensureDownloaded(
         variant: StableAudio3Variant,
         localBundleOverride: URL? = nil,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double) -> Void)? = nil
     ) async throws -> BundlePaths {
         let repo = variant.huggingFaceRepoId
@@ -68,6 +69,7 @@ public enum StableAudio3Downloader {
                 to: root,
                 additionalFiles: files,
                 offlineMode: false,
+                downloadOptions: downloadOptions,
                 progressHandler: progressHandler
             )
         } else {

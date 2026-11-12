@@ -147,8 +147,8 @@ public enum SA3Audio {
     public static let patchSize = 256       // PatchedPretransform patch
 }
 
-/// Per-bundle component sub-directory names (must match the publisher layout
-/// in `speech-models/models/stable-audio-3/export/scripts/quantize.py`).
+/// Per-bundle component sub-directory names (must match the published bundle
+/// layout).
 public enum SA3Components {
     public static let ditMedium = "dit_medium"
     public static let ditSmallMusic = "dit_sm_music"

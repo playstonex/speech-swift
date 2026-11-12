@@ -26,12 +26,14 @@ final class E2EQwen3ASRCacheLimitLifecycleTests: XCTestCase {
         XCTAssertEqual(Memory.cacheLimit, initial)
     }
 
-    func testUnloadWithoutRegistrationLeavesCallerBudgetAlone() {
+    func testConstructorRegistersDefaultAndUnloadRestoresCallerBudget() {
         let prior = Memory.cacheLimit
         defer { Memory.cacheLimit = prior }
         let initial = 6 * 1024 * 1024 * 1024
         Memory.cacheLimit = initial
         let model = Qwen3ASRModel()
+        XCTAssertNotNil(model.mlxCacheLimitLease)
+        XCTAssertLessThan(Memory.cacheLimit, initial)
         model.unload()
         XCTAssertEqual(Memory.cacheLimit, initial)
     }

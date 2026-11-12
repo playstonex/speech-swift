@@ -39,6 +39,8 @@ public enum HibikiError: Error, LocalizedError {
 /// The driver (translate/translateStream) lives in `HibikiTranslate.swift`. This
 /// type is the `Module` shell that `HibikiWeightLoader` inflates.
 public final class HibikiTranslateModel: Module {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     public static let defaultModelId  = "aufklarer/Hibiki-Zero-3B-MLX-4bit"
     public static let modelId8bit     = "aufklarer/Hibiki-Zero-3B-MLX-8bit"
 
@@ -71,8 +73,12 @@ public final class HibikiTranslateModel: Module {
         modelId: String = defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> HibikiTranslateModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         progressHandler?(0.05, "Downloading Hibiki Zero-3B weights...")
         let modelDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
 
@@ -89,7 +95,8 @@ public final class HibikiTranslateModel: Module {
             modelId: modelId,
             to: modelDir,
             additionalFiles: weightFiles,
-            offlineMode: offlineMode
+            offlineMode: offlineMode,
+            downloadOptions: downloadOptions
         ) { progress in
             progressHandler?(0.05 + progress * 0.6, "Downloading...")
         }

@@ -568,6 +568,15 @@ public final class AudioVAE: Module {
     public let hopLength: Int
     public let chunkSize: Int
     public let decodeChunkSize: Int
+
+    /// Conservative causal receptive field, measured on the decoder's latent axis.
+    public var decoderLeftContextFrames: Int {
+        var context = 6 // output kernel
+        for rate in config.decoderRates.reversed() {
+            context = (context + 78 + rate - 1) / rate + 2
+        }
+        return context + 6 // input kernel
+    }
     public let latentDim: Int
     public let sampleRate: Int
     public let outSampleRate: Int

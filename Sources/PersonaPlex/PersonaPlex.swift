@@ -10,6 +10,8 @@ import AudioCommon
 ///
 /// - Warning: This class is not thread-safe. Create separate instances for concurrent use.
 public final class PersonaPlexModel: Module {
+    var mlxCacheLimitLease = MLXCacheLimitCoordinator.shared.acquireDefault()
+
     /// Default HuggingFace model ID (4-bit quantized).
     public static let defaultModelId = "aufklarer/PersonaPlex-7B-MLX-4bit"
 
@@ -1575,8 +1577,12 @@ public final class PersonaPlexModel: Module {
         modelId: String = defaultModelId,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> PersonaPlexModel {
+        let loadingCacheLimit = MLXCacheLimitCoordinator.shared.acquireDefault()
+        defer { loadingCacheLimit?.release() }
+
         // Download weights first to get config
         progressHandler?(0.05, "Downloading PersonaPlex weights...")
         let modelDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
@@ -1595,7 +1601,8 @@ public final class PersonaPlexModel: Module {
             modelId: modelId,
             to: modelDir,
             additionalFiles: weightFiles,
-            offlineMode: offlineMode
+            offlineMode: offlineMode,
+            downloadOptions: downloadOptions
         ) { progress in
             progressHandler?(0.05 + progress * 0.5, "Downloading...")
         }

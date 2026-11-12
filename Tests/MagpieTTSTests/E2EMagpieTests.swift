@@ -77,7 +77,7 @@ final class E2EMagpieSynthesisTests: XCTestCase {
     /// word to appear in the transcription.
     ///
     /// The harness uses the same English sentence as
-    /// `speech-models/tests/test_round_trip.py`. With proper G2P (CMU IPA
+    /// the Python round-trip test. With proper G2P (CMU IPA
     /// dict) + EOS=2361 the Python pipeline transcribes this as
     /// "Hello, World from Magpie Text to Speech." — Swift must match.
     func testSynthesizedAudioTranscribesToInput() async throws {
@@ -119,7 +119,7 @@ final class E2EMagpieSynthesisTests: XCTestCase {
     /// Multilingual ASR round-trip across all 9 supported languages.
     ///
     /// For each language we synthesise the canonical test sentence from
-    /// `speech-models/tests/test_round_trip.py`, transcribe with Qwen3-ASR,
+    /// the Python round-trip test, transcribe with Qwen3-ASR,
     /// and assert the lowercased transcription contains the expected
     /// content words.
     ///

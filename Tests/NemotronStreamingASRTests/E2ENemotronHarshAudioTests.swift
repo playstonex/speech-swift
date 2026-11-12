@@ -69,31 +69,33 @@ final class E2ENemotronHarshAudioTests: XCTestCase {
         }
     }
 
-    /// Two Kokoro voices speaking different sentences, overlaid with the
-    /// second at -3 dB. The transcript must not contain any `<lang-XX>`
-    /// markers. (Quality of the transcript itself is intentionally not
-    /// asserted strictly — overlapping speech is genuinely hard.)
-    func testNoLangTagOnOverlappedSpeech() async throws {
+    /// Fixed two-voice Kokoro recording, with a 320 ms primary lead-in and
+    /// the second voice at -3 dB for the remaining overlapping speech.
+    /// Each fresh session must produce text without any `<lang-XX>` markers.
+    func testNoLangTagOnOverlappedSpeech() throws {
         let m = try model
-        let tts = try await KokoroTTSModel.fromPretrained()
+        XCTAssertEqual(m.config.vocabSize, 13087, "Language-tag regression requires the multilingual vocabulary")
+        let audioURL = try XCTUnwrap(
+            Bundle.module.url(forResource: "overlapped_speech", withExtension: "wav"))
+        let (mixed, sampleRate) = try AudioFileLoader.loadWAV(url: audioURL)
 
-        let primary = "The conference room had a long oak table beneath the windows"
-        let secondary = "Please verify your credentials and confirm the booking time"
-
-        let voiceA = try tts.synthesize(text: primary, voice: "af_heart")
-        let voiceB = try tts.synthesize(text: secondary, voice: "am_adam")
-        let mixed = HarshAudio.overlay(voiceA, voiceB, gainBdB: -3)
-        print("overlap mix: \(mixed.count) samples @ 24kHz = \(Float(mixed.count) / 24000) s")
-
-        let text = try m.transcribeAudio(mixed, sampleRate: 24000, language: "en-US")
-        print("Nemotron overlapped transcript: \"\(text)\"")
-
-        XCTAssertFalse(text.isEmpty, "overlapped audio should not produce empty output")
-        let tags = leakedLangTags(in: text)
-        XCTAssertTrue(
-            tags.isEmpty,
-            "Nemotron leaked language tokens \(tags) under overlapped speech: \"\(text)\""
-        )
+        // Live Kokoro synthesis randomizes vocoder phases. Pin the audio and
+        // require every session to pass so retries cannot conceal empty output.
+        for attempt in 1...3 {
+            let text = try autoreleasepool {
+                try m.transcribeAudio(mixed, sampleRate: sampleRate, language: "en-US")
+            }
+            print("Nemotron overlapped transcript (decode \(attempt)): \"\(text)\"")
+            XCTAssertFalse(
+                text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                "Overlapped speech fixture produced empty output on decode \(attempt)"
+            )
+            let tags = leakedLangTags(in: text)
+            XCTAssertTrue(
+                tags.isEmpty,
+                "Nemotron leaked language tokens \(tags) under overlapped speech: \"\(text)\""
+            )
+        }
     }
 
     /// `test_audio.wav` + multi-talker babble derived from the same audio at
@@ -137,24 +139,26 @@ final class E2ENemotronHarshAudioTests: XCTestCase {
     /// Why this shape, not overlapped voices: the topology investigation
     /// (workflow `nemotron-streaming-chunker-fix`) confirmed the encoder's
     /// CoreML graph already incorporates `rightContext` via the streaming
-    /// caches (`keep_all_outputs=False` trim at export time, see
-    /// `speech-models/.../convert.py:172`). The Swift chunker feeding
+    /// caches (`keep_all_outputs=False` trim at export time). The Swift
+    /// chunker feeding
     /// `chunk_size` frames with no audio overlap is exactly what the model
     /// was trained for. Overlapped two-voice fixtures conflate chunker
     /// correctness (this test) with model difficulty on multi-speaker audio
     /// (a checkpoint property, not a Swift bug).
     ///
-    /// Expected recall ≥ 0.95 on continuous single-voice speech. A drop
-    /// below this floor indicates a real chunker regression — the boundary
-    /// math being silently changed, the cache I/O wiring breaking, or a
-    /// well-meaning "fix" introducing audio overlap (which would corrupt
-    /// the RNN-T decoder's LSTM state, see RNNTGreedyDecoder.swift:38-89).
+    /// Both transcripts are scored against the spoken text, and the stream
+    /// must recover as much of it as the batch pass, within 0.05 (two words
+    /// of this paragraph). A larger gap indicates a real chunker regression —
+    /// the boundary math being silently changed, the cache I/O wiring
+    /// breaking, or a well-meaning "fix" introducing audio overlap (which
+    /// would corrupt the RNN-T decoder's LSTM state, see
+    /// RNNTGreedyDecoder.swift:38-89).
     func testStreamingMatchesBatchOnCleanLongUtterance() async throws {
         let m = try model
         let tts = try await KokoroTTSModel.fromPretrained()
 
-        // ~18 s of continuous English speech, single speaker, no silence
-        // gaps, ~56 chunk crossings at the 320 ms multilingual cadence.
+        // ~23 s of continuous English speech from one speaker, ~70 chunk
+        // crossings at the 320 ms multilingual cadence.
         let longText = """
         The quarterly report indicated steady growth across all three divisions. \
         Manufacturing output rose by twelve percent while logistics costs declined. \
@@ -172,18 +176,27 @@ final class E2ENemotronHarshAudioTests: XCTestCase {
             return XCTFail("streaming pass produced no partials")
         }
 
-        let batchWords = Set(wordTokens(batchText))
-        let streamWords = Set(wordTokens(streamFinal.text))
-        let recall = batchWords.isEmpty
-            ? 1.0
-            : Double(batchWords.intersection(streamWords).count) / Double(batchWords.count)
-        print("clean-long recall (stream covers batch): \(recall)")
+        // Scoring the stream against the batch transcript would count every
+        // word the batch pass mishears ("past" for "passed") as a streaming
+        // loss, so both are scored against the text Kokoro spoke.
+        let reference = Set(wordTokens(longText))
+        func recall(_ transcript: String) -> Double {
+            Double(reference.intersection(wordTokens(transcript)).count) / Double(reference.count)
+        }
+        let batchRecall = recall(batchText)
+        let streamRecall = recall(streamFinal.text)
+        print("clean-long: \(String(format: "%.1f", Double(audio.count) / 24000)) s of audio")
+        print("clean-long recall vs spoken text: batch \(batchRecall), stream \(streamRecall)")
         print("  batch:  \"\(batchText)\"")
         print("  stream: \"\(streamFinal.text)\"")
 
         XCTAssertGreaterThanOrEqual(
-            recall, 0.95,
-            "streaming chunker dropped content vs batch on clean continuous speech: recall=\(recall). This indicates a real chunker regression — boundary math, cache I/O, or accidental audio overlap. See `nemotron-streaming-chunker-fix` workflow notes."
+            batchRecall, 0.85,
+            "the batch pass misses the spoken text, so the synthesized fixture is suspect: \"\(batchText)\""
+        )
+        XCTAssertGreaterThanOrEqual(
+            streamRecall, batchRecall - 0.05,
+            "streaming chunker dropped content vs batch on clean continuous speech: stream recall=\(streamRecall), batch recall=\(batchRecall). This indicates a real chunker regression — boundary math, cache I/O, or accidental audio overlap. See `nemotron-streaming-chunker-fix` workflow notes."
         )
     }
 }

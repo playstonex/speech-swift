@@ -61,6 +61,9 @@ let package = Package(
             name: "F5TTS",
             targets: ["F5TTS"]
         ),
+        .library(name: "BreezeTTS", targets: ["BreezeTTS"]),
+        .library(name: "FireRedTTS3TTS", targets: ["FireRedTTS3TTS"]),
+        .library(name: "MossVoiceGeneratorTTS", targets: ["MossVoiceGeneratorTTS"]),
         .library(
             name: "HiggsTTS",
             targets: ["HiggsTTS"]
@@ -101,6 +104,10 @@ let package = Package(
         .library(
             name: "SourceSeparation",
             targets: ["SourceSeparation"]
+        ),
+        .library(
+            name: "MusicTools",
+            targets: ["MusicTools"]
         ),
         .library(
             name: "CanaryASR",
@@ -269,6 +276,14 @@ let package = Package(
     targets: [
         .target(name: "PocketTTS", dependencies: ["AudioCommon", "SpeechRuntime"],
                 exclude: ["THIRD_PARTY_NOTICES.md", "Apache-2.0.txt"]),
+        .testTarget(
+            name: "MLXCommonTests",
+            dependencies: [
+                "MLXCommon", "AudioCommon", "SpeechVAD", "OmniVoiceTTS", "GLiNER",
+                .product(name: "MLX", package: "mlx-swift"),
+                .product(name: "MLXRandom", package: "mlx-swift")
+            ]
+        ),
         .testTarget(name: "PocketTTSTests", dependencies: ["PocketTTS", "AudioCommon"], resources: [.process("Resources")]),
         .executableTarget(name: "PocketTTSBenchmark", dependencies: ["PocketTTS", "KokoroTTS", "AudioCommon"]),
         .target(name: "SpeechRuntime"),
@@ -333,6 +348,7 @@ let package = Package(
         .target(
             name: "CohereTranscribeASR",
             dependencies: [
+                "MLXCommon",
                 "AudioCommon",
                 .product(name: "MLX", package: "mlx-swift"),
                 .product(name: "MLXNN", package: "mlx-swift"),
@@ -420,6 +436,8 @@ let package = Package(
             dependencies: [
                 "AudioCommon",
                 "MLXCommon",
+                "SpeechRuntime",
+                .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
                 .product(name: "MLX", package: "mlx-swift"),
                 .product(name: "MLXNN", package: "mlx-swift"),
                 .product(name: "MLXFast", package: "mlx-swift"),
@@ -437,6 +455,49 @@ let package = Package(
                 .product(name: "MLXFast", package: "mlx-swift"),
                 .product(name: "MLXFFT", package: "mlx-swift"),
             ]
+        ),
+        .target(
+            name: "BreezeTTS",
+            dependencies: [
+                "AudioCommon", "MLXCommon", "Qwen3TTS",
+                .product(name: "Hub", package: "swift-transformers"),
+                .product(name: "MLX", package: "mlx-swift"),
+                .product(name: "MLXNN", package: "mlx-swift"),
+                .product(name: "MLXFast", package: "mlx-swift"),
+                .product(name: "Tokenizers", package: "swift-transformers"),
+            ]
+        ),
+        .target(
+            name: "FireRedTTS3TTS",
+            dependencies: [
+                "AudioCommon", "MLXCommon",
+                .product(name: "MLX", package: "mlx-swift"),
+                .product(name: "MLXNN", package: "mlx-swift"),
+                .product(name: "MLXFast", package: "mlx-swift"),
+                .product(name: "MLXFFT", package: "mlx-swift"),
+                .product(name: "Tokenizers", package: "swift-transformers"),
+            ]
+        ),
+        .testTarget(
+            name: "FireRedTTS3TTSTests",
+            dependencies: ["FireRedTTS3TTS", "AudioCommon", .product(name: "MLX", package: "mlx-swift")],
+            resources: [.copy("Resources")]
+        ),
+        .target(
+            name: "MossVoiceGeneratorTTS",
+            dependencies: [
+                "AudioCommon", "MLXCommon",
+                .product(name: "MLX", package: "mlx-swift"),
+                .product(name: "MLXNN", package: "mlx-swift"),
+                .product(name: "MLXFast", package: "mlx-swift"),
+                .product(name: "Hub", package: "swift-transformers"),
+                .product(name: "Tokenizers", package: "swift-transformers"),
+            ]
+        ),
+        .testTarget(
+            name: "MossVoiceGeneratorTTSTests",
+            dependencies: ["MossVoiceGeneratorTTS", "Qwen3TTS", "AudioCommon", "MLXCommon", .product(name: "MLX", package: "mlx-swift")],
+            resources: [.copy("Fixtures")]
         ),
         .target(
             name: "HiggsTTS",
@@ -476,6 +537,7 @@ let package = Package(
         .target(
             name: "KyutaiSTT",
             dependencies: [
+                "MLXCommon",
                 "AudioCommon", "PersonaPlex",
                 .product(name: "MLX", package: "mlx-swift"),
                 .product(name: "MLXNN", package: "mlx-swift"),
@@ -513,7 +575,8 @@ let package = Package(
                 "PersonaPlex",
                 .product(name: "MLX", package: "mlx-swift"),
                 .product(name: "MLXNN", package: "mlx-swift"),
-                .product(name: "MLXFast", package: "mlx-swift")
+                .product(name: "MLXFast", package: "mlx-swift"),
+                .product(name: "MLXRandom", package: "mlx-swift")
             ]
         ),
         .target(
@@ -567,6 +630,9 @@ let package = Package(
                 .product(name: "MLXNN", package: "mlx-swift"),
                 .product(name: "MLXFast", package: "mlx-swift"),
             ]
+        ),
+        .target(
+            name: "MusicTools"
         ),
         .target(
             name: "CanaryASR",
@@ -737,6 +803,7 @@ let package = Package(
                 "AudioCommon",
                 "MLXCommon",
                 "CXGrammarBridge",
+                .product(name: "MLXLLM", package: "mlx-swift-lm"),
                 .product(name: "MLX", package: "mlx-swift"),
                 .product(name: "MLXNN", package: "mlx-swift"),
                 .product(name: "MLXFast", package: "mlx-swift"),
@@ -754,6 +821,7 @@ let package = Package(
             .product(name: "MLXNN", package: "mlx-swift"),
             .product(name: "MLX", package: "mlx-swift")], resources: [.copy("Fixtures")]),
         .target(name: "GLiNER", dependencies: [
+            "MLXCommon",
             "AudioCommon",
             .product(name: "Hub", package: "swift-transformers"),
             .product(name: "MLX", package: "mlx-swift"),
@@ -810,6 +878,7 @@ let package = Package(
         .target(
             name: "Audio2Face3D",
             dependencies: [
+                "MLXCommon",
                 "AudioCommon",
                 .product(name: "MLX", package: "mlx-swift")
             ]
@@ -817,6 +886,8 @@ let package = Package(
         .target(
             name: "AudioCLILib",
             dependencies: [
+                "MLXCommon",
+                "FishAudioTTS",
                 "PocketTTS",
                 "VoxtralTTS",
                 "SpeechRuntime",
@@ -835,6 +906,7 @@ let package = Package(
                 "SpeechEnhancement",
                 "SpeechRestoration",
                 "SourceSeparation",
+                "MusicTools",
                 "ParakeetASR",
                 "ParakeetStreamingASR",
                 "NemotronStreamingASR",
@@ -848,6 +920,9 @@ let package = Package(
                 "VoxCPM2TTS",
                 "F5TTS",
                 "HiggsTTS",
+                "BreezeTTS",
+                "FireRedTTS3TTS",
+                "MossVoiceGeneratorTTS",
                 "IndexTTS2TTS",
                 "IndicMioTTS",
                 "MAGNeTMusicGen",
@@ -920,6 +995,9 @@ let package = Package(
         .target(
             name: "AudioServer",
             dependencies: [
+                "Qwen3Chat",
+                "WhisperASR",
+                .product(name: "MLX", package: "mlx-swift"),
                 "PocketTTS",
                 "VoxtralTTS",
                 "SpeechRuntime",
@@ -1048,6 +1126,8 @@ let package = Package(
             dependencies: [
                 "MossTranscribe",
                 "AudioCommon",
+                "MLXCommon",
+                .product(name: "MLX", package: "mlx-swift"),
                 .product(name: "Tokenizers", package: "swift-transformers")
             ]
         ),
@@ -1089,7 +1169,8 @@ let package = Package(
             dependencies: [
                 "FishAudioTTS", "AudioCommon", "MLXCommon", "Qwen3ASR",
                 .product(name: "MLX", package: "mlx-swift")
-            ]
+            ],
+            resources: [.copy("Resources")]
         ),
         .testTarget(
             name: "F5TTSTests",
@@ -1101,6 +1182,11 @@ let package = Package(
                 .copy("Resources/pinyin_fixtures.json"),
                 .copy("Resources/pinyin_lexicon_subset.tsv"),
             ]
+        ),
+        .testTarget(
+            name: "BreezeTTSTests",
+            dependencies: ["BreezeTTS", "Qwen3ASR", "AudioCommon"],
+            resources: [.copy("Resources")]
         ),
         .testTarget(
             name: "HiggsTTSTests",
@@ -1162,6 +1248,7 @@ let package = Package(
             dependencies: ["NemotronStreamingASR", "AudioCommon", "KokoroTTS"],
             resources: [
                 .copy("Resources/test_audio.wav"),
+                .copy("Resources/overlapped_speech.wav"),
                 .copy("Resources/english.json"),
             ]
         ),
@@ -1223,6 +1310,10 @@ let package = Package(
             ]
         ),
         .testTarget(
+            name: "MusicToolsTests",
+            dependencies: ["MusicTools"]
+        ),
+        .testTarget(
             name: "VibeVoiceTTSTests",
             dependencies: [
                 "VibeVoiceTTS",
@@ -1239,6 +1330,7 @@ let package = Package(
             dependencies: [
                 "VoxCPM2TTS",
                 "AudioCommon",
+                "MLXCommon",
                 .product(name: "MLX", package: "mlx-swift")
             ]
         ),

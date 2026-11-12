@@ -73,6 +73,7 @@ public final class Qwen35CoreMLChat: @unchecked Sendable {
         computeUnits: MLComputeUnits = .cpuAndNeuralEngine,
         cacheDir: URL? = nil,
         offlineMode: Bool = false,
+        downloadOptions: DownloadOptions = .init(),
         progressHandler: ((Double, String) -> Void)? = nil
     ) async throws -> Qwen35CoreMLChat {
         let cacheDir = try cacheDir ?? HuggingFaceDownloader.getCacheDirectory(for: modelId)
@@ -93,6 +94,7 @@ public final class Qwen35CoreMLChat: @unchecked Sendable {
                 "\(variant)/decoder.mlmodelc/**",
             ],
             offlineMode: offlineMode,
+            downloadOptions: downloadOptions,
             progressHandler: { p in progressHandler?(p * 0.5, "Downloading...") }
         )
 

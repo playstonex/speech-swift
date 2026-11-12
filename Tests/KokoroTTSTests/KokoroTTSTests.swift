@@ -12,8 +12,9 @@ final class KokoroTTSTests: XCTestCase {
         XCTAssertEqual(config.sampleRate, 24000)
         XCTAssertEqual(config.maxPhonemeLength, 128)
         XCTAssertEqual(config.styleDim, 256)
-        XCTAssertEqual(config.languages.count, 8)
+        XCTAssertEqual(config.languages.count, 9)
         XCTAssertTrue(config.languages.contains("en"))
+        XCTAssertTrue(config.languages.contains("de"))
     }
 
     func testConfigCodable() throws {
